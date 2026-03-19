@@ -1,0 +1,9 @@
+{
+  "name": "@bizbrain/prompts",
+  "private": true,
+  "scripts": {
+    "lint": "node ../../scripts/placeholder-task.mjs prompts:lint",
+    "typecheck": "tsc --noEmit",
+    "test": "node ../../scripts/placeholder-task.mjs prompts:test"
+  }
+}

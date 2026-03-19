@@ -1,0 +1,17 @@
+{
+  "name": "@bizbrain/db",
+  "private": true,
+  "scripts": {
+    "db:migrate": "node ../../scripts/placeholder-task.mjs db:migrate",
+    "db:seed": "node ../../scripts/placeholder-task.mjs db:seed",
+    "lint": "node ../../scripts/placeholder-task.mjs db:lint",
+    "typecheck": "tsc --noEmit",
+    "test": "node ../../scripts/placeholder-task.mjs db:test"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.0.0"
+  },
+  "devDependencies": {
+    "prisma": "^6.0.0"
+  }
+}

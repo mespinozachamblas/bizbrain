@@ -1,0 +1,9 @@
+{
+  "name": "@bizbrain/agents",
+  "private": true,
+  "scripts": {
+    "lint": "node ../../scripts/placeholder-task.mjs agents:lint",
+    "typecheck": "tsc --noEmit",
+    "test": "node ../../scripts/placeholder-task.mjs agents:test"
+  }
+}

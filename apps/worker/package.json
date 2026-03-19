@@ -1,0 +1,19 @@
+{
+  "name": "@bizbrain/worker",
+  "private": true,
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "daily-ingest": "tsx src/index.ts daily-ingest",
+    "daily-enrich-score": "tsx src/index.ts daily-enrich-score",
+    "daily-digest-email": "tsx src/index.ts daily-digest-email",
+    "lint": "node ../../scripts/placeholder-task.mjs worker:lint",
+    "typecheck": "tsc --noEmit",
+    "test": "node ../../scripts/placeholder-task.mjs worker:test"
+  },
+  "dependencies": {
+    "@bizbrain/core": "workspace:*",
+    "@bizbrain/db": "workspace:*",
+    "@bizbrain/email": "workspace:*",
+    "@bizbrain/prompts": "workspace:*"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "bizbrain",
+  "private": true,
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "dev": "turbo dev",
+    "dev:web": "pnpm --filter @bizbrain/web dev",
+    "dev:worker": "pnpm --filter @bizbrain/worker dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "db:migrate": "pnpm --filter @bizbrain/db db:migrate",
+    "db:seed": "pnpm --filter @bizbrain/db db:seed",
+    "worker:daily-ingest": "pnpm --filter @bizbrain/worker daily-ingest",
+    "worker:daily-enrich-score": "pnpm --filter @bizbrain/worker daily-enrich-score",
+    "worker:daily-digest-email": "pnpm --filter @bizbrain/worker daily-digest-email"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ts-node": "^10.0.0",
+    "tsx": "^4.0.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.0.0"
+  }
+}

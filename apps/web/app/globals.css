@@ -1,0 +1,92 @@
+:root {
+  color-scheme: light;
+  --bg: #f5f1e8;
+  --card: #fffdf8;
+  --ink: #1f2933;
+  --muted: #5e6b76;
+  --line: #d9d0c1;
+  --accent: #0f766e;
+  --accent-soft: #d8f3ee;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  font-family: Georgia, "Times New Roman", serif;
+  background:
+    radial-gradient(circle at top left, #fff7d6 0, transparent 30%),
+    linear-gradient(180deg, #f2ece0 0%, var(--bg) 100%);
+  color: var(--ink);
+}
+
+body {
+  padding: 48px 20px;
+}
+
+.page {
+  margin: 0 auto;
+  max-width: 1080px;
+}
+
+.hero {
+  margin-bottom: 32px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+h1,
+h2 {
+  margin: 0;
+}
+
+h1 {
+  max-width: 12ch;
+  font-size: clamp(2.6rem, 6vw, 5rem);
+  line-height: 0.95;
+}
+
+.lede {
+  max-width: 62ch;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.card {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--card) 84%, white 16%);
+  box-shadow: 0 10px 30px rgba(31, 41, 51, 0.06);
+}
+
+.card h2 {
+  margin-bottom: 12px;
+}
+
+.card ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+.card li + li {
+  margin-top: 8px;
+}

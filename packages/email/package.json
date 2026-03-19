@@ -1,0 +1,9 @@
+{
+  "name": "@bizbrain/email",
+  "private": true,
+  "scripts": {
+    "lint": "node ../../scripts/placeholder-task.mjs email:lint",
+    "typecheck": "tsc --noEmit",
+    "test": "node ../../scripts/placeholder-task.mjs email:test"
+  }
+}

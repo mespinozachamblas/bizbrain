@@ -1,0 +1,30 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model JobRun {
+  id             String   @id @default(cuid())
+  jobName        String
+  logicalDate    DateTime
+  runStatus      String
+  startedAt      DateTime
+  finishedAt     DateTime?
+  recordsRead    Int      @default(0)
+  recordsWritten Int      @default(0)
+  warningsJson   Json?
+  errorsJson     Json?
+}
+
+model DigestRecipient {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  enabled        Boolean  @default(true)
+  isOwnerDefault Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

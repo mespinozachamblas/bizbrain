@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "baseUrl": ".",
+    "paths": {
+      "@bizbrain/agents": ["packages/agents/src"],
+      "@bizbrain/core": ["packages/core/src"],
+      "@bizbrain/db": ["packages/db/src"],
+      "@bizbrain/email": ["packages/email/src"],
+      "@bizbrain/prompts": ["packages/prompts/src"]
+    }
+  }
+}

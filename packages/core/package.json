@@ -1,0 +1,12 @@
+{
+  "name": "@bizbrain/core",
+  "private": true,
+  "scripts": {
+    "lint": "node ../../scripts/placeholder-task.mjs core:lint",
+    "typecheck": "tsc --noEmit",
+    "test": "node ../../scripts/placeholder-task.mjs core:test"
+  },
+  "dependencies": {
+    "zod": "^3.0.0"
+  }
+}
