@@ -1,15 +1,16 @@
+import { buildSignalDedupeHash } from "@bizbrain/core";
+import { db } from "@bizbrain/db";
+import { getSourceAdapter } from "./source-adapters";
 import { logJobBoundary, runJobWithTracking } from "./shared";
 
 export async function runDailyIngest() {
   await runJobWithTracking({
     jobName: "daily-ingest",
     execute: async (context) => {
-      const sourceConfigs = await import("@bizbrain/db").then(({ db }) =>
-        db.sourceConfig.findMany({
-          where: { enabled: true },
-          orderBy: { sourceType: "asc" }
-        })
-      );
+      const sourceConfigs = await db.sourceConfig.findMany({
+        where: { enabled: true },
+        orderBy: { sourceType: "asc" }
+      });
 
       await context.markProgress({
         recordsRead: sourceConfigs.length,
@@ -22,20 +23,69 @@ export async function runDailyIngest() {
         return;
       }
 
+      let rawSignalsWritten = 0;
+
       for (const sourceConfig of sourceConfigs) {
+        const adapter = getSourceAdapter(sourceConfig.sourceType);
+        const startedAt = new Date();
+        const signals = await adapter.fetchSignals({
+          sourceType: sourceConfig.sourceType,
+          configJson: sourceConfig.configJson as never
+        });
+
+        for (const signal of signals) {
+          await db.rawSignal.upsert({
+            where: {
+              sourceType_sourceRecordId: {
+                sourceType: sourceConfig.sourceType,
+                sourceRecordId: signal.sourceRecordId
+              }
+            },
+            update: {
+              sourceUrl: signal.sourceUrl,
+              title: signal.title,
+              body: signal.body,
+              authorName: signal.authorName,
+              occurredAt: signal.occurredAt
+            },
+            create: {
+              sourceType: sourceConfig.sourceType,
+              sourceRecordId: signal.sourceRecordId,
+              sourceUrl: signal.sourceUrl,
+              title: signal.title,
+              body: signal.body,
+              authorName: signal.authorName,
+              occurredAt: signal.occurredAt,
+              dedupeHash: buildSignalDedupeHash(sourceConfig.sourceType, signal.sourceRecordId)
+            }
+          });
+        }
+
         await context.createSourceRun({
           sourceConfigId: sourceConfig.id,
-          status: "skipped",
+          status: "succeeded",
+          recordsRead: signals.length,
+          recordsWritten: signals.length,
           warnings: {
-            reason: "Source adapter implementation not wired yet.",
-            sourceType: sourceConfig.sourceType
-          }
+            sourceType: sourceConfig.sourceType,
+            mode: "sample-adapter",
+            note: "Using deterministic local sample signals until external adapters are wired."
+          },
+          startedAt,
+          finishedAt: new Date()
         });
+
+        rawSignalsWritten += signals.length;
       }
+
+      await context.markProgress({
+        recordsRead: sourceConfigs.length,
+        recordsWritten: rawSignalsWritten
+      });
 
       logJobBoundary(
         "daily-ingest",
-        `Prepared ingest fanout for ${sourceConfigs.length} source configuration(s). Source adapters are still placeholders.`
+        `Ingested ${rawSignalsWritten} raw signal(s) across ${sourceConfigs.length} source configuration(s).`
       );
     }
   });
