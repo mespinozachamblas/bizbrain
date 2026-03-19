@@ -7,24 +7,263 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model JobRun {
-  id             String   @id @default(cuid())
-  jobName        String
-  logicalDate    DateTime
-  runStatus      String
-  startedAt      DateTime
-  finishedAt     DateTime?
-  recordsRead    Int      @default(0)
-  recordsWritten Int      @default(0)
-  warningsJson   Json?
-  errorsJson     Json?
+model User {
+  id                   String                @id @default(cuid())
+  email                String                @unique
+  role                 String
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+  changedConfigs       SourceConfigVersion[]
+  requestedRetryRecord RetryRecord[]
+
+  @@map("users")
+}
+
+model SourceConfig {
+  id             String                @id @default(cuid())
+  sourceType     String                @map("source_type")
+  enabled        Boolean               @default(true)
+  nicheModes     Json?                 @map("niche_modes")
+  configJson     Json                  @map("config_json")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+  versions       SourceConfigVersion[]
+  healthChecks   SourceHealthCheck[]
+  sourceRuns     SourceRun[]
+
+  @@index([sourceType])
+  @@map("source_configs")
+}
+
+model SourceConfigVersion {
+  id              String       @id @default(cuid())
+  sourceConfigId  String       @map("source_config_id")
+  versionNumber   Int          @map("version_number")
+  configJson      Json         @map("config_json")
+  changedByUserId String?      @map("changed_by_user_id")
+  changeReason    String?      @map("change_reason")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  sourceConfig    SourceConfig @relation(fields: [sourceConfigId], references: [id], onDelete: Cascade)
+  changedByUser   User?        @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([sourceConfigId, versionNumber])
+  @@map("source_config_versions")
+}
+
+model RawSignal {
+  id                String              @id @default(cuid())
+  sourceType        String              @map("source_type")
+  sourceRecordId    String              @map("source_record_id")
+  sourceUrl         String?             @map("source_url")
+  title             String?
+  body              String?
+  authorName        String?             @map("author_name")
+  occurredAt        DateTime?           @map("occurred_at")
+  ingestedAt        DateTime            @default(now()) @map("ingested_at")
+  dedupeHash        String              @map("dedupe_hash")
+  enrichment        EnrichedSignal?
+  clusterMemberships ClusterMembership[]
+
+  @@unique([sourceType, sourceRecordId])
+  @@unique([dedupeHash])
+  @@map("raw_signals")
+}
+
+model SourceHealthCheck {
+  id              String       @id @default(cuid())
+  sourceConfigId  String       @map("source_config_id")
+  checkType       String       @map("check_type")
+  checkStatus     String       @map("check_status")
+  responseSummary String?      @map("response_summary")
+  checkedAt       DateTime     @default(now()) @map("checked_at")
+  sourceConfig    SourceConfig @relation(fields: [sourceConfigId], references: [id], onDelete: Cascade)
+
+  @@index([sourceConfigId, checkedAt(sort: Desc)])
+  @@map("source_health_checks")
+}
+
+model SourceRun {
+  id             String       @id @default(cuid())
+  sourceConfigId String       @map("source_config_id")
+  jobRunId       String       @map("job_run_id")
+  logicalDate    DateTime     @map("logical_date")
+  runStatus      String       @map("run_status")
+  recordsRead    Int          @default(0) @map("records_read")
+  recordsWritten Int          @default(0) @map("records_written")
+  warningsJson   Json?        @map("warnings_json")
+  errorsJson     Json?        @map("errors_json")
+  startedAt      DateTime     @default(now()) @map("started_at")
+  finishedAt     DateTime?    @map("finished_at")
+  sourceConfig   SourceConfig @relation(fields: [sourceConfigId], references: [id], onDelete: Cascade)
+  jobRun         JobRun       @relation(fields: [jobRunId], references: [id], onDelete: Cascade)
+
+  @@index([sourceConfigId, logicalDate])
+  @@index([jobRunId])
+  @@map("source_runs")
+}
+
+model EnrichedSignal {
+  id                String              @id @default(cuid())
+  rawSignalId       String              @unique @map("raw_signal_id")
+  normalizedText    String              @map("normalized_text")
+  keywordsJson      Json?               @map("keywords_json")
+  entitiesJson      Json?               @map("entities_json")
+  painPointsJson    Json?               @map("pain_points_json")
+  intentPhrasesJson Json?               @map("intent_phrases_json")
+  categoryTagsJson  Json?               @map("category_tags_json")
+  confidenceJson    Json?               @map("confidence_json")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  rawSignal         RawSignal           @relation(fields: [rawSignalId], references: [id], onDelete: Cascade)
+  clusterMemberships ClusterMembership[]
+
+  @@map("enriched_signals")
+}
+
+model TrendCluster {
+  id                String              @id @default(cuid())
+  slug              String              @unique
+  title             String
+  summary           String?
+  primaryCategory   String?             @map("primary_category")
+  tagsJson          Json?               @map("tags_json")
+  firstSeenAt       DateTime?           @map("first_seen_at")
+  lastSeenAt        DateTime?           @map("last_seen_at")
+  signalCount       Int                 @default(0) @map("signal_count")
+  scoreTotal        Float               @default(0) @map("score_total")
+  scoreFrequency    Float               @default(0) @map("score_frequency")
+  scoreMomentum     Float               @default(0) @map("score_momentum")
+  scoreIntent       Float               @default(0) @map("score_intent")
+  scoreWhitespace   Float               @default(0) @map("score_whitespace")
+  scoreFit          Float               @default(0) @map("score_fit")
+  scoreComplexity   Float               @default(0) @map("score_complexity")
+  scoreFeasibility  Float               @default(0) @map("score_feasibility")
+  status            String
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  memberships       ClusterMembership[]
+  ideas             Idea[]
+
+  @@index([scoreTotal(sort: Desc)])
+  @@index([primaryCategory, scoreTotal(sort: Desc)])
+  @@map("trend_clusters")
+}
+
+model ClusterMembership {
+  id               String         @id @default(cuid())
+  clusterId        String         @map("cluster_id")
+  rawSignalId      String         @map("raw_signal_id")
+  enrichedSignalId String?        @map("enriched_signal_id")
+  membershipReason String?        @map("membership_reason")
+  similarityScore  Float?         @map("similarity_score")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  cluster          TrendCluster   @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+  rawSignal        RawSignal      @relation(fields: [rawSignalId], references: [id], onDelete: Cascade)
+  enrichedSignal   EnrichedSignal? @relation(fields: [enrichedSignalId], references: [id], onDelete: SetNull)
+
+  @@unique([clusterId, rawSignalId])
+  @@index([enrichedSignalId])
+  @@map("cluster_memberships")
+}
+
+model Idea {
+  id                      String       @id @default(cuid())
+  clusterId               String       @map("cluster_id")
+  title                   String
+  category                String
+  subcategory             String?
+  targetCustomer          String?      @map("target_customer")
+  problemSummary          String?      @map("problem_summary")
+  solutionConcept         String?      @map("solution_concept")
+  monetizationAngle       String?      @map("monetization_angle")
+  gtmJson                 Json?        @map("gtm_json")
+  validationQuestionsJson Json?        @map("validation_questions_json")
+  evidenceSummary         String?      @map("evidence_summary")
+  riskNotes               String?      @map("risk_notes")
+  scoreSnapshot           Json?        @map("score_snapshot")
+  status                  String
+  notesMarkdown           String?      @map("notes_markdown")
+  createdAt               DateTime     @default(now()) @map("created_at")
+  updatedAt               DateTime     @updatedAt @map("updated_at")
+  cluster                 TrendCluster @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+
+  @@index([status, category, updatedAt(sort: Desc)])
+  @@map("ideas")
+}
+
+model Digest {
+  id              String          @id @default(cuid())
+  digestDate      DateTime        @map("digest_date")
+  digestKey       String          @unique @map("digest_key")
+  subject         String
+  markdownBody    String?         @map("markdown_body")
+  htmlBody        String?         @map("html_body")
+  selectionJson   Json?           @map("selection_json")
+  status          String
+  createdAt       DateTime        @default(now()) @map("created_at")
+  sentAt          DateTime?       @map("sent_at")
+  emailDeliveries EmailDelivery[]
+
+  @@index([digestDate])
+  @@map("digests")
 }
 
 model DigestRecipient {
-  id             String   @id @default(cuid())
-  email          String   @unique
-  enabled        Boolean  @default(true)
-  isOwnerDefault Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id              String          @id @default(cuid())
+  email           String          @unique
+  enabled         Boolean         @default(true)
+  isOwnerDefault  Boolean         @default(false) @map("is_owner_default")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  emailDeliveries EmailDelivery[]
+
+  @@map("digest_recipients")
+}
+
+model EmailDelivery {
+  id                String          @id @default(cuid())
+  digestId          String          @map("digest_id")
+  recipientId       String          @map("recipient_id")
+  provider          String
+  recipientEmail    String          @map("recipient_email")
+  deliveryKey       String          @unique @map("delivery_key")
+  providerMessageId String?         @map("provider_message_id")
+  sendStatus        String          @map("send_status")
+  errorText         String?         @map("error_text")
+  attemptedAt       DateTime        @default(now()) @map("attempted_at")
+  digest            Digest          @relation(fields: [digestId], references: [id], onDelete: Cascade)
+  recipient         DigestRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@unique([digestId, recipientId])
+  @@map("email_deliveries")
+}
+
+model RetryRecord {
+  id                String    @id @default(cuid())
+  entityType        String    @map("entity_type")
+  entityId          String    @map("entity_id")
+  retryKey          String    @unique @map("retry_key")
+  retryReason       String?   @map("retry_reason")
+  forced            Boolean   @default(false)
+  requestedByUserId String?   @map("requested_by_user_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  requestedByUser   User?     @relation(fields: [requestedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("retry_records")
+}
+
+model JobRun {
+  id             String      @id @default(cuid())
+  jobName        String      @map("job_name")
+  logicalDate    DateTime    @map("logical_date")
+  runStatus      String      @map("run_status")
+  startedAt      DateTime    @default(now()) @map("started_at")
+  finishedAt     DateTime?   @map("finished_at")
+  recordsRead    Int         @default(0) @map("records_read")
+  recordsWritten Int         @default(0) @map("records_written")
+  warningsJson   Json?       @map("warnings_json")
+  errorsJson     Json?       @map("errors_json")
+  sourceRuns     SourceRun[]
+
+  @@index([jobName, logicalDate])
+  @@map("job_runs")
 }

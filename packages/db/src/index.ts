@@ -1,3 +1,5 @@
+import { PrismaClient } from "@prisma/client";
+
 export const operationalTables = [
   "users",
   "source_configs",
@@ -17,3 +19,17 @@ export const operationalTables = [
 ] as const;
 
 export type OperationalTable = (typeof operationalTables)[number];
+
+declare global {
+  var __bizbrainPrisma: PrismaClient | undefined;
+}
+
+export const db =
+  globalThis.__bizbrainPrisma ??
+  new PrismaClient({
+    log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"]
+  });
+
+if (process.env.NODE_ENV !== "production") {
+  globalThis.__bizbrainPrisma = db;
+}

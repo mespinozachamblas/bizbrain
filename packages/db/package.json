@@ -2,6 +2,7 @@
   "name": "@bizbrain/db",
   "private": true,
   "scripts": {
+    "db:generate": "prisma generate",
     "db:migrate": "node ../../scripts/placeholder-task.mjs db:migrate",
     "db:seed": "node ../../scripts/placeholder-task.mjs db:seed",
     "lint": "node ../../scripts/placeholder-task.mjs db:lint",

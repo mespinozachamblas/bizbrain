@@ -6,6 +6,7 @@ coverage
 .turbo
 .pnpm-store
 .bin
+*.tsbuildinfo
 .env
 .env.local
 .env.production
