@@ -39,6 +39,26 @@ type DashboardData = {
     enabled: boolean;
     isOwnerDefault: boolean;
   }>;
+  recentSourceRuns: Array<{
+    id: string;
+    runStatus: string;
+    recordsRead: number;
+    recordsWritten: number;
+    startedAt: Date;
+    sourceConfig: {
+      sourceType: string;
+    };
+  }>;
+  recentHealthChecks: Array<{
+    id: string;
+    checkType: string;
+    checkStatus: string;
+    checkedAt: Date;
+    responseSummary: string | null;
+    sourceConfig: {
+      sourceType: string;
+    };
+  }>;
 };
 
 export default async function HomePage() {
@@ -161,6 +181,55 @@ export default async function HomePage() {
 
         <article className="card">
           <div className="cardHeader">
+            <h2>Recent source runs</h2>
+            <span className="badge">Sources</span>
+          </div>
+          {dashboard.recentSourceRuns.length === 0 ? (
+            <EmptyState message="Per-source run results will appear after you run `daily-ingest`." />
+          ) : (
+            <div className="stack">
+              {dashboard.recentSourceRuns.map((run) => (
+                <div className="listRow" key={run.id}>
+                  <div>
+                    <p className="rowTitle">{run.sourceConfig.sourceType}</p>
+                    <p className="rowMeta">
+                      {formatDate(run.startedAt)} · read {run.recordsRead} · wrote {run.recordsWritten}
+                    </p>
+                  </div>
+                  <span className={`status status-${run.runStatus}`}>{run.runStatus}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+
+        <article className="card">
+          <div className="cardHeader">
+            <h2>Recent source health</h2>
+            <span className="badge">Checks</span>
+          </div>
+          {dashboard.recentHealthChecks.length === 0 ? (
+            <EmptyState message="Health checks will appear once source validation is wired." />
+          ) : (
+            <div className="stack">
+              {dashboard.recentHealthChecks.map((check) => (
+                <div className="listRow listRowBlock" key={check.id}>
+                  <div>
+                    <p className="rowTitle">
+                      {check.sourceConfig.sourceType} · {check.checkType}
+                    </p>
+                    <p className="rowMeta">{formatDate(check.checkedAt)}</p>
+                    <p className="rowBody">{check.responseSummary ?? "No response summary captured."}</p>
+                  </div>
+                  <span className={`status status-${normalizeStatus(check.checkStatus)}`}>{check.checkStatus}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+
+        <article className="card">
+          <div className="cardHeader">
             <h2>Digest recipients</h2>
             <span className="badge">Email</span>
           </div>
@@ -206,8 +275,18 @@ async function getDashboardData(): Promise<DashboardData> {
   }
 
   try {
-    const [sourceConfigs, rawSignals, clusters, ideas, recentJobRuns, topClusters, latestIdeas, digestRecipients] =
-      await Promise.all([
+    const [
+      sourceConfigs,
+      rawSignals,
+      clusters,
+      ideas,
+      recentJobRuns,
+      topClusters,
+      latestIdeas,
+      digestRecipients,
+      recentSourceRuns,
+      recentHealthChecks
+    ] = await Promise.all([
         db.sourceConfig.count(),
         db.rawSignal.count(),
         db.trendCluster.count(),
@@ -226,6 +305,28 @@ async function getDashboardData(): Promise<DashboardData> {
         }),
         db.digestRecipient.findMany({
           orderBy: [{ isOwnerDefault: "desc" }, { email: "asc" }]
+        }),
+        db.sourceRun.findMany({
+          orderBy: { startedAt: "desc" },
+          take: 6,
+          include: {
+            sourceConfig: {
+              select: {
+                sourceType: true
+              }
+            }
+          }
+        }),
+        db.sourceHealthCheck.findMany({
+          orderBy: { checkedAt: "desc" },
+          take: 6,
+          include: {
+            sourceConfig: {
+              select: {
+                sourceType: true
+              }
+            }
+          }
         })
       ]);
 
@@ -239,7 +340,9 @@ async function getDashboardData(): Promise<DashboardData> {
       recentJobRuns,
       topClusters,
       latestIdeas,
-      digestRecipients
+      digestRecipients,
+      recentSourceRuns,
+      recentHealthChecks
     };
   } catch (error) {
     console.error("Failed to load dashboard data", error);
@@ -261,7 +364,9 @@ function emptyDashboardData(): DashboardData {
     recentJobRuns: [],
     topClusters: [],
     latestIdeas: [],
-    digestRecipients: []
+    digestRecipients: [],
+    recentSourceRuns: [],
+    recentHealthChecks: []
   };
 }
 
@@ -283,4 +388,16 @@ function formatDate(value: Date) {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(value);
+}
+
+function normalizeStatus(value: string) {
+  if (value === "ok") {
+    return "succeeded";
+  }
+
+  if (value === "error") {
+    return "failed";
+  }
+
+  return value;
 }
