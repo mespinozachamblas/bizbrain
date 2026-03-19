@@ -1,6 +1,6 @@
 import { jobNames } from "@bizbrain/core";
 import { db } from "@bizbrain/db";
-import { runPipelineJob } from "./actions";
+import { runPipelineJob, runSourceCheck } from "./actions";
 
 type DashboardData = {
   stats: {
@@ -38,6 +38,11 @@ type DashboardData = {
     email: string;
     enabled: boolean;
     isOwnerDefault: boolean;
+  }>;
+  sourceConfigs: Array<{
+    id: string;
+    sourceType: string;
+    enabled: boolean;
   }>;
   recentSourceRuns: Array<{
     id: string;
@@ -102,6 +107,28 @@ export default async function HomePage() {
             Jobs run in-process from the web app for local development. Production should still execute them via
             Railway cron.
           </p>
+        </article>
+
+        <article className="card controlCard">
+          <div className="cardHeader">
+            <h2>Test source health</h2>
+            <span className="badge">Checks</span>
+          </div>
+          {dashboard.sourceConfigs.length === 0 ? (
+            <EmptyState message="No source configs available to test yet." />
+          ) : (
+            <div className="jobButtons">
+              {dashboard.sourceConfigs.map((sourceConfig) => (
+                <form action={runSourceCheck} key={sourceConfig.id}>
+                  <input name="sourceConfigId" type="hidden" value={sourceConfig.id} />
+                  <button className="jobButton jobButtonSecondary" type="submit">
+                    Test {sourceConfig.sourceType}
+                  </button>
+                </form>
+              ))}
+            </div>
+          )}
+          <p className="helperText">Each test writes a `source_health_checks` record for later review.</p>
         </article>
       </section>
 
@@ -276,7 +303,7 @@ async function getDashboardData(): Promise<DashboardData> {
 
   try {
     const [
-      sourceConfigs,
+      sourceConfigCount,
       rawSignals,
       clusters,
       ideas,
@@ -284,6 +311,7 @@ async function getDashboardData(): Promise<DashboardData> {
       topClusters,
       latestIdeas,
       digestRecipients,
+      sourceConfigs,
       recentSourceRuns,
       recentHealthChecks
     ] = await Promise.all([
@@ -305,6 +333,14 @@ async function getDashboardData(): Promise<DashboardData> {
         }),
         db.digestRecipient.findMany({
           orderBy: [{ isOwnerDefault: "desc" }, { email: "asc" }]
+        }),
+        db.sourceConfig.findMany({
+          orderBy: { sourceType: "asc" },
+          select: {
+            id: true,
+            sourceType: true,
+            enabled: true
+          }
         }),
         db.sourceRun.findMany({
           orderBy: { startedAt: "desc" },
@@ -332,7 +368,7 @@ async function getDashboardData(): Promise<DashboardData> {
 
     return {
       stats: {
-        sourceConfigs,
+        sourceConfigs: sourceConfigCount,
         rawSignals,
         clusters,
         ideas
@@ -341,6 +377,7 @@ async function getDashboardData(): Promise<DashboardData> {
       topClusters,
       latestIdeas,
       digestRecipients,
+      sourceConfigs,
       recentSourceRuns,
       recentHealthChecks
     };
@@ -365,6 +402,7 @@ function emptyDashboardData(): DashboardData {
     topClusters: [],
     latestIdeas: [],
     digestRecipients: [],
+    sourceConfigs: [],
     recentSourceRuns: [],
     recentHealthChecks: []
   };

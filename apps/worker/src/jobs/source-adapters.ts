@@ -13,6 +13,10 @@ type SourceAdapterContext = {
 
 export type SourceAdapter = {
   fetchSignals: (context: SourceAdapterContext) => Promise<SourceSignal[]>;
+  runHealthCheck: (context: SourceAdapterContext) => Promise<{
+    status: "ok" | "error";
+    summary: string;
+  }>;
 };
 
 const sampleSignalsBySource: Record<string, SourceSignal[]> = {
@@ -54,6 +58,15 @@ export function getSourceAdapter(sourceType: string): SourceAdapter {
       const limitedSignals = sampleSignals.slice(0, parsedConfig.sampleSize ?? sampleSignals.length);
 
       return limitedSignals.map((signal) => sourceSignalSchema.parse(signal));
+    },
+    runHealthCheck: async (context) => {
+      const parsedConfig = parseSourceConfig(context.configJson);
+      const sampleSignals = sampleSignalsBySource[sourceType] ?? sampleSignalsBySource.default;
+
+      return {
+        status: "ok",
+        summary: `Sample adapter ready. ${sampleSignals.length} sample signal(s) available. sampleSize=${parsedConfig.sampleSize ?? sampleSignals.length}.`
+      };
     }
   };
 }

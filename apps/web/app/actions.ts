@@ -3,6 +3,7 @@
 import type { JobName } from "@bizbrain/core";
 import { revalidatePath } from "next/cache";
 import { workerJobs } from "../../worker/src/jobs/registry";
+import { runSourceHealthCheck } from "./source-health";
 
 export async function runPipelineJob(formData: FormData) {
   const jobName = formData.get("jobName");
@@ -12,5 +13,16 @@ export async function runPipelineJob(formData: FormData) {
   }
 
   await workerJobs[jobName as JobName]();
+  revalidatePath("/");
+}
+
+export async function runSourceCheck(formData: FormData) {
+  const sourceConfigId = formData.get("sourceConfigId");
+
+  if (typeof sourceConfigId !== "string" || sourceConfigId.length === 0) {
+    throw new Error("Unknown source config requested.");
+  }
+
+  await runSourceHealthCheck(sourceConfigId);
   revalidatePath("/");
 }
