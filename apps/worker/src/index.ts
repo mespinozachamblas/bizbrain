@@ -1,13 +1,16 @@
+import type { JobName } from "@bizbrain/core";
 import { runDailyDigestEmail } from "./jobs/daily-digest-email";
 import { runDailyEnrichScore } from "./jobs/daily-enrich-score";
 import { runDailyIngest } from "./jobs/daily-ingest";
+import { runWeeklyMaintenance } from "./jobs/weekly-maintenance";
 
 const jobName = process.argv[2];
 
-const jobs: Record<string, () => Promise<void>> = {
+const jobs: Record<JobName, () => Promise<void>> = {
   "daily-digest-email": runDailyDigestEmail,
   "daily-enrich-score": runDailyEnrichScore,
-  "daily-ingest": runDailyIngest
+  "daily-ingest": runDailyIngest,
+  "weekly-maintenance": runWeeklyMaintenance
 };
 
 async function main() {
@@ -17,7 +20,7 @@ async function main() {
     return;
   }
 
-  const job = jobs[jobName];
+  const job = jobs[jobName as JobName];
 
   if (!job) {
     throw new Error(`Unknown job: ${jobName}`);

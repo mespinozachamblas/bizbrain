@@ -7,6 +7,8 @@ export const jobNames = [
   "weekly-maintenance"
 ] as const;
 
+export const jobStatuses = ["pending", "running", "succeeded", "failed", "skipped"] as const;
+
 export const digestSectionSchema = z.object({
   sectionTitle: z.string(),
   items: z.array(z.string()),
@@ -15,4 +17,7 @@ export const digestSectionSchema = z.object({
 });
 
 export type JobName = (typeof jobNames)[number];
+export type JobStatus = (typeof jobStatuses)[number];
 export type DigestSection = z.infer<typeof digestSectionSchema>;
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
