@@ -1,26 +1,16 @@
 import type { JobName } from "@bizbrain/core";
-import { runDailyDigestEmail } from "./jobs/daily-digest-email";
-import { runDailyEnrichScore } from "./jobs/daily-enrich-score";
-import { runDailyIngest } from "./jobs/daily-ingest";
-import { runWeeklyMaintenance } from "./jobs/weekly-maintenance";
+import { workerJobs } from "./jobs/registry";
 
 const jobName = process.argv[2];
-
-const jobs: Record<JobName, () => Promise<void>> = {
-  "daily-digest-email": runDailyDigestEmail,
-  "daily-enrich-score": runDailyEnrichScore,
-  "daily-ingest": runDailyIngest,
-  "weekly-maintenance": runWeeklyMaintenance
-};
 
 async function main() {
   if (!jobName) {
     console.log("BizBrain worker scaffold");
-    console.log(`Available jobs: ${Object.keys(jobs).join(", ")}`);
+    console.log(`Available jobs: ${Object.keys(workerJobs).join(", ")}`);
     return;
   }
 
-  const job = jobs[jobName as JobName];
+  const job = workerJobs[jobName as JobName];
 
   if (!job) {
     throw new Error(`Unknown job: ${jobName}`);

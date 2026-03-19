@@ -1,4 +1,6 @@
+import { jobNames } from "@bizbrain/core";
 import { db } from "@bizbrain/db";
+import { runPipelineJob } from "./actions";
 
 type DashboardData = {
   stats: {
@@ -58,6 +60,29 @@ export default async function HomePage() {
         <StatCard label="Raw Signals" value={dashboard.stats.rawSignals} />
         <StatCard label="Clusters" value={dashboard.stats.clusters} />
         <StatCard label="Ideas" value={dashboard.stats.ideas} />
+      </section>
+
+      <section className="controlStrip">
+        <article className="card controlCard">
+          <div className="cardHeader">
+            <h2>Run pipeline jobs</h2>
+            <span className="badge">Admin</span>
+          </div>
+          <div className="jobButtons">
+            {jobNames.map((jobName) => (
+              <form action={runPipelineJob} key={jobName}>
+                <input name="jobName" type="hidden" value={jobName} />
+                <button className="jobButton" type="submit">
+                  Run {jobName}
+                </button>
+              </form>
+            ))}
+          </div>
+          <p className="helperText">
+            Jobs run in-process from the web app for local development. Production should still execute them via
+            Railway cron.
+          </p>
+        </article>
       </section>
 
       <section className="dashboardGrid">
