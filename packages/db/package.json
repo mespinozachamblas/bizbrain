@@ -4,7 +4,7 @@
   "scripts": {
     "db:generate": "prisma generate",
     "db:migrate": "node ../../scripts/placeholder-task.mjs db:migrate",
-    "db:seed": "node ../../scripts/placeholder-task.mjs db:seed",
+    "db:seed": "tsx src/seed.ts",
     "lint": "node ../../scripts/placeholder-task.mjs db:lint",
     "typecheck": "tsc --noEmit",
     "test": "node ../../scripts/placeholder-task.mjs db:test"
