@@ -6,6 +6,7 @@
     "daily-ingest": "tsx src/index.ts daily-ingest",
     "daily-enrich-score": "tsx src/index.ts daily-enrich-score",
     "daily-digest-email": "tsx src/index.ts daily-digest-email",
+    "weekly-maintenance": "tsx src/index.ts weekly-maintenance",
     "lint": "node ../../scripts/placeholder-task.mjs worker:lint",
     "typecheck": "tsc --noEmit",
     "test": "node ../../scripts/placeholder-task.mjs worker:test"

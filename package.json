@@ -17,7 +17,8 @@
     "db:seed": "pnpm --filter @bizbrain/db db:seed",
     "worker:daily-ingest": "pnpm --filter @bizbrain/worker daily-ingest",
     "worker:daily-enrich-score": "pnpm --filter @bizbrain/worker daily-enrich-score",
-    "worker:daily-digest-email": "pnpm --filter @bizbrain/worker daily-digest-email"
+    "worker:daily-digest-email": "pnpm --filter @bizbrain/worker daily-digest-email",
+    "worker:weekly-maintenance": "pnpm --filter @bizbrain/worker weekly-maintenance"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

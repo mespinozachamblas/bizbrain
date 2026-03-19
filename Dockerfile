@@ -38,4 +38,4 @@ COPY --from=builder /app /app
 
 EXPOSE 3000
 
-CMD ["pnpm", "--filter", "@bizbrain/web", "start"]
+CMD ["node", "scripts/start-service.mjs"]
