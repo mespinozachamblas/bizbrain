@@ -1,5 +1,7 @@
 import { jobNames } from "@bizbrain/core";
 import { db } from "@bizbrain/db";
+export const dynamic = "force-dynamic";
+
 import { runPipelineJob, runSourceCheck } from "./actions";
 
 type DashboardData = {
