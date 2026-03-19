@@ -69,6 +69,19 @@ h1 {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
+.statsGrid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-bottom: 24px;
+}
+
+.dashboardGrid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
 .card {
   padding: 20px;
   border: 1px solid var(--line);
@@ -89,4 +102,151 @@ h1 {
 
 .card li + li {
   margin-top: 8px;
+}
+
+.cardTall {
+  min-height: 320px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.statCard {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 253, 248, 0.78);
+}
+
+.statLabel {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.statValue {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 0.95;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.listRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(217, 208, 193, 0.7);
+}
+
+.listRow:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.listRowBlock {
+  justify-content: flex-start;
+}
+
+.rowTitle {
+  margin: 0 0 4px;
+  font-weight: 700;
+}
+
+.rowMeta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.rowBody {
+  margin: 8px 0 0;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: lowercase;
+}
+
+.status-succeeded,
+.status-enabled {
+  background: #dff5e8;
+  color: #13653c;
+}
+
+.status-running {
+  background: #fff1c9;
+  color: #8a5b00;
+}
+
+.status-failed,
+.status-disabled {
+  background: #fde2dd;
+  color: #a02f1c;
+}
+
+.status-skipped {
+  background: #e7ecf1;
+  color: #51606d;
+}
+
+.emptyState {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.roadmap {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+.roadmap li + li {
+  margin-top: 10px;
+}
+
+@media (max-width: 640px) {
+  body {
+    padding: 28px 14px 48px;
+  }
+
+  .cardHeader,
+  .listRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
