@@ -54,13 +54,19 @@ export function getSourceAdapter(sourceType: string): SourceAdapter {
   return {
     fetchSignals: async (context) => {
       const parsedConfig = parseSourceConfig(context.configJson);
-      const sampleSignals = sampleSignalsBySource[sourceType] ?? sampleSignalsBySource.default;
-      const limitedSignals = sampleSignals.slice(0, parsedConfig.sampleSize ?? sampleSignals.length);
+      if (sourceType === "reddit" && resolveAdapterMode(parsedConfig) === "live") {
+        return fetchRedditSignals(parsedConfig);
+      }
 
-      return limitedSignals.map((signal) => sourceSignalSchema.parse(signal));
+      return getSampleSignals(sourceType, parsedConfig);
     },
     runHealthCheck: async (context) => {
       const parsedConfig = parseSourceConfig(context.configJson);
+
+      if (sourceType === "reddit" && resolveAdapterMode(parsedConfig) === "live") {
+        return runRedditHealthCheck(parsedConfig);
+      }
+
       const sampleSignals = sampleSignalsBySource[sourceType] ?? sampleSignalsBySource.default;
 
       return {
@@ -75,6 +81,130 @@ function parseSourceConfig(configJson: JsonValue): SourceAdapterConfig {
   return sourceAdapterConfigSchema.parse(isJsonObject(configJson) ? configJson : {});
 }
 
+function resolveAdapterMode(config: SourceAdapterConfig) {
+  return config.mode ?? (process.env.SOURCE_DEFAULT_MODE === "live" ? "live" : "sample");
+}
+
+function getSampleSignals(sourceType: string, config: SourceAdapterConfig) {
+  const sampleSignals = sampleSignalsBySource[sourceType] ?? sampleSignalsBySource.default;
+  const limitedSignals = sampleSignals.slice(0, config.sampleSize ?? sampleSignals.length);
+
+  return limitedSignals.map((signal) => sourceSignalSchema.parse(signal));
+}
+
+async function fetchRedditSignals(config: SourceAdapterConfig) {
+  const subredditList = config.subredditList?.length ? config.subredditList : ["smallbusiness", "fintech"];
+  const limit = Math.min(config.sampleSize ?? 5, 10);
+  const userAgent = process.env.SOURCE_HTTP_USER_AGENT;
+
+  if (!userAgent) {
+    throw new Error("SOURCE_HTTP_USER_AGENT is required for live reddit mode.");
+  }
+
+  const requests = subredditList.map(async (subreddit) => {
+    const response = await fetchWithTimeout(
+      `https://www.reddit.com/r/${encodeURIComponent(subreddit)}/new.json?limit=${limit}`,
+      {
+        headers: {
+          "User-Agent": userAgent,
+          Accept: "application/json"
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Reddit fetch failed for r/${subreddit} with ${response.status}.`);
+    }
+
+    const payload = (await response.json()) as RedditListingResponse;
+
+    return payload.data.children.map((child) =>
+      sourceSignalSchema.parse({
+        sourceRecordId: child.data.id,
+        sourceUrl: child.data.url ? normalizeRedditUrl(child.data.url) : `https://www.reddit.com${child.data.permalink}`,
+        title: child.data.title,
+        body: child.data.selftext || undefined,
+        authorName: child.data.author || undefined,
+        occurredAt: new Date(child.data.created_utc * 1000)
+      })
+    );
+  });
+
+  const signals = (await Promise.all(requests)).flat();
+
+  return dedupeSignals(signals).slice(0, limit * subredditList.length);
+}
+
+async function runRedditHealthCheck(config: SourceAdapterConfig) {
+  try {
+    const signals = await fetchRedditSignals({
+      ...config,
+      sampleSize: Math.min(config.sampleSize ?? 3, 3)
+    });
+
+    return {
+      status: "ok" as const,
+      summary: `Live reddit adapter fetched ${signals.length} signal(s) successfully.`
+    };
+  } catch (error) {
+    return {
+      status: "error" as const,
+      summary: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function dedupeSignals(signals: SourceSignal[]) {
+  const seen = new Set<string>();
+
+  return signals.filter((signal) => {
+    if (seen.has(signal.sourceRecordId)) {
+      return false;
+    }
+
+    seen.add(signal.sourceRecordId);
+    return true;
+  });
+}
+
+function normalizeRedditUrl(url: string) {
+  if (url.startsWith("/")) {
+    return `https://www.reddit.com${url}`;
+  }
+
+  return url;
+}
+
 function isJsonObject(value: JsonValue): value is Record<string, JsonValue> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+type RedditListingResponse = {
+  data: {
+    children: Array<{
+      data: {
+        id: string;
+        title: string;
+        selftext: string;
+        author: string;
+        permalink: string;
+        url?: string;
+        created_utc: number;
+      };
+    }>;
+  };
+};

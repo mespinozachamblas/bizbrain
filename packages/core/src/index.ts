@@ -27,6 +27,7 @@ export const sourceSignalSchema = z.object({
 });
 
 export const sourceAdapterConfigSchema = z.object({
+  mode: z.enum(["sample", "live"]).optional(),
   sampleSize: z.number().int().positive().max(25).optional(),
   keywords: z.array(z.string()).optional(),
   subredditList: z.array(z.string()).optional(),

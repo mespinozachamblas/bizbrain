@@ -21,5 +21,10 @@ BizBrain is a founder-focused opportunity discovery system. This scaffold matche
 5. Start the web app with `pnpm dev:web`.
 6. Run worker jobs locally with `pnpm worker:daily-ingest`, `pnpm worker:daily-enrich-score`, or `pnpm worker:daily-digest-email`.
 
+## Source Modes
+- Default development mode is deterministic `sample`.
+- Set `SOURCE_DEFAULT_MODE=live` to let supported adapters fetch real data.
+- For live Reddit fetching, set `SOURCE_HTTP_USER_AGENT` to a real descriptive user agent before running source tests or ingest.
+
 ## Current State
 This is an initial scaffold. It creates the package boundaries, placeholder entrypoints, and repo policy files so implementation can proceed against a stable layout.
