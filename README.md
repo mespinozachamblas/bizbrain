@@ -17,14 +17,22 @@ BizBrain is a founder-focused opportunity discovery system. This scaffold matche
 1. Install workspace dependencies with `pnpm install`.
 2. Copy `.env.example` to `.env.local` or `.env`.
 3. Generate the Prisma client with `pnpm db:generate`.
-4. Seed starter records with `pnpm db:seed`.
-5. Start the web app with `pnpm dev:web`.
-6. Run worker jobs locally with `pnpm worker:daily-ingest`, `pnpm worker:daily-enrich-score`, or `pnpm worker:daily-digest-email`.
+4. Apply committed migrations with `pnpm db:migrate` once `DATABASE_URL` points at Postgres.
+5. Seed starter records with `pnpm db:seed`.
+6. Start the web app with `pnpm dev:web`.
+7. Run worker jobs locally with `pnpm worker:daily-ingest`, `pnpm worker:daily-enrich-score`, or `pnpm worker:daily-digest-email`.
 
 ## Source Modes
 - Default development mode is deterministic `sample`.
 - Set `SOURCE_DEFAULT_MODE=live` to let supported adapters fetch real data.
 - For live Reddit fetching, set `SOURCE_HTTP_USER_AGENT` to a real descriptive user agent before running source tests or ingest.
+
+## Database Commands
+- `pnpm db:generate`: regenerate Prisma client
+- `pnpm db:migrate`: apply committed migrations to the target Postgres database
+- `pnpm db:migrate:dev`: create/apply development migrations against a live Postgres database
+- `pnpm db:status`: inspect migration state
+- `pnpm db:seed`: ensure starter source config and digest recipients
 
 ## Current State
 This is an initial scaffold. It creates the package boundaries, placeholder entrypoints, and repo policy files so implementation can proceed against a stable layout.

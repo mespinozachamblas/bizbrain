@@ -3,7 +3,9 @@
   "private": true,
   "scripts": {
     "db:generate": "prisma generate",
-    "db:migrate": "node ../../scripts/placeholder-task.mjs db:migrate",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:status": "prisma migrate status",
     "db:seed": "tsx src/seed.ts",
     "lint": "node ../../scripts/placeholder-task.mjs db:lint",
     "typecheck": "tsc --noEmit",
