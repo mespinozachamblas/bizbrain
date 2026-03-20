@@ -216,12 +216,12 @@ function buildDigestSections(input: DigestInputs) {
       sectionTitle: "Top New Opportunities",
       items:
         topIdeas.length > 0
-          ? topIdeas.map((idea) => `${idea.title} (${idea.category}) — ${idea.problemSummary ?? idea.evidenceSummary ?? "Needs manual review."}`)
+          ? topIdeas.map((idea) => formatIdeaDigestLine(idea))
           : ["No new ideas were available when this digest was generated."],
       alerts: [],
       plainLanguageSummary:
         topIdeas.length > 0
-          ? "These are the newest idea records created from current clusters."
+          ? "These are the newest idea records, with the business type and product shape called out more explicitly."
           : "The pipeline did not have any new idea records ready yet."
     },
     {
@@ -243,24 +243,24 @@ function buildDigestSections(input: DigestInputs) {
       sectionTitle: "Top Fintech Ideas",
       items:
         fintechIdeas.length > 0
-          ? fintechIdeas.map((idea) => `${idea.title} — ${idea.solutionConcept ?? idea.problemSummary ?? "Needs refinement."}`)
+          ? fintechIdeas.map((idea) => formatIdeaDigestLine(idea))
           : ["No fintech-specific ideas are available yet."],
       alerts: [],
       plainLanguageSummary:
         fintechIdeas.length > 0
-          ? "This is the current fintech subset from the idea backlog."
+          ? "This is the current fintech subset from the idea backlog, with the likely business model made explicit."
           : "No ideas currently classify into the fintech category."
     },
     {
       sectionTitle: "Top Finance Product Concepts",
       items:
         financeProductIdeas.length > 0
-          ? financeProductIdeas.map((idea) => `${idea.title} — ${idea.monetizationAngle ?? idea.solutionConcept ?? "Needs refinement."}`)
+          ? financeProductIdeas.map((idea) => formatIdeaDigestLine(idea))
           : ["No finance product concepts are available yet."],
       alerts: [],
       plainLanguageSummary:
         financeProductIdeas.length > 0
-          ? "These ideas are tagged most closely to finance product demand signals."
+          ? "These ideas are tagged most closely to finance product demand signals, with a clearer read on what kind of business each one is."
           : "No ideas currently classify into the finance-product category."
     },
     {
@@ -304,6 +304,55 @@ function resolveAppBaseUrl() {
   }
 
   return undefined;
+}
+
+function formatIdeaDigestLine(idea: DigestInputs["ideas"][number]) {
+  const businessType = inferBusinessType(idea);
+  const targetCustomer = idea.targetCustomer?.trim() || "Unclear buyer";
+  const problemSummary = compressSentence(idea.problemSummary ?? idea.evidenceSummary ?? "Needs manual review.");
+  const solutionConcept = compressSentence(idea.solutionConcept ?? "Solution shape still needs refinement.");
+  const monetization = compressSentence(idea.monetizationAngle ?? "Revenue model still needs validation.");
+
+  return [
+    `${idea.title} [${businessType}]`,
+    `Customer: ${targetCustomer}`,
+    `Problem: ${problemSummary}`,
+    `Business: ${solutionConcept}`,
+    `Monetization: ${monetization}`
+  ].join(" | ");
+}
+
+function inferBusinessType(idea: DigestInputs["ideas"][number]) {
+  const haystack = [idea.title, idea.category, idea.solutionConcept, idea.monetizationAngle]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (/(marketplace|directory|matching|lead marketplace)/.test(haystack)) {
+    return "Online marketplace";
+  }
+
+  if (/(platform|web app|app|dashboard|workflow tool|software|saas|crm|toolkit)/.test(haystack)) {
+    return "Software app / SaaS";
+  }
+
+  if (/(service|agency|managed outreach|done-for-you|consulting)/.test(haystack)) {
+    return "Service business";
+  }
+
+  if (/(community|newsletter|media|content)/.test(haystack)) {
+    return "Media / community product";
+  }
+
+  if (/(device|hardware|physical|consumer product|inventory)/.test(haystack)) {
+    return "Physical product";
+  }
+
+  return "Digital product";
+}
+
+function compressSentence(input: string) {
+  return input.replace(/\s+/g, " ").trim();
 }
 
 async function syncOwnerRecipient(ownerEmail: string) {
