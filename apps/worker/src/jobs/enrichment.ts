@@ -535,6 +535,7 @@ function llmEnrichmentSchemaToJsonSchema() {
 async function postOpenAiResponse(body: OpenAIRequestBody) {
   const maxRetries = resolveOpenAiRetryCount();
   let lastResponse: Response | null = null;
+  let lastErrorText = "";
 
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     const response = await fetch("https://api.openai.com/v1/responses", {
@@ -550,10 +551,11 @@ async function postOpenAiResponse(body: OpenAIRequestBody) {
       return response;
     }
 
+    lastErrorText = await safeReadResponseText(response);
     lastResponse = response;
 
     if (!shouldRetryOpenAiResponse(response.status) || attempt === maxRetries) {
-      return response;
+      throw buildOpenAiResponseError(response.status, lastErrorText);
     }
 
     await sleep(resolveRetryDelayMs(response, attempt));
@@ -563,7 +565,7 @@ async function postOpenAiResponse(body: OpenAIRequestBody) {
     throw new Error("OpenAI enrichment request did not return a response.");
   }
 
-  return lastResponse;
+  throw buildOpenAiResponseError(lastResponse.status, lastErrorText);
 }
 
 function resolveEnrichmentModel() {
@@ -614,4 +616,43 @@ function randomJitterMs(maxJitterMs: number) {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function safeReadResponseText(response: Response) {
+  try {
+    return await response.text();
+  } catch {
+    return "";
+  }
+}
+
+function buildOpenAiResponseError(status: number, responseText: string) {
+  const detail = extractOpenAiErrorDetail(responseText);
+
+  if (!detail) {
+    return new Error(`OpenAI enrichment request failed with ${status}.`);
+  }
+
+  return new Error(`OpenAI enrichment request failed with ${status}: ${detail}`);
+}
+
+function extractOpenAiErrorDetail(responseText: string) {
+  if (!responseText.trim()) {
+    return "";
+  }
+
+  try {
+    const parsed = JSON.parse(responseText) as {
+      error?: {
+        type?: string;
+        code?: string;
+        message?: string;
+      };
+    };
+
+    const parts = [parsed.error?.type, parsed.error?.code, parsed.error?.message].filter(Boolean);
+    return parts.join(" | ").slice(0, 300);
+  } catch {
+    return responseText.trim().slice(0, 300);
+  }
 }
