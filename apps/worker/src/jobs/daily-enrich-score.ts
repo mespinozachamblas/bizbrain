@@ -1,5 +1,5 @@
 import { db } from "@bizbrain/db";
-import { buildClusterSlug, buildClusterTitle, buildIdeaTitle, enrichSignal } from "./enrichment";
+import { buildClusterSlug, buildClusterTitle, buildIdeaTitle, enrichSignal, enrichSignalWithModel } from "./enrichment";
 import { logJobBoundary, runJobWithTracking } from "./shared";
 
 export async function runDailyEnrichScore() {
@@ -23,12 +23,21 @@ export async function runDailyEnrichScore() {
       }
 
       let recordsWritten = 0;
+      const warnings: string[] = [];
 
       for (const rawSignal of pendingSignals) {
-        const enrichment = enrichSignal({
+        const fallbackEnrichment = enrichSignal({
           title: rawSignal.title,
           body: rawSignal.body
         });
+        const llmEnrichment = await enrichSignalWithModel({
+          title: rawSignal.title,
+          body: rawSignal.body
+        }).catch((error) => {
+          warnings.push(error instanceof Error ? error.message : String(error));
+          return null;
+        });
+        const enrichment = llmEnrichment ?? fallbackEnrichment;
 
         const enrichedSignal = await db.enrichedSignal.upsert({
           where: { rawSignalId: rawSignal.id },
@@ -129,20 +138,26 @@ export async function runDailyEnrichScore() {
           await db.idea.create({
             data: {
               clusterId: cluster.id,
-              title: buildIdeaTitle(cluster.title),
+              title: llmEnrichment?.idea.title ?? buildIdeaTitle(cluster.title),
               category: enrichment.primaryCategory,
               subcategory: enrichment.categoryTags[1] ?? null,
-              targetCustomer: "Founder / operator",
-              problemSummary: enrichment.summary,
-              solutionConcept: `Build a lightweight ${enrichment.primaryCategory} workflow tool around ${enrichment.clusterSeed}.`,
-              monetizationAngle: "Subscription SaaS with premium workflow automation.",
+              targetCustomer: llmEnrichment?.idea.targetCustomer ?? "Founder / operator",
+              problemSummary: llmEnrichment?.idea.problemSummary ?? enrichment.summary,
+              solutionConcept:
+                llmEnrichment?.idea.solutionConcept ??
+                `Build a lightweight ${enrichment.primaryCategory} workflow tool around ${enrichment.clusterSeed}.`,
+              monetizationAngle:
+                llmEnrichment?.idea.monetizationAngle ?? "Subscription SaaS with premium workflow automation.",
               gtmJson: ["Founder communities", "Direct outreach", "Content-driven validation"],
-              validationQuestionsJson: [
-                `How often does the ${enrichment.clusterSeed} problem recur?`,
-                "Will operators pay for a narrower workflow-specific tool?"
-              ],
-              evidenceSummary: enrichment.summary,
-              riskNotes: "Deterministic baseline only. Requires manual validation and later model-assisted refinement.",
+              validationQuestionsJson:
+                llmEnrichment?.idea.validationQuestions ?? [
+                  `How often does the ${enrichment.clusterSeed} problem recur?`,
+                  "Will operators pay for a narrower workflow-specific tool?"
+                ],
+              evidenceSummary: llmEnrichment?.idea.evidenceSummary ?? enrichment.summary,
+              riskNotes:
+                llmEnrichment?.idea.riskNotes ??
+                "Deterministic baseline only. Requires manual validation and later model-assisted refinement.",
               scoreSnapshot: {
                 scoreTotal,
                 scoreFrequency,
@@ -163,12 +178,13 @@ export async function runDailyEnrichScore() {
 
       await context.markProgress({
         recordsRead: pendingSignals.length,
-        recordsWritten
+        recordsWritten,
+        warnings
       });
 
       logJobBoundary(
         "daily-enrich-score",
-        `Enriched ${pendingSignals.length} raw signal(s), updated clusters, and refreshed deterministic scores.`
+        `Enriched ${pendingSignals.length} raw signal(s), updated clusters, and refreshed scores.`
       );
     }
   });

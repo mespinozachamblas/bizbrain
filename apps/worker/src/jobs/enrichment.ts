@@ -1,4 +1,5 @@
-import type { JsonValue } from "@bizbrain/core";
+import { llmEnrichmentSchema, type JsonValue } from "@bizbrain/core";
+import { buildSignalResearchPrompt } from "@bizbrain/prompts";
 
 const STOPWORDS = new Set([
   "a",
@@ -86,6 +87,162 @@ export function enrichSignal(input: EnrichmentInput): DeterministicEnrichment {
   };
 }
 
+export async function enrichSignalWithModel(input: EnrichmentInput) {
+  if (!process.env.OPENAI_API_KEY) {
+    return null;
+  }
+
+  const content = [input.title, input.body].filter(Boolean).join("\n\n").trim();
+
+  if (!content) {
+    return null;
+  }
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: process.env.OPENAI_ENRICH_MODEL ?? "gpt-5.4",
+      input: [
+        {
+          role: "system",
+          content: [
+            {
+              type: "input_text",
+              text: buildSignalResearchPrompt()
+            }
+          ]
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: `TITLE:\n${input.title ?? "(none)"}\n\nBODY:\n${input.body ?? "(none)"}`
+            }
+          ]
+        }
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "signal_research_enrichment",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              normalizedText: { type: "string" },
+              keywords: {
+                type: "array",
+                items: { type: "string" },
+                minItems: 1,
+                maxItems: 8
+              },
+              entities: {
+                type: "array",
+                items: { type: "string" },
+                maxItems: 6
+              },
+              painPoints: {
+                type: "array",
+                items: { type: "string" },
+                maxItems: 5
+              },
+              intentPhrases: {
+                type: "array",
+                items: { type: "string" },
+                maxItems: 5
+              },
+              categoryTags: {
+                type: "array",
+                items: { type: "string" },
+                minItems: 1,
+                maxItems: 6
+              },
+              confidence: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  mode: { type: "string", enum: ["llm"] },
+                  score: { type: "number", minimum: 0, maximum: 1 },
+                  rationale: { type: "string" }
+                },
+                required: ["mode", "score", "rationale"]
+              },
+              primaryCategory: { type: "string" },
+              clusterSeed: { type: "string" },
+              summary: { type: "string" },
+              idea: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  title: { type: "string" },
+                  targetCustomer: { type: "string" },
+                  problemSummary: { type: "string" },
+                  solutionConcept: { type: "string" },
+                  monetizationAngle: { type: "string" },
+                  validationQuestions: {
+                    type: "array",
+                    items: { type: "string" },
+                    minItems: 2,
+                    maxItems: 5
+                  },
+                  riskNotes: { type: "string" },
+                  evidenceSummary: { type: "string" }
+                },
+                required: [
+                  "title",
+                  "targetCustomer",
+                  "problemSummary",
+                  "solutionConcept",
+                  "monetizationAngle",
+                  "validationQuestions",
+                  "riskNotes",
+                  "evidenceSummary"
+                ]
+              }
+            },
+            required: [
+              "normalizedText",
+              "keywords",
+              "entities",
+              "painPoints",
+              "intentPhrases",
+              "categoryTags",
+              "confidence",
+              "primaryCategory",
+              "clusterSeed",
+              "summary",
+              "idea"
+            ]
+          }
+        }
+      }
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI enrichment request failed with ${response.status}.`);
+  }
+
+  const payload = (await response.json()) as OpenAIResponsePayload;
+  const textOutput =
+    payload.output
+      ?.flatMap((item) => item.content ?? [])
+      .find((contentItem) => contentItem.type === "output_text")
+      ?.text ?? null;
+
+  if (!textOutput) {
+    throw new Error("OpenAI enrichment response did not include output_text.");
+  }
+
+  return llmEnrichmentSchema.parse(JSON.parse(textOutput));
+}
+
 export function buildClusterSlug(primaryCategory: string, clusterSeed: string) {
   return `${primaryCategory}-${clusterSeed}`
     .toLowerCase()
@@ -160,3 +317,12 @@ function buildSummary(primaryCategory: string, painPoints: string[], keywords: s
 function toTitleCase(value: string) {
   return value.replace(/\b\w/g, (character) => character.toUpperCase());
 }
+
+type OpenAIResponsePayload = {
+  output?: Array<{
+    content?: Array<{
+      type: string;
+      text?: string;
+    }>;
+  }>;
+};

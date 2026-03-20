@@ -43,6 +43,33 @@ export const sourceConfigRecordSchema = z.object({
   configJson: sourceAdapterConfigSchema
 });
 
+export const llmEnrichmentSchema = z.object({
+  normalizedText: z.string(),
+  keywords: z.array(z.string()).min(1).max(8),
+  entities: z.array(z.string()).max(6),
+  painPoints: z.array(z.string()).max(5),
+  intentPhrases: z.array(z.string()).max(5),
+  categoryTags: z.array(z.string()).min(1).max(6),
+  confidence: z.object({
+    mode: z.literal("llm"),
+    score: z.number().min(0).max(1),
+    rationale: z.string()
+  }),
+  primaryCategory: z.string(),
+  clusterSeed: z.string(),
+  summary: z.string(),
+  idea: z.object({
+    title: z.string(),
+    targetCustomer: z.string(),
+    problemSummary: z.string(),
+    solutionConcept: z.string(),
+    monetizationAngle: z.string(),
+    validationQuestions: z.array(z.string()).min(2).max(5),
+    riskNotes: z.string(),
+    evidenceSummary: z.string()
+  })
+});
+
 export type JobName = (typeof jobNames)[number];
 export type JobStatus = (typeof jobStatuses)[number];
 export type SourceType = (typeof sourceTypes)[number];
@@ -51,6 +78,7 @@ export type DigestSection = z.infer<typeof digestSectionSchema>;
 export type SourceSignal = z.infer<typeof sourceSignalSchema>;
 export type SourceAdapterConfig = z.infer<typeof sourceAdapterConfigSchema>;
 export type SourceConfigRecord = z.infer<typeof sourceConfigRecordSchema>;
+export type LlmEnrichment = z.infer<typeof llmEnrichmentSchema>;
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 
