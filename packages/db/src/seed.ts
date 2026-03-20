@@ -61,6 +61,7 @@ async function main() {
       enabled: true,
       nicheModes: ["property-management", "fintech", "finance-product"],
       configJson: {
+        mode: "live",
         sampleSize: 2,
         subredditList: ["landlord", "realestateinvesting", "smallbusiness", "fintech"],
         keywords: ["maintenance", "cashflow", "reserve", "workflow"],
@@ -73,6 +74,7 @@ async function main() {
       enabled: true,
       nicheModes: ["property-management", "fintech", "finance-product"],
       configJson: {
+        mode: "live",
         sampleSize: 2,
         subredditList: ["landlord", "realestateinvesting", "smallbusiness", "fintech"],
         keywords: ["maintenance", "cashflow", "reserve", "workflow"],
@@ -81,10 +83,38 @@ async function main() {
     }
   });
 
+  await db.sourceConfig.upsert({
+    where: { id: "seed-google-trends-source-config" },
+    update: {
+      sourceType: "google-trends",
+      enabled: true,
+      nicheModes: ["property-management", "fintech", "finance-product"],
+      configJson: {
+        mode: "live",
+        sampleSize: 5,
+        geo: "US",
+        keywords: ["finance", "payment", "treasury", "mortgage", "rental", "landlord", "automation", "software"]
+      }
+    },
+    create: {
+      id: "seed-google-trends-source-config",
+      sourceType: "google-trends",
+      enabled: true,
+      nicheModes: ["property-management", "fintech", "finance-product"],
+      configJson: {
+        mode: "live",
+        sampleSize: 5,
+        geo: "US",
+        keywords: ["finance", "payment", "treasury", "mortgage", "rental", "landlord", "automation", "software"]
+      }
+    }
+  });
+
   console.log("BizBrain seed complete");
   console.log(`Owner recipient: ${ownerEmail}`);
   console.log(`Total digest recipients ensured: ${digestRecipients.length}`);
   console.log("Default reddit source config ensured: seed-reddit-source-config");
+  console.log("Default Google Trends source config ensured: seed-google-trends-source-config");
 }
 
 function parseDigestRecipients(input: string | undefined, ownerEmail: string) {

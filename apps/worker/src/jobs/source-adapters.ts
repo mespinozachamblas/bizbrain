@@ -5,11 +5,12 @@ import {
   type JsonValue,
   type SourceAdapterConfig,
   type SourceMode,
+  type SourceType,
   type SourceSignal
 } from "@bizbrain/core";
 
 type SourceAdapterContext = {
-  sourceType: "reddit";
+  sourceType: SourceType;
   configJson: JsonValue;
 };
 
@@ -42,6 +43,24 @@ const sampleSignalsBySource: Record<SourceAdapterContext["sourceType"] | "defaul
       body: "People are asking for a simpler reserve planner tied to rent roll changes and maintenance volatility.",
       authorName: "sample-user-2",
       occurredAt: new Date("2026-03-18T18:30:00.000Z")
+    }
+  ],
+  "google-trends": [
+    {
+      sourceRecordId: "google-trends-us-rent-payment-apps-001",
+      sourceUrl: "https://trends.google.com/trends/explore?geo=US&q=rent%20payment%20app",
+      title: "Rent payment app",
+      body: "Google Trends sample signal showing increased interest in rent payment apps, landlord software, and tenant payment workflows in the US.",
+      authorName: "google-trends",
+      occurredAt: new Date("2026-03-18T09:00:00.000Z")
+    },
+    {
+      sourceRecordId: "google-trends-us-cash-flow-forecasting-002",
+      sourceUrl: "https://trends.google.com/trends/explore?geo=US&q=cash%20flow%20forecasting",
+      title: "Cash flow forecasting",
+      body: "Google Trends sample signal showing rising search interest around cash flow forecasting, reserve planning, and small business finance dashboards.",
+      authorName: "google-trends",
+      occurredAt: new Date("2026-03-18T11:00:00.000Z")
     }
   ],
   default: [
@@ -82,6 +101,35 @@ const adapterRegistry: Record<SourceAdapterContext["sourceType"], SourceAdapter>
       return {
         status: "ok",
         summary: `Sample adapter ready. ${sampleSignals.length} sample signal(s) available. sampleSize=${parsedConfig.sampleSize ?? sampleSignals.length}.`
+      };
+    }
+  },
+  "google-trends": {
+    sourceType: "google-trends",
+    supportsLiveMode: true,
+    parseConfig: parseSourceConfig,
+    getMode: (configJson) => resolveSourceMode(parseSourceConfig(configJson)),
+    fetchSignals: async (context) => {
+      const parsedConfig = parseSourceConfig(context.configJson);
+
+      if (resolveSourceMode(parsedConfig) === "live") {
+        return fetchGoogleTrendSignals(parsedConfig);
+      }
+
+      return getSampleSignals("google-trends", parsedConfig);
+    },
+    runHealthCheck: async (context) => {
+      const parsedConfig = parseSourceConfig(context.configJson);
+
+      if (resolveSourceMode(parsedConfig) === "live") {
+        return runGoogleTrendsHealthCheck(parsedConfig);
+      }
+
+      const sampleSignals = sampleSignalsBySource["google-trends"];
+
+      return {
+        status: "ok",
+        summary: `Sample Google Trends adapter ready. ${sampleSignals.length} sample signal(s) available. sampleSize=${parsedConfig.sampleSize ?? sampleSignals.length}.`
       };
     }
   }
@@ -164,6 +212,44 @@ async function runRedditHealthCheck(config: SourceAdapterConfig) {
   }
 }
 
+async function fetchGoogleTrendSignals(config: SourceAdapterConfig) {
+  const geo = (config.geo ?? "US").toUpperCase();
+  const response = await fetchWithTimeout(`https://trends.google.com/trending/rss?geo=${encodeURIComponent(geo)}`, {
+    headers: {
+      Accept: "application/rss+xml, application/xml;q=0.9, text/xml;q=0.8"
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Google Trends RSS fetch failed for geo=${geo} with ${response.status}.`);
+  }
+
+  const xml = await response.text();
+  const parsedSignals = parseGoogleTrendsRss(xml, geo, config.keywords);
+  const limitedSignals = parsedSignals.slice(0, config.sampleSize ?? 10);
+
+  return limitedSignals.map((signal) => sourceSignalSchema.parse(signal));
+}
+
+async function runGoogleTrendsHealthCheck(config: SourceAdapterConfig) {
+  try {
+    const signals = await fetchGoogleTrendSignals({
+      ...config,
+      sampleSize: Math.min(config.sampleSize ?? 3, 3)
+    });
+
+    return {
+      status: "ok" as const,
+      summary: `Live Google Trends adapter fetched ${signals.length} signal(s) successfully.`
+    };
+  } catch (error) {
+    return {
+      status: "error" as const,
+      summary: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
 async function fetchWithTimeout(url: string, init: RequestInit) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
@@ -201,6 +287,84 @@ function normalizeRedditUrl(url: string) {
 
 function isJsonObject(value: JsonValue): value is Record<string, JsonValue> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseGoogleTrendsRss(xml: string, geo: string, keywords?: string[]) {
+  const items = extractXmlTagBlocks(xml, "item");
+  const normalizedKeywords = (keywords ?? []).map((keyword) => keyword.trim().toLowerCase()).filter(Boolean);
+  const parsedSignals: SourceSignal[] = [];
+
+  for (const item of items) {
+    const title = decodeXmlEntities(extractXmlTagText(item, "title") ?? "").trim();
+
+    if (!title) {
+      continue;
+    }
+
+    const pubDate = extractXmlTagText(item, "pubDate");
+    const approximateTraffic = decodeXmlEntities(extractXmlTagText(item, "ht:approx_traffic") ?? "").trim();
+    const articleTitles = extractXmlTagBlocks(item, "ht:news_item")
+      .map((newsItem) => decodeXmlEntities(extractXmlTagText(newsItem, "ht:news_item_title") ?? "").trim())
+      .filter(Boolean)
+      .slice(0, 3);
+    const articleUrls = extractXmlTagBlocks(item, "ht:news_item")
+      .map((newsItem) => decodeXmlEntities(extractXmlTagText(newsItem, "ht:news_item_url") ?? "").trim())
+      .filter(Boolean);
+    const articleSnippets = articleTitles.length > 0 ? `Related coverage: ${articleTitles.join("; ")}.` : "";
+    const body = [approximateTraffic ? `Approximate traffic: ${approximateTraffic}.` : "", articleSnippets]
+      .filter(Boolean)
+      .join(" ");
+    const haystack = `${title} ${body}`.toLowerCase();
+    const occurredAt = pubDate ? new Date(pubDate) : undefined;
+    const sourceUrl =
+      articleUrls[0] || `https://trends.google.com/trends/explore?geo=${encodeURIComponent(geo)}&q=${encodeURIComponent(title)}`;
+
+    if (normalizedKeywords.length > 0 && !normalizedKeywords.some((keyword) => haystack.includes(keyword))) {
+      continue;
+    }
+
+    parsedSignals.push(
+      sourceSignalSchema.parse({
+        sourceRecordId: buildGoogleTrendRecordId(geo, title, pubDate),
+        sourceUrl,
+        title,
+        body: body || undefined,
+        authorName: "google-trends",
+        occurredAt
+      })
+    );
+  }
+
+  return dedupeSignals(parsedSignals);
+}
+
+function extractXmlTagBlocks(xml: string, tagName: string) {
+  const matches = xml.matchAll(new RegExp(`<${escapeRegExp(tagName)}\\b[^>]*>([\\s\\S]*?)<\\/${escapeRegExp(tagName)}>`, "gi"));
+  return [...matches].map((match) => match[1]);
+}
+
+function extractXmlTagText(xml: string, tagName: string) {
+  const match = xml.match(new RegExp(`<${escapeRegExp(tagName)}\\b[^>]*>([\\s\\S]*?)<\\/${escapeRegExp(tagName)}>`, "i"));
+  return match?.[1] ?? null;
+}
+
+function buildGoogleTrendRecordId(geo: string, title: string, pubDate: string | null) {
+  const normalizedTitle = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const normalizedDate = pubDate ? new Date(pubDate).toISOString().slice(0, 10) : "undated";
+  return `google-trends-${geo.toLowerCase()}-${normalizedTitle}-${normalizedDate}`.slice(0, 120);
+}
+
+function decodeXmlEntities(value: string) {
+  return value
+    .replaceAll("&amp;", "&")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#39;", "'");
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 type RedditListingResponse = {

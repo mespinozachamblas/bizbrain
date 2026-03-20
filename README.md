@@ -26,6 +26,7 @@ BizBrain is a founder-focused opportunity discovery system. This scaffold matche
 - Default development mode is deterministic `sample`.
 - Set `SOURCE_DEFAULT_MODE=live` to let supported adapters fetch real data.
 - For live Reddit fetching, set `SOURCE_HTTP_USER_AGENT` to a real descriptive user agent before running source tests or ingest.
+- Google Trends live mode uses the public RSS feed, applies keyword filtering from the source config, and does not require an API key.
 
 ## Database Commands
 - `pnpm db:generate`: regenerate Prisma client
