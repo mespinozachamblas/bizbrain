@@ -314,12 +314,12 @@ function parseGoogleTrendsRss(xml: string, geo: string, keywords?: string[]) {
     const body = [approximateTraffic ? `Approximate traffic: ${approximateTraffic}.` : "", articleSnippets]
       .filter(Boolean)
       .join(" ");
-    const haystack = `${title} ${body}`.toLowerCase();
+    const filterCorpus = [title, ...articleTitles].join(" ").toLowerCase();
     const occurredAt = pubDate ? new Date(pubDate) : undefined;
     const sourceUrl =
       articleUrls[0] || `https://trends.google.com/trends/explore?geo=${encodeURIComponent(geo)}&q=${encodeURIComponent(title)}`;
 
-    if (normalizedKeywords.length > 0 && !normalizedKeywords.some((keyword) => haystack.includes(keyword))) {
+    if (normalizedKeywords.length > 0 && !normalizedKeywords.some((keyword) => filterCorpus.includes(keyword))) {
       continue;
     }
 

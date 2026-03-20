@@ -91,9 +91,30 @@ async function main() {
       nicheModes: ["property-management", "fintech", "finance-product"],
       configJson: {
         mode: "live",
-        sampleSize: 5,
+        sampleSize: 3,
         geo: "US",
-        keywords: ["finance", "payment", "treasury", "mortgage", "rental", "landlord", "automation", "software"]
+        keywords: [
+          "fintech",
+          "payment",
+          "payments",
+          "invoice",
+          "invoicing",
+          "accounts payable",
+          "accounts receivable",
+          "cash flow",
+          "cashflow",
+          "mortgage",
+          "rent",
+          "rental",
+          "landlord",
+          "property management",
+          "proptech",
+          "treasury",
+          "bookkeeping",
+          "accounting",
+          "expense management",
+          "lease"
+        ]
       }
     },
     create: {
@@ -103,9 +124,30 @@ async function main() {
       nicheModes: ["property-management", "fintech", "finance-product"],
       configJson: {
         mode: "live",
-        sampleSize: 5,
+        sampleSize: 3,
         geo: "US",
-        keywords: ["finance", "payment", "treasury", "mortgage", "rental", "landlord", "automation", "software"]
+        keywords: [
+          "fintech",
+          "payment",
+          "payments",
+          "invoice",
+          "invoicing",
+          "accounts payable",
+          "accounts receivable",
+          "cash flow",
+          "cashflow",
+          "mortgage",
+          "rent",
+          "rental",
+          "landlord",
+          "property management",
+          "proptech",
+          "treasury",
+          "bookkeeping",
+          "accounting",
+          "expense management",
+          "lease"
+        ]
       }
     }
   });
