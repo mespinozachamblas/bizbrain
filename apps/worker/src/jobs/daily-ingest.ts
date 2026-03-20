@@ -1,4 +1,4 @@
-import { buildSignalDedupeHash } from "@bizbrain/core";
+import { buildSignalDedupeHash, sourceConfigRecordSchema } from "@bizbrain/core";
 import { db } from "@bizbrain/db";
 import { getSourceAdapter } from "./source-adapters";
 import { logJobBoundary, runJobWithTracking } from "./shared";
@@ -26,18 +26,25 @@ export async function runDailyIngest() {
       let rawSignalsWritten = 0;
 
       for (const sourceConfig of sourceConfigs) {
-        const adapter = getSourceAdapter(sourceConfig.sourceType);
+        const parsedSourceConfig = sourceConfigRecordSchema.parse({
+          sourceType: sourceConfig.sourceType,
+          enabled: sourceConfig.enabled,
+          nicheModes: sourceConfig.nicheModes,
+          configJson: sourceConfig.configJson
+        });
+        const adapter = getSourceAdapter(parsedSourceConfig.sourceType);
         const startedAt = new Date();
         const signals = await adapter.fetchSignals({
-          sourceType: sourceConfig.sourceType,
-          configJson: sourceConfig.configJson as never
+          sourceType: parsedSourceConfig.sourceType,
+          configJson: parsedSourceConfig.configJson as never
         });
+        const resolvedMode = adapter.getMode(parsedSourceConfig.configJson);
 
         for (const signal of signals) {
           await db.rawSignal.upsert({
             where: {
               sourceType_sourceRecordId: {
-                sourceType: sourceConfig.sourceType,
+                sourceType: parsedSourceConfig.sourceType,
                 sourceRecordId: signal.sourceRecordId
               }
             },
@@ -56,7 +63,7 @@ export async function runDailyIngest() {
               body: signal.body,
               authorName: signal.authorName,
               occurredAt: signal.occurredAt,
-              dedupeHash: buildSignalDedupeHash(sourceConfig.sourceType, signal.sourceRecordId)
+              dedupeHash: buildSignalDedupeHash(parsedSourceConfig.sourceType, signal.sourceRecordId)
             }
           });
         }
@@ -67,9 +74,12 @@ export async function runDailyIngest() {
           recordsRead: signals.length,
           recordsWritten: signals.length,
           warnings: {
-            sourceType: sourceConfig.sourceType,
-            mode: "sample-adapter",
-            note: "Using deterministic local sample signals until external adapters are wired."
+            sourceType: parsedSourceConfig.sourceType,
+            mode: resolvedMode,
+            note:
+              resolvedMode === "live"
+                ? "Pulled live source data through the configured adapter."
+                : "Using deterministic sample signals for this source."
           },
           startedAt,
           finishedAt: new Date()

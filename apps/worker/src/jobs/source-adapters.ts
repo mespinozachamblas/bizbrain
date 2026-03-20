@@ -1,17 +1,23 @@
 import {
+  resolveSourceMode,
   sourceAdapterConfigSchema,
   sourceSignalSchema,
   type JsonValue,
   type SourceAdapterConfig,
+  type SourceMode,
   type SourceSignal
 } from "@bizbrain/core";
 
 type SourceAdapterContext = {
-  sourceType: string;
+  sourceType: "reddit";
   configJson: JsonValue;
 };
 
 export type SourceAdapter = {
+  sourceType: SourceAdapterContext["sourceType"];
+  supportsLiveMode: boolean;
+  parseConfig: (configJson: JsonValue) => SourceAdapterConfig;
+  getMode: (configJson: JsonValue) => SourceMode;
   fetchSignals: (context: SourceAdapterContext) => Promise<SourceSignal[]>;
   runHealthCheck: (context: SourceAdapterContext) => Promise<{
     status: "ok" | "error";
@@ -19,7 +25,7 @@ export type SourceAdapter = {
   }>;
 };
 
-const sampleSignalsBySource: Record<string, SourceSignal[]> = {
+const sampleSignalsBySource: Record<SourceAdapterContext["sourceType"] | "default", SourceSignal[]> = {
   reddit: [
     {
       sourceRecordId: "reddit-landlord-maintenance-001",
@@ -50,42 +56,46 @@ const sampleSignalsBySource: Record<string, SourceSignal[]> = {
   ]
 };
 
-export function getSourceAdapter(sourceType: string): SourceAdapter {
-  return {
+const adapterRegistry: Record<SourceAdapterContext["sourceType"], SourceAdapter> = {
+  reddit: {
+    sourceType: "reddit",
+    supportsLiveMode: true,
+    parseConfig: parseSourceConfig,
+    getMode: (configJson) => resolveSourceMode(parseSourceConfig(configJson)),
     fetchSignals: async (context) => {
       const parsedConfig = parseSourceConfig(context.configJson);
-      if (sourceType === "reddit" && resolveAdapterMode(parsedConfig) === "live") {
+      if (resolveSourceMode(parsedConfig) === "live") {
         return fetchRedditSignals(parsedConfig);
       }
 
-      return getSampleSignals(sourceType, parsedConfig);
+      return getSampleSignals("reddit", parsedConfig);
     },
     runHealthCheck: async (context) => {
       const parsedConfig = parseSourceConfig(context.configJson);
 
-      if (sourceType === "reddit" && resolveAdapterMode(parsedConfig) === "live") {
+      if (resolveSourceMode(parsedConfig) === "live") {
         return runRedditHealthCheck(parsedConfig);
       }
 
-      const sampleSignals = sampleSignalsBySource[sourceType] ?? sampleSignalsBySource.default;
+      const sampleSignals = sampleSignalsBySource.reddit;
 
       return {
         status: "ok",
         summary: `Sample adapter ready. ${sampleSignals.length} sample signal(s) available. sampleSize=${parsedConfig.sampleSize ?? sampleSignals.length}.`
       };
     }
-  };
+  }
+};
+
+export function getSourceAdapter(sourceType: SourceAdapterContext["sourceType"]): SourceAdapter {
+  return adapterRegistry[sourceType];
 }
 
 function parseSourceConfig(configJson: JsonValue): SourceAdapterConfig {
   return sourceAdapterConfigSchema.parse(isJsonObject(configJson) ? configJson : {});
 }
 
-function resolveAdapterMode(config: SourceAdapterConfig) {
-  return config.mode ?? (process.env.SOURCE_DEFAULT_MODE === "live" ? "live" : "sample");
-}
-
-function getSampleSignals(sourceType: string, config: SourceAdapterConfig) {
+function getSampleSignals(sourceType: SourceAdapterContext["sourceType"], config: SourceAdapterConfig) {
   const sampleSignals = sampleSignalsBySource[sourceType] ?? sampleSignalsBySource.default;
   const limitedSignals = sampleSignals.slice(0, config.sampleSize ?? sampleSignals.length);
 
