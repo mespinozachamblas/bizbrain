@@ -1,8 +1,18 @@
 import { db } from "./index";
 
 async function main() {
-  const ownerEmail = process.env.OWNER_EMAIL ?? "owner@example.com";
+  const ownerEmail = (process.env.OWNER_EMAIL ?? "owner@example.com").trim().toLowerCase();
   const digestRecipients = parseDigestRecipients(process.env.DIGEST_RECIPIENTS, ownerEmail);
+
+  await db.digestRecipient.updateMany({
+    where: {
+      isOwnerDefault: true,
+      email: { not: ownerEmail }
+    },
+    data: {
+      isOwnerDefault: false
+    }
+  });
 
   await db.digestRecipient.upsert({
     where: { email: ownerEmail },
@@ -18,16 +28,28 @@ async function main() {
   });
 
   for (const recipient of digestRecipients) {
+    const normalizedRecipient = recipient.trim().toLowerCase();
+
     await db.digestRecipient.upsert({
-      where: { email: recipient },
+      where: { email: normalizedRecipient },
       update: {
         enabled: true,
-        isOwnerDefault: recipient === ownerEmail
+        isOwnerDefault: normalizedRecipient === ownerEmail
       },
       create: {
-        email: recipient,
+        email: normalizedRecipient,
         enabled: true,
-        isOwnerDefault: recipient === ownerEmail
+        isOwnerDefault: normalizedRecipient === ownerEmail
+      }
+    });
+  }
+
+  if (ownerEmail !== "owner@example.com") {
+    await db.digestRecipient.updateMany({
+      where: { email: "owner@example.com" },
+      data: {
+        enabled: false,
+        isOwnerDefault: false
       }
     });
   }
@@ -69,7 +91,8 @@ function parseDigestRecipients(input: string | undefined, ownerEmail: string) {
   const recipients = (input ?? ownerEmail)
     .split(",")
     .map((value) => value.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((value) => value.toLowerCase());
 
   return [...new Set([ownerEmail, ...recipients])];
 }
