@@ -203,43 +203,36 @@ export async function enrichSignalWithModel(input: EnrichmentInput) {
     return null;
   }
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: process.env.OPENAI_ENRICH_MODEL ?? "gpt-5.4",
-      input: [
-        {
-          role: "system",
-          content: [
-            {
-              type: "input_text",
-              text: buildSignalResearchPrompt()
-            }
-          ]
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: `TITLE:\n${input.title ?? "(none)"}\n\nBODY:\n${input.body ?? "(none)"}`
-            }
-          ]
-        }
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "signal_research_enrichment",
-          strict: true,
-          schema: llmEnrichmentSchemaToJsonSchema()
-        }
+  const response = await postOpenAiResponse({
+    model: resolveEnrichmentModel(),
+    input: [
+      {
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: buildSignalResearchPrompt()
+          }
+        ]
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: `TITLE:\n${input.title ?? "(none)"}\n\nBODY:\n${input.body ?? "(none)"}`
+          }
+        ]
       }
-    })
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "signal_research_enrichment",
+        strict: true,
+        schema: llmEnrichmentSchemaToJsonSchema()
+      }
+    }
   });
 
   if (!response.ok) {
@@ -274,53 +267,46 @@ export async function enrichSignalBatchWithModel(inputs: EnrichmentInput[]) {
     return new Map<string, LlmEnrichment>();
   }
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: process.env.OPENAI_ENRICH_MODEL ?? "gpt-5.4",
-      input: [
-        {
-          role: "system",
-          content: [
-            {
-              type: "input_text",
-              text: `${buildSignalResearchPrompt()}
+  const response = await postOpenAiResponse({
+    model: resolveEnrichmentModel(),
+    input: [
+      {
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: `${buildSignalResearchPrompt()}
 
 You will receive multiple signals.
 Return one result for every provided rawSignalId.
 Preserve each rawSignalId exactly in the output.
 Do not omit items unless the corresponding input text is empty.`
-            }
-          ]
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: validInputs
-                .map(
-                  (input) =>
-                    `RAW_SIGNAL_ID: ${input.rawSignalId}\nTITLE:\n${input.title ?? "(none)"}\n\nBODY:\n${input.body ?? "(none)"}`
-                )
-                .join("\n\n---\n\n")
-            }
-          ]
-        }
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "signal_research_batch_enrichment",
-          strict: true,
-          schema: batchedLlmEnrichmentSchema
-        }
+          }
+        ]
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: validInputs
+              .map(
+                (input) =>
+                  `RAW_SIGNAL_ID: ${input.rawSignalId}\nTITLE:\n${input.title ?? "(none)"}\n\nBODY:\n${input.body ?? "(none)"}`
+              )
+              .join("\n\n---\n\n")
+          }
+        ]
       }
-    })
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "signal_research_batch_enrichment",
+        strict: true,
+        schema: batchedLlmEnrichmentSchema
+      }
+    }
   });
 
   if (!response.ok) {
@@ -435,6 +421,25 @@ type OpenAIResponsePayload = {
   }>;
 };
 
+type OpenAIRequestBody = {
+  model: string;
+  input: Array<{
+    role: string;
+    content: Array<{
+      type: string;
+      text: string;
+    }>;
+  }>;
+  text: {
+    format: {
+      type: "json_schema";
+      name: string;
+      strict: true;
+      schema: unknown;
+    };
+  };
+};
+
 function llmEnrichmentSchemaToJsonSchema() {
   return {
     type: "object",
@@ -525,4 +530,88 @@ function llmEnrichmentSchemaToJsonSchema() {
       "idea"
     ]
   } as const;
+}
+
+async function postOpenAiResponse(body: OpenAIRequestBody) {
+  const maxRetries = resolveOpenAiRetryCount();
+  let lastResponse: Response | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (response.ok) {
+      return response;
+    }
+
+    lastResponse = response;
+
+    if (!shouldRetryOpenAiResponse(response.status) || attempt === maxRetries) {
+      return response;
+    }
+
+    await sleep(resolveRetryDelayMs(response, attempt));
+  }
+
+  if (!lastResponse) {
+    throw new Error("OpenAI enrichment request did not return a response.");
+  }
+
+  return lastResponse;
+}
+
+function resolveEnrichmentModel() {
+  return process.env.OPENAI_ENRICH_MODEL ?? "gpt-5-mini";
+}
+
+function resolveOpenAiRetryCount() {
+  const parsed = Number(process.env.OPENAI_ENRICH_MAX_RETRIES ?? "3");
+
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return 3;
+  }
+
+  return Math.min(parsed, 6);
+}
+
+function shouldRetryOpenAiResponse(status: number) {
+  return status === 429 || status >= 500;
+}
+
+function resolveRetryDelayMs(response: Response, attempt: number) {
+  const retryAfterSeconds = Number(response.headers.get("retry-after"));
+
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+    return retryAfterSeconds * 1000;
+  }
+
+  const baseDelayMs = resolveOpenAiRetryBaseDelayMs();
+  const exponentialDelay = baseDelayMs * 2 ** attempt;
+  const cappedDelay = Math.min(exponentialDelay, 20_000);
+
+  return cappedDelay + randomJitterMs(250);
+}
+
+function resolveOpenAiRetryBaseDelayMs() {
+  const parsed = Number(process.env.OPENAI_ENRICH_RETRY_BASE_DELAY_MS ?? "2000");
+
+  if (!Number.isFinite(parsed) || parsed < 250) {
+    return 2000;
+  }
+
+  return parsed;
+}
+
+function randomJitterMs(maxJitterMs: number) {
+  return Math.floor(Math.random() * maxJitterMs);
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
