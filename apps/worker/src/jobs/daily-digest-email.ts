@@ -19,12 +19,12 @@ export async function runDailyDigestEmail() {
       const [ideas, clusters, failedJobs, failedSourceChecks, recipients] = await Promise.all([
         db.idea.findMany({
           orderBy: { updatedAt: "desc" },
-          take: 12,
+          take: 50,
           include: { cluster: true }
         }),
         db.trendCluster.findMany({
           orderBy: [{ scoreTotal: "desc" }, { updatedAt: "desc" }],
-          take: 8
+          take: 20
         }),
         db.jobRun.findMany({
           where: { runStatus: "failed" },
@@ -201,13 +201,23 @@ type DigestInputs = {
 
 type DigestIdeaRecord = DigestInputs["ideas"][number] & {
   businessType?: string | null;
+  cluster?: {
+    id: string;
+    title: string;
+    summary: string | null;
+    primaryCategory: string;
+    scoreTotal: number;
+    signalCount: number;
+  } | null;
 };
 
 function buildDigestSections(input: DigestInputs) {
-  const topIdeas = input.ideas.slice(0, 3);
-  const risingClusters = input.clusters.slice(0, 3);
-  const fintechIdeas = input.ideas.filter((idea) => idea.category.includes("fintech")).slice(0, 3);
-  const financeProductIdeas = input.ideas.filter((idea) => idea.category.includes("finance-product")).slice(0, 3);
+  const rankedIdeas = rankDigestIdeas(input.ideas);
+  const topIdeas = rankedIdeas.slice(0, 3);
+  const curatedClusters = collectClustersFromIdeas(topIdeas.length > 0 ? topIdeas : rankedIdeas.slice(0, 3));
+  const risingClusters = curatedClusters.length > 0 ? curatedClusters : rankDigestClusters(input.clusters).slice(0, 3);
+  const fintechIdeas = rankedIdeas.filter((idea) => idea.category.includes("fintech")).slice(0, 3);
+  const financeProductIdeas = rankedIdeas.filter((idea) => idea.category.includes("finance-product")).slice(0, 3);
   const healthAlerts = [
     ...input.failedJobs.map((job) => `Job ${job.jobName} failed at ${job.startedAt.toISOString()}.`),
     ...input.failedSourceChecks.map(
@@ -234,7 +244,7 @@ function buildDigestSections(input: DigestInputs) {
         risingClusters.length > 0
           ? risingClusters.map(
               (cluster) =>
-                `${cluster.title} — score ${cluster.scoreTotal.toFixed(1)}, ${cluster.signalCount} signals, ${cluster.summary ?? "No summary yet."}`
+                `${cluster.title} — score ${cluster.scoreTotal.toFixed(1)}, ${cluster.signalCount} signals, ${summarizeDigestText(cluster.summary ?? "No summary yet.", 220)}`
             )
           : ["No clusters are available yet."],
       alerts: [],
@@ -313,9 +323,9 @@ function resolveAppBaseUrl() {
 function formatIdeaDigestLine(idea: DigestIdeaRecord) {
   const businessType = inferBusinessType(idea);
   const targetCustomer = idea.targetCustomer?.trim() || "Unclear buyer";
-  const problemSummary = compressSentence(idea.problemSummary ?? idea.evidenceSummary ?? "Needs manual review.");
-  const solutionConcept = compressSentence(idea.solutionConcept ?? "Solution shape still needs refinement.");
-  const monetization = compressSentence(idea.monetizationAngle ?? "Revenue model still needs validation.");
+  const problemSummary = summarizeDigestText(idea.problemSummary ?? idea.evidenceSummary ?? "Needs manual review.", 220);
+  const solutionConcept = summarizeDigestText(idea.solutionConcept ?? "Solution shape still needs refinement.", 220);
+  const monetization = summarizeDigestText(idea.monetizationAngle ?? "Revenue model still needs validation.", 180);
 
   return [
     `${idea.title} [${businessType}]`,
@@ -361,6 +371,123 @@ function inferBusinessType(idea: DigestIdeaRecord) {
 
 function compressSentence(input: string) {
   return input.replace(/\s+/g, " ").trim();
+}
+
+function summarizeDigestText(input: string, maxLength: number) {
+  const normalized = compressSentence(input)
+    .replace(/\\-\s*/g, "")
+    .replace(/\s*\|\s*/g, ", ")
+    .trim();
+
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  const truncated = normalized.slice(0, maxLength);
+  const boundary = Math.max(truncated.lastIndexOf(". "), truncated.lastIndexOf(", "), truncated.lastIndexOf(" "));
+  const safeCutoff = boundary > maxLength * 0.6 ? boundary : maxLength;
+
+  return `${truncated.slice(0, safeCutoff).trimEnd()}...`;
+}
+
+function rankDigestIdeas(ideas: DigestIdeaRecord[]) {
+  return ideas
+    .map((idea) => ({
+      idea,
+      quality: scoreDigestIdea(idea)
+    }))
+    .filter(({ quality }) => quality >= 6)
+    .sort((left, right) => right.quality - left.quality || right.idea.updatedAt.getTime() - left.idea.updatedAt.getTime())
+    .map(({ idea }) => idea);
+}
+
+function scoreDigestIdea(idea: DigestIdeaRecord) {
+  let score = 0;
+
+  if (idea.businessType?.trim()) {
+    score += 3;
+  }
+
+  if (idea.targetCustomer && idea.targetCustomer !== "Founder / operator") {
+    score += 2;
+  }
+
+  if (isSpecificDigestText(idea.problemSummary)) {
+    score += 3;
+  }
+
+  if (isSpecificDigestText(idea.solutionConcept) && !/build a lightweight/i.test(idea.solutionConcept ?? "")) {
+    score += 4;
+  }
+
+  if (isSpecificDigestText(idea.monetizationAngle) && !/subscription saas with premium workflow automation/i.test(idea.monetizationAngle ?? "")) {
+    score += 3;
+  }
+
+  if (idea.category !== "general") {
+    score += 1;
+  }
+
+  if (!/\bopportunity\b/i.test(idea.title)) {
+    score += 1;
+  }
+
+  return score;
+}
+
+function isSpecificDigestText(value: string | null | undefined) {
+  if (!value) {
+    return false;
+  }
+
+  const normalized = compressSentence(value);
+
+  if (normalized.length < 40) {
+    return false;
+  }
+
+  if (/^recurring\s+/i.test(normalized)) {
+    return false;
+  }
+
+  if (/around\s+[a-z]{2,12}\.?$/i.test(normalized)) {
+    return false;
+  }
+
+  return true;
+}
+
+function collectClustersFromIdeas(ideas: DigestIdeaRecord[]) {
+  const seen = new Set<string>();
+
+  return ideas
+    .map((idea) => idea.cluster)
+    .filter(
+      (
+        cluster
+      ): cluster is NonNullable<
+        NonNullable<DigestIdeaRecord["cluster"]>
+      > => Boolean(cluster)
+    )
+    .filter((cluster) => {
+      if (seen.has(cluster.id)) {
+        return false;
+      }
+
+      seen.add(cluster.id);
+      return true;
+    })
+    .slice(0, 3);
+}
+
+function rankDigestClusters(clusters: DigestInputs["clusters"]) {
+  return clusters.filter((cluster) => {
+    if (cluster.primaryCategory === "general") {
+      return false;
+    }
+
+    return isSpecificDigestText(cluster.summary);
+  });
 }
 
 async function syncOwnerRecipient(ownerEmail: string) {
