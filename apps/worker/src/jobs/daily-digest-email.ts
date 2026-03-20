@@ -199,6 +199,10 @@ type DigestInputs = {
   failedSourceChecks: Awaited<ReturnType<typeof db.sourceHealthCheck.findMany>>;
 };
 
+type DigestIdeaRecord = DigestInputs["ideas"][number] & {
+  businessType?: string | null;
+};
+
 function buildDigestSections(input: DigestInputs) {
   const topIdeas = input.ideas.slice(0, 3);
   const risingClusters = input.clusters.slice(0, 3);
@@ -306,7 +310,7 @@ function resolveAppBaseUrl() {
   return undefined;
 }
 
-function formatIdeaDigestLine(idea: DigestInputs["ideas"][number]) {
+function formatIdeaDigestLine(idea: DigestIdeaRecord) {
   const businessType = inferBusinessType(idea);
   const targetCustomer = idea.targetCustomer?.trim() || "Unclear buyer";
   const problemSummary = compressSentence(idea.problemSummary ?? idea.evidenceSummary ?? "Needs manual review.");
@@ -322,7 +326,11 @@ function formatIdeaDigestLine(idea: DigestInputs["ideas"][number]) {
   ].join(" | ");
 }
 
-function inferBusinessType(idea: DigestInputs["ideas"][number]) {
+function inferBusinessType(idea: DigestIdeaRecord) {
+  if (idea.businessType?.trim()) {
+    return idea.businessType.trim();
+  }
+
   const haystack = [idea.title, idea.category, idea.solutionConcept, idea.monetizationAngle]
     .filter(Boolean)
     .join(" ")

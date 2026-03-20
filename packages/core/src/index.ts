@@ -60,6 +60,7 @@ export const llmEnrichmentSchema = z.object({
   summary: z.string(),
   idea: z.object({
     title: z.string(),
+    businessType: z.string(),
     targetCustomer: z.string(),
     problemSummary: z.string(),
     solutionConcept: z.string(),

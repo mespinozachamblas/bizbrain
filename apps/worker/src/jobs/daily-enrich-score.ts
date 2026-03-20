@@ -159,42 +159,53 @@ export async function runDailyEnrichScore() {
           where: { clusterId: cluster.id }
         });
 
+        const ideaData = {
+          title: llmEnrichment?.idea.title ?? buildIdeaTitle(cluster.title),
+          category: enrichment.primaryCategory,
+          subcategory: enrichment.categoryTags[1] ?? null,
+          businessType:
+            llmEnrichment?.idea.businessType ?? inferFallbackBusinessType(enrichment.primaryCategory, enrichment.clusterSeed),
+          targetCustomer: llmEnrichment?.idea.targetCustomer ?? "Founder / operator",
+          problemSummary: llmEnrichment?.idea.problemSummary ?? enrichment.summary,
+          solutionConcept:
+            llmEnrichment?.idea.solutionConcept ??
+            `Build a lightweight ${enrichment.primaryCategory} workflow tool around ${enrichment.clusterSeed}.`,
+          monetizationAngle:
+            llmEnrichment?.idea.monetizationAngle ?? "Subscription SaaS with premium workflow automation.",
+          gtmJson: ["Founder communities", "Direct outreach", "Content-driven validation"],
+          validationQuestionsJson:
+            llmEnrichment?.idea.validationQuestions ?? [
+              `How often does the ${enrichment.clusterSeed} problem recur?`,
+              "Will operators pay for a narrower workflow-specific tool?"
+            ],
+          evidenceSummary: llmEnrichment?.idea.evidenceSummary ?? enrichment.summary,
+          riskNotes:
+            llmEnrichment?.idea.riskNotes ??
+            "Deterministic baseline only. Requires manual validation and later model-assisted refinement.",
+          scoreSnapshot: {
+            scoreTotal,
+            scoreFrequency,
+            scoreMomentum,
+            scoreIntent,
+            scoreWhitespace,
+            scoreFit,
+            scoreComplexity,
+            scoreFeasibility
+          },
+          status: "new"
+        } as const;
+
         if (!existingIdea) {
           await db.idea.create({
             data: {
               clusterId: cluster.id,
-              title: llmEnrichment?.idea.title ?? buildIdeaTitle(cluster.title),
-              category: enrichment.primaryCategory,
-              subcategory: enrichment.categoryTags[1] ?? null,
-              targetCustomer: llmEnrichment?.idea.targetCustomer ?? "Founder / operator",
-              problemSummary: llmEnrichment?.idea.problemSummary ?? enrichment.summary,
-              solutionConcept:
-                llmEnrichment?.idea.solutionConcept ??
-                `Build a lightweight ${enrichment.primaryCategory} workflow tool around ${enrichment.clusterSeed}.`,
-              monetizationAngle:
-                llmEnrichment?.idea.monetizationAngle ?? "Subscription SaaS with premium workflow automation.",
-              gtmJson: ["Founder communities", "Direct outreach", "Content-driven validation"],
-              validationQuestionsJson:
-                llmEnrichment?.idea.validationQuestions ?? [
-                  `How often does the ${enrichment.clusterSeed} problem recur?`,
-                  "Will operators pay for a narrower workflow-specific tool?"
-                ],
-              evidenceSummary: llmEnrichment?.idea.evidenceSummary ?? enrichment.summary,
-              riskNotes:
-                llmEnrichment?.idea.riskNotes ??
-                "Deterministic baseline only. Requires manual validation and later model-assisted refinement.",
-              scoreSnapshot: {
-                scoreTotal,
-                scoreFrequency,
-                scoreMomentum,
-                scoreIntent,
-                scoreWhitespace,
-                scoreFit,
-                scoreComplexity,
-                scoreFeasibility
-              },
-              status: "new"
+              ...ideaData
             }
+          });
+        } else {
+          await db.idea.update({
+            where: { id: existingIdea.id },
+            data: ideaData
           });
         }
 
@@ -247,4 +258,18 @@ function resolveEnrichmentBatchDelayMs() {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function inferFallbackBusinessType(primaryCategory: string, clusterSeed: string) {
+  const haystack = `${primaryCategory} ${clusterSeed}`.toLowerCase();
+
+  if (/(marketplace|directory|agency)/.test(haystack)) {
+    return "Service business";
+  }
+
+  if (/(finance|fintech|automation|saas|workflow|software)/.test(haystack)) {
+    return "Software app / SaaS";
+  }
+
+  return "Digital product";
 }

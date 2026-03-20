@@ -1,3 +1,4 @@
+import { sourceConfigRecordSchema } from "@bizbrain/core";
 import { db } from "@bizbrain/db";
 import { getSourceAdapter } from "../../worker/src/jobs/source-adapters";
 
@@ -10,10 +11,17 @@ export async function runSourceHealthCheck(sourceConfigId: string) {
     throw new Error("Source config not found.");
   }
 
-  const adapter = getSourceAdapter(sourceConfig.sourceType);
-  const result = await adapter.runHealthCheck({
+  const parsedSourceConfig = sourceConfigRecordSchema.parse({
     sourceType: sourceConfig.sourceType,
-    configJson: sourceConfig.configJson as never
+    enabled: sourceConfig.enabled,
+    nicheModes: sourceConfig.nicheModes,
+    configJson: sourceConfig.configJson
+  });
+
+  const adapter = getSourceAdapter(parsedSourceConfig.sourceType);
+  const result = await adapter.runHealthCheck({
+    sourceType: parsedSourceConfig.sourceType,
+    configJson: parsedSourceConfig.configJson
   });
 
   await db.sourceHealthCheck.create({

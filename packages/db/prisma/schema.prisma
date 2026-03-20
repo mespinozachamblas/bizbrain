@@ -171,6 +171,7 @@ model Idea {
   title                   String
   category                String
   subcategory             String?
+  businessType            String?      @map("business_type")
   targetCustomer          String?      @map("target_customer")
   problemSummary          String?      @map("problem_summary")
   solutionConcept         String?      @map("solution_concept")

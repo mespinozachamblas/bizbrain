@@ -106,6 +106,7 @@ const batchedLlmEnrichmentSchema = {
             additionalProperties: false,
             properties: {
               title: { type: "string" },
+              businessType: { type: "string" },
               targetCustomer: { type: "string" },
               problemSummary: { type: "string" },
               solutionConcept: { type: "string" },
@@ -121,6 +122,7 @@ const batchedLlmEnrichmentSchema = {
             },
             required: [
               "title",
+              "businessType",
               "targetCustomer",
               "problemSummary",
               "solutionConcept",
@@ -491,6 +493,7 @@ function llmEnrichmentSchemaToJsonSchema() {
         additionalProperties: false,
         properties: {
           title: { type: "string" },
+          businessType: { type: "string" },
           targetCustomer: { type: "string" },
           problemSummary: { type: "string" },
           solutionConcept: { type: "string" },
@@ -506,6 +509,7 @@ function llmEnrichmentSchemaToJsonSchema() {
         },
         required: [
           "title",
+          "businessType",
           "targetCustomer",
           "problemSummary",
           "solutionConcept",

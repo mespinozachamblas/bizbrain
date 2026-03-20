@@ -31,6 +31,7 @@ type DashboardData = {
     id: string;
     title: string;
     category: string;
+    businessType: string | null;
     status: string;
     updatedAt: Date;
     evidenceSummary: string | null;
@@ -198,7 +199,8 @@ export default async function HomePage() {
                   <div>
                     <p className="rowTitle">{idea.title}</p>
                     <p className="rowMeta">
-                      {idea.category} · {idea.status} · updated {formatDate(idea.updatedAt)}
+                      {idea.businessType ?? "Business type pending"} · {idea.category} · {idea.status} · updated{" "}
+                      {formatDate(idea.updatedAt)}
                     </p>
                     <p className="rowBody">{idea.evidenceSummary ?? "No evidence summary yet."}</p>
                   </div>
@@ -331,7 +333,16 @@ async function getDashboardData(): Promise<DashboardData> {
         }),
         db.idea.findMany({
           orderBy: { updatedAt: "desc" },
-          take: 5
+          take: 5,
+          select: {
+            id: true,
+            title: true,
+            category: true,
+            businessType: true,
+            status: true,
+            updatedAt: true,
+            evidenceSummary: true
+          }
         }),
         db.digestRecipient.findMany({
           orderBy: [{ isOwnerDefault: "desc" }, { email: "asc" }]
