@@ -1,5 +1,5 @@
 import { db } from "@bizbrain/db";
-import { buildClusterSlug, buildClusterTitle, buildIdeaTitle, enrichSignal, enrichSignalWithModel } from "./enrichment";
+import { buildClusterSlug, buildClusterTitle, buildIdeaTitle, enrichSignal, enrichSignalBatchWithModel } from "./enrichment";
 import { logJobBoundary, runJobWithTracking } from "./shared";
 
 export async function runDailyEnrichScore() {
@@ -24,19 +24,44 @@ export async function runDailyEnrichScore() {
 
       let recordsWritten = 0;
       const warnings: string[] = [];
+      const llmBatchSize = resolveEnrichmentBatchSize();
+      const llmBatchDelayMs = resolveEnrichmentBatchDelayMs();
+      const llmResults = new Map<string, Awaited<ReturnType<typeof enrichSignalBatchWithModel>> extends Map<string, infer TValue> ? TValue : never>();
+
+      if (process.env.OPENAI_API_KEY) {
+        const batches = chunkSignals(pendingSignals, llmBatchSize);
+
+        for (let index = 0; index < batches.length; index += 1) {
+          const batch = batches[index];
+
+          try {
+            const batchResults = await enrichSignalBatchWithModel(
+              batch.map((rawSignal) => ({
+                rawSignalId: rawSignal.id,
+                title: rawSignal.title,
+                body: rawSignal.body
+              }))
+            );
+
+            for (const [rawSignalId, enrichment] of batchResults.entries()) {
+              llmResults.set(rawSignalId, enrichment);
+            }
+          } catch (error) {
+            warnings.push(error instanceof Error ? error.message : String(error));
+          }
+
+          if (index < batches.length - 1 && llmBatchDelayMs > 0) {
+            await sleep(llmBatchDelayMs);
+          }
+        }
+      }
 
       for (const rawSignal of pendingSignals) {
         const fallbackEnrichment = enrichSignal({
           title: rawSignal.title,
           body: rawSignal.body
         });
-        const llmEnrichment = await enrichSignalWithModel({
-          title: rawSignal.title,
-          body: rawSignal.body
-        }).catch((error) => {
-          warnings.push(error instanceof Error ? error.message : String(error));
-          return null;
-        });
+        const llmEnrichment = llmResults.get(rawSignal.id) ?? null;
         const enrichment = llmEnrichment ?? fallbackEnrichment;
 
         const enrichedSignal = await db.enrichedSignal.upsert({
@@ -188,4 +213,38 @@ export async function runDailyEnrichScore() {
       );
     }
   });
+}
+
+function chunkSignals<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
+function resolveEnrichmentBatchSize() {
+  const parsed = Number(process.env.OPENAI_ENRICH_BATCH_SIZE ?? "3");
+
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return 3;
+  }
+
+  return Math.min(parsed, 5);
+}
+
+function resolveEnrichmentBatchDelayMs() {
+  const parsed = Number(process.env.OPENAI_ENRICH_BATCH_DELAY_MS ?? "1500");
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 1500;
+  }
+
+  return parsed;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

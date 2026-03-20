@@ -1,4 +1,4 @@
-import { llmEnrichmentSchema, type JsonValue } from "@bizbrain/core";
+import { llmEnrichmentSchema, type JsonValue, type LlmEnrichment } from "@bizbrain/core";
 import { buildSignalResearchPrompt } from "@bizbrain/prompts";
 
 const STOPWORDS = new Set([
@@ -42,9 +42,114 @@ const CATEGORY_RULES = [
 ] as const;
 
 type EnrichmentInput = {
+  rawSignalId?: string;
   title?: string | null;
   body?: string | null;
 };
+
+const batchedLlmEnrichmentSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    items: {
+      type: "array",
+      minItems: 1,
+      maxItems: 5,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          rawSignalId: { type: "string" },
+          normalizedText: { type: "string" },
+          keywords: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 1,
+            maxItems: 8
+          },
+          entities: {
+            type: "array",
+            items: { type: "string" },
+            maxItems: 6
+          },
+          painPoints: {
+            type: "array",
+            items: { type: "string" },
+            maxItems: 5
+          },
+          intentPhrases: {
+            type: "array",
+            items: { type: "string" },
+            maxItems: 5
+          },
+          categoryTags: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 1,
+            maxItems: 6
+          },
+          confidence: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              mode: { type: "string", enum: ["llm"] },
+              score: { type: "number", minimum: 0, maximum: 1 },
+              rationale: { type: "string" }
+            },
+            required: ["mode", "score", "rationale"]
+          },
+          primaryCategory: { type: "string" },
+          clusterSeed: { type: "string" },
+          summary: { type: "string" },
+          idea: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              title: { type: "string" },
+              targetCustomer: { type: "string" },
+              problemSummary: { type: "string" },
+              solutionConcept: { type: "string" },
+              monetizationAngle: { type: "string" },
+              validationQuestions: {
+                type: "array",
+                items: { type: "string" },
+                minItems: 2,
+                maxItems: 5
+              },
+              riskNotes: { type: "string" },
+              evidenceSummary: { type: "string" }
+            },
+            required: [
+              "title",
+              "targetCustomer",
+              "problemSummary",
+              "solutionConcept",
+              "monetizationAngle",
+              "validationQuestions",
+              "riskNotes",
+              "evidenceSummary"
+            ]
+          }
+        },
+        required: [
+          "rawSignalId",
+          "normalizedText",
+          "keywords",
+          "entities",
+          "painPoints",
+          "intentPhrases",
+          "categoryTags",
+          "confidence",
+          "primaryCategory",
+          "clusterSeed",
+          "summary",
+          "idea"
+        ]
+      }
+    }
+  },
+  required: ["items"]
+} as const;
 
 export type DeterministicEnrichment = {
   normalizedText: string;
@@ -131,95 +236,7 @@ export async function enrichSignalWithModel(input: EnrichmentInput) {
           type: "json_schema",
           name: "signal_research_enrichment",
           strict: true,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              normalizedText: { type: "string" },
-              keywords: {
-                type: "array",
-                items: { type: "string" },
-                minItems: 1,
-                maxItems: 8
-              },
-              entities: {
-                type: "array",
-                items: { type: "string" },
-                maxItems: 6
-              },
-              painPoints: {
-                type: "array",
-                items: { type: "string" },
-                maxItems: 5
-              },
-              intentPhrases: {
-                type: "array",
-                items: { type: "string" },
-                maxItems: 5
-              },
-              categoryTags: {
-                type: "array",
-                items: { type: "string" },
-                minItems: 1,
-                maxItems: 6
-              },
-              confidence: {
-                type: "object",
-                additionalProperties: false,
-                properties: {
-                  mode: { type: "string", enum: ["llm"] },
-                  score: { type: "number", minimum: 0, maximum: 1 },
-                  rationale: { type: "string" }
-                },
-                required: ["mode", "score", "rationale"]
-              },
-              primaryCategory: { type: "string" },
-              clusterSeed: { type: "string" },
-              summary: { type: "string" },
-              idea: {
-                type: "object",
-                additionalProperties: false,
-                properties: {
-                  title: { type: "string" },
-                  targetCustomer: { type: "string" },
-                  problemSummary: { type: "string" },
-                  solutionConcept: { type: "string" },
-                  monetizationAngle: { type: "string" },
-                  validationQuestions: {
-                    type: "array",
-                    items: { type: "string" },
-                    minItems: 2,
-                    maxItems: 5
-                  },
-                  riskNotes: { type: "string" },
-                  evidenceSummary: { type: "string" }
-                },
-                required: [
-                  "title",
-                  "targetCustomer",
-                  "problemSummary",
-                  "solutionConcept",
-                  "monetizationAngle",
-                  "validationQuestions",
-                  "riskNotes",
-                  "evidenceSummary"
-                ]
-              }
-            },
-            required: [
-              "normalizedText",
-              "keywords",
-              "entities",
-              "painPoints",
-              "intentPhrases",
-              "categoryTags",
-              "confidence",
-              "primaryCategory",
-              "clusterSeed",
-              "summary",
-              "idea"
-            ]
-          }
+          schema: llmEnrichmentSchemaToJsonSchema()
         }
       }
     })
@@ -241,6 +258,97 @@ export async function enrichSignalWithModel(input: EnrichmentInput) {
   }
 
   return llmEnrichmentSchema.parse(JSON.parse(textOutput));
+}
+
+export async function enrichSignalBatchWithModel(inputs: EnrichmentInput[]) {
+  if (!process.env.OPENAI_API_KEY || inputs.length === 0) {
+    return new Map<string, LlmEnrichment>();
+  }
+
+  const validInputs = inputs.filter((input): input is EnrichmentInput & { rawSignalId: string } => {
+    const content = [input.title, input.body].filter(Boolean).join("\n\n").trim();
+    return Boolean(input.rawSignalId && content);
+  });
+
+  if (validInputs.length === 0) {
+    return new Map<string, LlmEnrichment>();
+  }
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: process.env.OPENAI_ENRICH_MODEL ?? "gpt-5.4",
+      input: [
+        {
+          role: "system",
+          content: [
+            {
+              type: "input_text",
+              text: `${buildSignalResearchPrompt()}
+
+You will receive multiple signals.
+Return one result for every provided rawSignalId.
+Preserve each rawSignalId exactly in the output.
+Do not omit items unless the corresponding input text is empty.`
+            }
+          ]
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: validInputs
+                .map(
+                  (input) =>
+                    `RAW_SIGNAL_ID: ${input.rawSignalId}\nTITLE:\n${input.title ?? "(none)"}\n\nBODY:\n${input.body ?? "(none)"}`
+                )
+                .join("\n\n---\n\n")
+            }
+          ]
+        }
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "signal_research_batch_enrichment",
+          strict: true,
+          schema: batchedLlmEnrichmentSchema
+        }
+      }
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI batch enrichment request failed with ${response.status}.`);
+  }
+
+  const payload = (await response.json()) as OpenAIResponsePayload;
+  const textOutput =
+    payload.output
+      ?.flatMap((item) => item.content ?? [])
+      .find((contentItem) => contentItem.type === "output_text")
+      ?.text ?? null;
+
+  if (!textOutput) {
+    throw new Error("OpenAI batch enrichment response did not include output_text.");
+  }
+
+  const parsed = JSON.parse(textOutput) as {
+    items: Array<{ rawSignalId: string } & LlmEnrichment>;
+  };
+  const results = new Map<string, LlmEnrichment>();
+
+  for (const item of parsed.items) {
+    const enrichment = llmEnrichmentSchema.parse(item);
+    results.set(item.rawSignalId, enrichment);
+  }
+
+  return results;
 }
 
 export function buildClusterSlug(primaryCategory: string, clusterSeed: string) {
@@ -326,3 +434,95 @@ type OpenAIResponsePayload = {
     }>;
   }>;
 };
+
+function llmEnrichmentSchemaToJsonSchema() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      normalizedText: { type: "string" },
+      keywords: {
+        type: "array",
+        items: { type: "string" },
+        minItems: 1,
+        maxItems: 8
+      },
+      entities: {
+        type: "array",
+        items: { type: "string" },
+        maxItems: 6
+      },
+      painPoints: {
+        type: "array",
+        items: { type: "string" },
+        maxItems: 5
+      },
+      intentPhrases: {
+        type: "array",
+        items: { type: "string" },
+        maxItems: 5
+      },
+      categoryTags: {
+        type: "array",
+        items: { type: "string" },
+        minItems: 1,
+        maxItems: 6
+      },
+      confidence: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          mode: { type: "string", enum: ["llm"] },
+          score: { type: "number", minimum: 0, maximum: 1 },
+          rationale: { type: "string" }
+        },
+        required: ["mode", "score", "rationale"]
+      },
+      primaryCategory: { type: "string" },
+      clusterSeed: { type: "string" },
+      summary: { type: "string" },
+      idea: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          title: { type: "string" },
+          targetCustomer: { type: "string" },
+          problemSummary: { type: "string" },
+          solutionConcept: { type: "string" },
+          monetizationAngle: { type: "string" },
+          validationQuestions: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 2,
+            maxItems: 5
+          },
+          riskNotes: { type: "string" },
+          evidenceSummary: { type: "string" }
+        },
+        required: [
+          "title",
+          "targetCustomer",
+          "problemSummary",
+          "solutionConcept",
+          "monetizationAngle",
+          "validationQuestions",
+          "riskNotes",
+          "evidenceSummary"
+        ]
+      }
+    },
+    required: [
+      "normalizedText",
+      "keywords",
+      "entities",
+      "painPoints",
+      "intentPhrases",
+      "categoryTags",
+      "confidence",
+      "primaryCategory",
+      "clusterSeed",
+      "summary",
+      "idea"
+    ]
+  } as const;
+}
