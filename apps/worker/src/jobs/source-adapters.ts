@@ -81,6 +81,24 @@ const sampleSignalsBySource: Record<SourceAdapterContext["sourceType"] | "defaul
       occurredAt: new Date("2026-03-18T16:15:00.000Z")
     }
   ],
+  "product-hunt": [
+    {
+      sourceRecordId: "product-hunt-revenue-reports-001",
+      sourceUrl: "https://www.producthunt.com/products/sample-revenue-reports",
+      title: "Revenue Reports for founder finance workflows",
+      body: "Sample Product Hunt signal around founder reporting, finance dashboards, and lightweight operating metrics for small teams.",
+      authorName: "product-hunt",
+      occurredAt: new Date("2026-03-18T17:30:00.000Z")
+    },
+    {
+      sourceRecordId: "product-hunt-rental-ops-002",
+      sourceUrl: "https://www.producthunt.com/products/sample-rental-ops",
+      title: "Rental Ops assistant for landlords",
+      body: "Sample Product Hunt signal around landlord operations, maintenance coordination, and tenant communication workflows.",
+      authorName: "product-hunt",
+      occurredAt: new Date("2026-03-18T19:45:00.000Z")
+    }
+  ],
   default: [
     {
       sourceRecordId: "sample-generic-opportunity-001",
@@ -177,6 +195,35 @@ const adapterRegistry: Record<SourceAdapterContext["sourceType"], SourceAdapter>
       return {
         status: "ok",
         summary: `Sample Hacker News adapter ready. ${sampleSignals.length} sample signal(s) available. sampleSize=${parsedConfig.sampleSize ?? sampleSignals.length}.`
+      };
+    }
+  },
+  "product-hunt": {
+    sourceType: "product-hunt",
+    supportsLiveMode: true,
+    parseConfig: parseSourceConfig,
+    getMode: (configJson) => resolveSourceMode(parseSourceConfig(configJson)),
+    fetchSignals: async (context) => {
+      const parsedConfig = parseSourceConfig(context.configJson);
+
+      if (resolveSourceMode(parsedConfig) === "live") {
+        return fetchProductHuntSignals(parsedConfig);
+      }
+
+      return getSampleSignals("product-hunt", parsedConfig);
+    },
+    runHealthCheck: async (context) => {
+      const parsedConfig = parseSourceConfig(context.configJson);
+
+      if (resolveSourceMode(parsedConfig) === "live") {
+        return runProductHuntHealthCheck(parsedConfig);
+      }
+
+      const sampleSignals = sampleSignalsBySource["product-hunt"];
+
+      return {
+        status: "ok",
+        summary: `Sample Product Hunt adapter ready. ${sampleSignals.length} sample signal(s) available. sampleSize=${parsedConfig.sampleSize ?? sampleSignals.length}.`
       };
     }
   }
@@ -363,6 +410,95 @@ async function runHackerNewsHealthCheck(config: SourceAdapterConfig) {
   }
 }
 
+async function fetchProductHuntSignals(config: SourceAdapterConfig) {
+  const accessToken = process.env.PRODUCT_HUNT_ACCESS_TOKEN?.trim();
+
+  if (!accessToken) {
+    throw new Error("PRODUCT_HUNT_ACCESS_TOKEN is required for live Product Hunt mode.");
+  }
+
+  const first = Math.min(config.sampleSize ?? 10, 10);
+  const topicKeywords = (config.productTopics ?? config.keywords ?? [])
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  const response = await fetchWithTimeout("https://api.producthunt.com/v2/api/graphql", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    body: JSON.stringify({
+      query: `
+        query BizBrainProductHuntPosts($first: Int!) {
+          posts(first: $first) {
+            edges {
+              node {
+                id
+                name
+                tagline
+                description
+                url
+                votesCount
+                commentsCount
+                createdAt
+                topics(first: 10) {
+                  edges {
+                    node {
+                      name
+                      slug
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      `,
+      variables: { first }
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Product Hunt GraphQL fetch failed with ${response.status}.`);
+  }
+
+  const payload = (await response.json()) as ProductHuntGraphQlResponse;
+
+  if (payload.errors?.length) {
+    throw new Error(`Product Hunt GraphQL returned ${payload.errors[0]?.message ?? "an unknown error"}.`);
+  }
+
+  const signals = (payload.data?.posts?.edges ?? [])
+    .map((edge) => edge.node)
+    .filter(Boolean)
+    .map((post) => mapProductHuntPostToSignal(post))
+    .filter((signal): signal is SourceSignal => Boolean(signal))
+    .filter((signal) => matchesKeywords(signal, topicKeywords))
+    .slice(0, first);
+
+  return dedupeSignals(signals);
+}
+
+async function runProductHuntHealthCheck(config: SourceAdapterConfig) {
+  try {
+    const signals = await fetchProductHuntSignals({
+      ...config,
+      sampleSize: Math.min(config.sampleSize ?? 3, 3)
+    });
+
+    return {
+      status: "ok" as const,
+      summary: `Live Product Hunt adapter fetched ${signals.length} signal(s) successfully.`
+    };
+  } catch (error) {
+    return {
+      status: "error" as const,
+      summary: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
 async function fetchWithTimeout(url: string, init: RequestInit) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
@@ -509,6 +645,35 @@ function mapHackerNewsItemToSignal(item: HackerNewsItem): SourceSignal | null {
   });
 }
 
+function mapProductHuntPostToSignal(post: ProductHuntPost): SourceSignal | null {
+  const title = [post.name, post.tagline].filter(Boolean).join(" — ").trim();
+
+  if (!title) {
+    return null;
+  }
+
+  const topicLabels = (post.topics?.edges ?? [])
+    .map((edge) => edge?.node?.name || edge?.node?.slug)
+    .filter(Boolean);
+  const body = [
+    post.description?.trim() ?? "",
+    topicLabels.length > 0 ? `Topics: ${topicLabels.join(", ")}.` : "",
+    typeof post.votesCount === "number" ? `Votes: ${post.votesCount}.` : "",
+    typeof post.commentsCount === "number" ? `Comments: ${post.commentsCount}.` : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return sourceSignalSchema.parse({
+    sourceRecordId: post.id,
+    sourceUrl: post.url ?? undefined,
+    title,
+    body: body || undefined,
+    authorName: "product-hunt",
+    occurredAt: post.createdAt ? new Date(post.createdAt) : undefined
+  });
+}
+
 function extractXmlTagBlocks(xml: string, tagName: string) {
   const matches = xml.matchAll(new RegExp(`<${escapeRegExp(tagName)}\\b[^>]*>([\\s\\S]*?)<\\/${escapeRegExp(tagName)}>`, "gi"));
   return [...matches].map((match) => match[1]);
@@ -574,4 +739,36 @@ type HackerNewsItem = {
   title?: string;
   type?: string;
   url?: string;
+};
+
+type ProductHuntGraphQlResponse = {
+  data?: {
+    posts?: {
+      edges?: Array<{
+        node: ProductHuntPost;
+      }>;
+    };
+  };
+  errors?: Array<{
+    message?: string;
+  }>;
+};
+
+type ProductHuntPost = {
+  id: string;
+  name?: string | null;
+  tagline?: string | null;
+  description?: string | null;
+  url?: string | null;
+  votesCount?: number | null;
+  commentsCount?: number | null;
+  createdAt?: string | null;
+  topics?: {
+    edges?: Array<{
+      node?: {
+        name?: string | null;
+        slug?: string | null;
+      } | null;
+    }>;
+  } | null;
 };

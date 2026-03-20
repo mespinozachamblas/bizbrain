@@ -221,12 +221,92 @@ async function main() {
     }
   });
 
+  await db.sourceConfig.upsert({
+    where: { id: "seed-product-hunt-source-config" },
+    update: {
+      sourceType: "product-hunt",
+      enabled: true,
+      nicheModes: ["property-management", "fintech", "finance-product", "automation"],
+      configJson: {
+        mode: process.env.PRODUCT_HUNT_ACCESS_TOKEN ? "live" : "sample",
+        sampleSize: 5,
+        productTopics: [
+          "fintech",
+          "payments",
+          "finance",
+          "accounting",
+          "bookkeeping",
+          "productivity",
+          "saas",
+          "automation",
+          "property management",
+          "real estate"
+        ],
+        keywords: [
+          "fintech",
+          "payment",
+          "payments",
+          "finance",
+          "accounting",
+          "bookkeeping",
+          "cash flow",
+          "mortgage",
+          "rent",
+          "landlord",
+          "property management",
+          "automation",
+          "workflow",
+          "saas"
+        ]
+      }
+    },
+    create: {
+      id: "seed-product-hunt-source-config",
+      sourceType: "product-hunt",
+      enabled: true,
+      nicheModes: ["property-management", "fintech", "finance-product", "automation"],
+      configJson: {
+        mode: process.env.PRODUCT_HUNT_ACCESS_TOKEN ? "live" : "sample",
+        sampleSize: 5,
+        productTopics: [
+          "fintech",
+          "payments",
+          "finance",
+          "accounting",
+          "bookkeeping",
+          "productivity",
+          "saas",
+          "automation",
+          "property management",
+          "real estate"
+        ],
+        keywords: [
+          "fintech",
+          "payment",
+          "payments",
+          "finance",
+          "accounting",
+          "bookkeeping",
+          "cash flow",
+          "mortgage",
+          "rent",
+          "landlord",
+          "property management",
+          "automation",
+          "workflow",
+          "saas"
+        ]
+      }
+    }
+  });
+
   console.log("BizBrain seed complete");
   console.log(`Owner recipient: ${ownerEmail}`);
   console.log(`Total digest recipients ensured: ${digestRecipients.length}`);
   console.log("Default reddit source config ensured: seed-reddit-source-config");
   console.log("Default Google Trends source config ensured: seed-google-trends-source-config");
   console.log("Default Hacker News source config ensured: seed-hacker-news-source-config");
+  console.log("Default Product Hunt source config ensured: seed-product-hunt-source-config");
 }
 
 function parseDigestRecipients(input: string | undefined, ownerEmail: string) {

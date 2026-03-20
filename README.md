@@ -27,6 +27,8 @@ BizBrain is a founder-focused opportunity discovery system. This scaffold matche
 - Set `SOURCE_DEFAULT_MODE=live` to let supported adapters fetch real data.
 - For live Reddit fetching, set `SOURCE_HTTP_USER_AGENT` to a real descriptive user agent before running source tests or ingest.
 - Google Trends live mode uses the public RSS feed, applies keyword filtering from the source config, and does not require an API key.
+- Hacker News live mode uses the public Firebase API and filters story content with word-boundary keyword matching.
+- Product Hunt live mode uses the official GraphQL API and requires `PRODUCT_HUNT_ACCESS_TOKEN`; the starter config falls back to `sample` mode until that token is set.
 
 ## Database Commands
 - `pnpm db:generate`: regenerate Prisma client
