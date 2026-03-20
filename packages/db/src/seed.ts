@@ -152,11 +152,81 @@ async function main() {
     }
   });
 
+  await db.sourceConfig.upsert({
+    where: { id: "seed-hacker-news-source-config" },
+    update: {
+      sourceType: "hacker-news",
+      enabled: true,
+      nicheModes: ["property-management", "fintech", "finance-product", "automation"],
+      configJson: {
+        mode: "live",
+        sampleSize: 5,
+        storyTypes: ["askstories", "showstories", "topstories"],
+        keywords: [
+          "fintech",
+          "payment",
+          "payments",
+          "invoice",
+          "invoicing",
+          "cash flow",
+          "cashflow",
+          "accounting",
+          "bookkeeping",
+          "mortgage",
+          "rent",
+          "rental",
+          "landlord",
+          "property management",
+          "proptech",
+          "automation",
+          "workflow",
+          "saas",
+          "ops",
+          "operator"
+        ]
+      }
+    },
+    create: {
+      id: "seed-hacker-news-source-config",
+      sourceType: "hacker-news",
+      enabled: true,
+      nicheModes: ["property-management", "fintech", "finance-product", "automation"],
+      configJson: {
+        mode: "live",
+        sampleSize: 5,
+        storyTypes: ["askstories", "showstories", "topstories"],
+        keywords: [
+          "fintech",
+          "payment",
+          "payments",
+          "invoice",
+          "invoicing",
+          "cash flow",
+          "cashflow",
+          "accounting",
+          "bookkeeping",
+          "mortgage",
+          "rent",
+          "rental",
+          "landlord",
+          "property management",
+          "proptech",
+          "automation",
+          "workflow",
+          "saas",
+          "ops",
+          "operator"
+        ]
+      }
+    }
+  });
+
   console.log("BizBrain seed complete");
   console.log(`Owner recipient: ${ownerEmail}`);
   console.log(`Total digest recipients ensured: ${digestRecipients.length}`);
   console.log("Default reddit source config ensured: seed-reddit-source-config");
   console.log("Default Google Trends source config ensured: seed-google-trends-source-config");
+  console.log("Default Hacker News source config ensured: seed-hacker-news-source-config");
 }
 
 function parseDigestRecipients(input: string | undefined, ownerEmail: string) {

@@ -63,6 +63,24 @@ const sampleSignalsBySource: Record<SourceAdapterContext["sourceType"] | "defaul
       occurredAt: new Date("2026-03-18T11:00:00.000Z")
     }
   ],
+  "hacker-news": [
+    {
+      sourceRecordId: "hn-ask-founder-reporting-001",
+      sourceUrl: "https://news.ycombinator.com/item?id=10000001",
+      title: "Ask HN: What reporting tooling do small finance teams actually pay for?",
+      body: "Operators want better visibility into cash movement, reconciliation, and weekly decision reporting without buying enterprise finance software.",
+      authorName: "sample-hn-user-1",
+      occurredAt: new Date("2026-03-18T13:00:00.000Z")
+    },
+    {
+      sourceRecordId: "hn-show-landlord-ops-002",
+      sourceUrl: "https://news.ycombinator.com/item?id=10000002",
+      title: "Show HN: A lightweight maintenance coordination app for small landlords",
+      body: "A founder built a narrow tool to coordinate tenant issues, vendors, and reserve impact for owner-operators with a handful of properties.",
+      authorName: "sample-hn-user-2",
+      occurredAt: new Date("2026-03-18T16:15:00.000Z")
+    }
+  ],
   default: [
     {
       sourceRecordId: "sample-generic-opportunity-001",
@@ -130,6 +148,35 @@ const adapterRegistry: Record<SourceAdapterContext["sourceType"], SourceAdapter>
       return {
         status: "ok",
         summary: `Sample Google Trends adapter ready. ${sampleSignals.length} sample signal(s) available. sampleSize=${parsedConfig.sampleSize ?? sampleSignals.length}.`
+      };
+    }
+  },
+  "hacker-news": {
+    sourceType: "hacker-news",
+    supportsLiveMode: true,
+    parseConfig: parseSourceConfig,
+    getMode: (configJson) => resolveSourceMode(parseSourceConfig(configJson)),
+    fetchSignals: async (context) => {
+      const parsedConfig = parseSourceConfig(context.configJson);
+
+      if (resolveSourceMode(parsedConfig) === "live") {
+        return fetchHackerNewsSignals(parsedConfig);
+      }
+
+      return getSampleSignals("hacker-news", parsedConfig);
+    },
+    runHealthCheck: async (context) => {
+      const parsedConfig = parseSourceConfig(context.configJson);
+
+      if (resolveSourceMode(parsedConfig) === "live") {
+        return runHackerNewsHealthCheck(parsedConfig);
+      }
+
+      const sampleSignals = sampleSignalsBySource["hacker-news"];
+
+      return {
+        status: "ok",
+        summary: `Sample Hacker News adapter ready. ${sampleSignals.length} sample signal(s) available. sampleSize=${parsedConfig.sampleSize ?? sampleSignals.length}.`
       };
     }
   }
@@ -250,6 +297,72 @@ async function runGoogleTrendsHealthCheck(config: SourceAdapterConfig) {
   }
 }
 
+async function fetchHackerNewsSignals(config: SourceAdapterConfig) {
+  const storyTypes = resolveHackerNewsStoryTypes(config.storyTypes);
+  const storyIds = (
+    await Promise.all(
+      storyTypes.map(async (storyType) => {
+        const response = await fetchWithTimeout(`https://hacker-news.firebaseio.com/v0/${storyType}.json`, {
+          headers: {
+            Accept: "application/json"
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Hacker News fetch failed for ${storyType} with ${response.status}.`);
+        }
+
+        return ((await response.json()) as number[]).slice(0, 20);
+      })
+    )
+  ).flat();
+
+  const uniqueStoryIds = [...new Set(storyIds)];
+  const itemResponses = await Promise.all(
+    uniqueStoryIds.map(async (storyId) => {
+      const response = await fetchWithTimeout(`https://hacker-news.firebaseio.com/v0/item/${storyId}.json`, {
+        headers: {
+          Accept: "application/json"
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Hacker News item fetch failed for ${storyId} with ${response.status}.`);
+      }
+
+      return (await response.json()) as HackerNewsItem | null;
+    })
+  );
+
+  const parsedSignals = itemResponses
+    .filter((item): item is HackerNewsItem => Boolean(item && item.id && item.title))
+    .map((item) => mapHackerNewsItemToSignal(item))
+    .filter((signal): signal is SourceSignal => Boolean(signal))
+    .filter((signal) => matchesKeywords(signal, config.keywords))
+    .slice(0, config.sampleSize ?? 10);
+
+  return dedupeSignals(parsedSignals);
+}
+
+async function runHackerNewsHealthCheck(config: SourceAdapterConfig) {
+  try {
+    const signals = await fetchHackerNewsSignals({
+      ...config,
+      sampleSize: Math.min(config.sampleSize ?? 3, 3)
+    });
+
+    return {
+      status: "ok" as const,
+      summary: `Live Hacker News adapter fetched ${signals.length} signal(s) successfully.`
+    };
+  } catch (error) {
+    return {
+      status: "error" as const,
+      summary: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
 async function fetchWithTimeout(url: string, init: RequestInit) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
@@ -275,6 +388,31 @@ function dedupeSignals(signals: SourceSignal[]) {
     seen.add(signal.sourceRecordId);
     return true;
   });
+}
+
+function matchesKeywords(signal: SourceSignal, keywords?: string[]) {
+  const normalizedKeywords = (keywords ?? []).map((keyword) => keyword.trim().toLowerCase()).filter(Boolean);
+
+  if (normalizedKeywords.length === 0) {
+    return true;
+  }
+
+  const haystack = [signal.title, signal.body, signal.authorName].filter(Boolean).join(" ").toLowerCase();
+  return normalizedKeywords.some((keyword) => keywordMatchesHaystack(keyword, haystack));
+}
+
+function keywordMatchesHaystack(keyword: string, haystack: string) {
+  const escapedKeyword = escapeRegExp(keyword.trim().toLowerCase());
+
+  if (!escapedKeyword) {
+    return false;
+  }
+
+  const pattern = escapedKeyword.includes("\\ ")
+    ? new RegExp(`(^|[^a-z0-9])${escapedKeyword}([^a-z0-9]|$)`, "i")
+    : new RegExp(`\\b${escapedKeyword}\\b`, "i");
+
+  return pattern.test(haystack);
 }
 
 function normalizeRedditUrl(url: string) {
@@ -338,6 +476,39 @@ function parseGoogleTrendsRss(xml: string, geo: string, keywords?: string[]) {
   return dedupeSignals(parsedSignals);
 }
 
+function resolveHackerNewsStoryTypes(storyTypes?: string[]) {
+  const allowedStoryTypes = new Set(["topstories", "askstories", "showstories", "beststories", "newstories"]);
+  const normalized = (storyTypes ?? ["askstories", "showstories", "topstories"])
+    .map((storyType) => storyType.trim().toLowerCase())
+    .filter((storyType) => allowedStoryTypes.has(storyType));
+
+  return normalized.length > 0 ? normalized : ["askstories", "showstories", "topstories"];
+}
+
+function mapHackerNewsItemToSignal(item: HackerNewsItem): SourceSignal | null {
+  const title = decodeHtmlEntities(item.title ?? "").trim();
+
+  if (!title) {
+    return null;
+  }
+
+  const bodyParts = [
+    item.text ? stripHtmlTags(decodeHtmlEntities(item.text)).trim() : "",
+    item.url ? `Linked URL: ${item.url}` : "",
+    typeof item.score === "number" ? `Score: ${item.score}.` : "",
+    typeof item.descendants === "number" ? `Comments: ${item.descendants}.` : ""
+  ].filter(Boolean);
+
+  return sourceSignalSchema.parse({
+    sourceRecordId: String(item.id),
+    sourceUrl: item.url || `https://news.ycombinator.com/item?id=${item.id}`,
+    title,
+    body: bodyParts.join(" "),
+    authorName: item.by || "hacker-news",
+    occurredAt: typeof item.time === "number" ? new Date(item.time * 1000) : undefined
+  });
+}
+
 function extractXmlTagBlocks(xml: string, tagName: string) {
   const matches = xml.matchAll(new RegExp(`<${escapeRegExp(tagName)}\\b[^>]*>([\\s\\S]*?)<\\/${escapeRegExp(tagName)}>`, "gi"));
   return [...matches].map((match) => match[1]);
@@ -363,6 +534,16 @@ function decodeXmlEntities(value: string) {
     .replaceAll("&#39;", "'");
 }
 
+function decodeHtmlEntities(value: string) {
+  return decodeXmlEntities(value)
+    .replaceAll("&#x27;", "'")
+    .replaceAll("&#x2F;", "/");
+}
+
+function stripHtmlTags(value: string) {
+  return value.replace(/<[^>]+>/g, " ");
+}
+
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -381,4 +562,16 @@ type RedditListingResponse = {
       };
     }>;
   };
+};
+
+type HackerNewsItem = {
+  id: number;
+  by?: string;
+  descendants?: number;
+  score?: number;
+  text?: string;
+  time?: number;
+  title?: string;
+  type?: string;
+  url?: string;
 };

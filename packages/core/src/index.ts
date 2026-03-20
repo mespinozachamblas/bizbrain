@@ -9,7 +9,7 @@ export const jobNames = [
 ] as const;
 
 export const jobStatuses = ["pending", "running", "succeeded", "failed", "skipped"] as const;
-export const sourceTypes = ["reddit", "google-trends"] as const;
+export const sourceTypes = ["reddit", "google-trends", "hacker-news"] as const;
 export const sourceModes = ["sample", "live"] as const;
 
 export const digestSectionSchema = z.object({
@@ -33,6 +33,7 @@ export const sourceAdapterConfigSchema = z.object({
   sampleSize: z.number().int().positive().max(25).optional(),
   keywords: z.array(z.string()).optional(),
   subredditList: z.array(z.string()).optional(),
+  storyTypes: z.array(z.string()).optional(),
   geo: z.string().min(2).max(8).optional(),
   exclusions: z.array(z.string()).optional()
 });
