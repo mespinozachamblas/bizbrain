@@ -2,7 +2,7 @@ import { jobNames } from "@bizbrain/core";
 import { db } from "@bizbrain/db";
 export const dynamic = "force-dynamic";
 
-import { runPipelineJob, runSourceCheck } from "./actions";
+import { createResearchStream, runPipelineJob, runSourceCheck, updateResearchStream } from "./actions";
 
 type DashboardData = {
   stats: {
@@ -53,6 +53,17 @@ type DashboardData = {
     id: string;
     sourceType: string;
     enabled: boolean;
+  }>;
+  researchStreams: Array<{
+    id: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    enabled: boolean;
+    deliveryType: string;
+    scheduleCron: string | null;
+    defaultAssetMode: string | null;
+    enabledChannelsJson: unknown;
   }>;
   recentSourceRuns: Array<{
     id: string;
@@ -139,6 +150,55 @@ export default async function HomePage() {
             </div>
           )}
           <p className="helperText">Each test writes a `source_health_checks` record for later review.</p>
+        </article>
+
+        <article className="card controlCard">
+          <div className="cardHeader">
+            <h2>Create research stream</h2>
+            <span className="badge">Config</span>
+          </div>
+          <form action={createResearchStream} className="adminForm">
+            <label className="fieldLabel">
+              Name
+              <input className="fieldInput" name="name" placeholder="Social Media Research" required type="text" />
+            </label>
+            <label className="fieldLabel">
+              Slug
+              <input className="fieldInput" name="slug" placeholder="social-media-research" type="text" />
+            </label>
+            <label className="fieldLabel fieldLabelWide">
+              Description
+              <textarea
+                className="fieldTextarea"
+                name="description"
+                placeholder="Research-backed drafts for social channels."
+                rows={3}
+              />
+            </label>
+            <label className="fieldLabel">
+              Channels
+              <input className="fieldInput" defaultValue="email" name="enabledChannels" placeholder="email, linkedin, x" type="text" />
+            </label>
+            <label className="fieldLabel">
+              Schedule
+              <input className="fieldInput" name="scheduleCron" placeholder="50 06 * * *" type="text" />
+            </label>
+            <label className="fieldLabel">
+              Asset mode
+              <input className="fieldInput" defaultValue="none" name="defaultAssetMode" placeholder="none" type="text" />
+            </label>
+            <label className="fieldLabel">
+              Delivery type
+              <input className="fieldInput" defaultValue="email" name="deliveryType" placeholder="email" type="text" />
+            </label>
+            <label className="fieldCheckbox">
+              <input defaultChecked name="enabled" type="checkbox" />
+              Enabled
+            </label>
+            <button className="jobButton" type="submit">
+              Create stream
+            </button>
+          </form>
         </article>
       </section>
 
@@ -270,6 +330,64 @@ export default async function HomePage() {
 
         <article className="card">
           <div className="cardHeader">
+            <h2>Research streams</h2>
+            <span className="badge">Admin</span>
+          </div>
+          {dashboard.researchStreams.length === 0 ? (
+            <EmptyState message="No research streams are configured yet." />
+          ) : (
+            <div className="stack">
+              {dashboard.researchStreams.map((stream) => (
+                <form action={updateResearchStream} className="adminForm adminFormCompact" key={stream.id}>
+                  <input name="id" type="hidden" value={stream.id} />
+                  <label className="fieldLabel">
+                    Name
+                    <input className="fieldInput" defaultValue={stream.name} name="name" required type="text" />
+                  </label>
+                  <label className="fieldLabel">
+                    Slug
+                    <input className="fieldInput" defaultValue={stream.slug} name="slug" required type="text" />
+                  </label>
+                  <label className="fieldLabel fieldLabelWide">
+                    Description
+                    <textarea className="fieldTextarea" defaultValue={stream.description ?? ""} name="description" rows={2} />
+                  </label>
+                  <label className="fieldLabel">
+                    Channels
+                    <input
+                      className="fieldInput"
+                      defaultValue={formatChannelInput(stream.enabledChannelsJson)}
+                      name="enabledChannels"
+                      type="text"
+                    />
+                  </label>
+                  <label className="fieldLabel">
+                    Schedule
+                    <input className="fieldInput" defaultValue={stream.scheduleCron ?? ""} name="scheduleCron" type="text" />
+                  </label>
+                  <label className="fieldLabel">
+                    Asset mode
+                    <input className="fieldInput" defaultValue={stream.defaultAssetMode ?? ""} name="defaultAssetMode" type="text" />
+                  </label>
+                  <label className="fieldLabel">
+                    Delivery type
+                    <input className="fieldInput" defaultValue={stream.deliveryType} name="deliveryType" type="text" />
+                  </label>
+                  <label className="fieldCheckbox">
+                    <input defaultChecked={stream.enabled} name="enabled" type="checkbox" />
+                    Enabled
+                  </label>
+                  <button className="jobButton jobButtonSecondary" type="submit">
+                    Save stream
+                  </button>
+                </form>
+              ))}
+            </div>
+          )}
+        </article>
+
+        <article className="card">
+          <div className="cardHeader">
             <h2>Digest recipients</h2>
             <span className="badge">Email</span>
           </div>
@@ -327,6 +445,7 @@ async function getDashboardData(): Promise<DashboardData> {
       latestIdeas,
       digestRecipients,
       sourceConfigs,
+      researchStreams,
       recentSourceRuns,
       recentHealthChecks
     ] = await Promise.all([
@@ -377,6 +496,20 @@ async function getDashboardData(): Promise<DashboardData> {
             enabled: true
           }
         }),
+        db.researchStream.findMany({
+          orderBy: [{ createdAt: "asc" }],
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+            description: true,
+            enabled: true,
+            deliveryType: true,
+            scheduleCron: true,
+            defaultAssetMode: true,
+            enabledChannelsJson: true
+          }
+        }),
         db.sourceRun.findMany({
           orderBy: { startedAt: "desc" },
           take: 6,
@@ -413,6 +546,7 @@ async function getDashboardData(): Promise<DashboardData> {
       latestIdeas,
       digestRecipients,
       sourceConfigs,
+      researchStreams,
       recentSourceRuns,
       recentHealthChecks
     };
@@ -438,6 +572,7 @@ function emptyDashboardData(): DashboardData {
     latestIdeas: [],
     digestRecipients: [],
     sourceConfigs: [],
+    researchStreams: [],
     recentSourceRuns: [],
     recentHealthChecks: []
   };
@@ -466,6 +601,14 @@ function formatSourceAttribution(value: unknown) {
     .filter((part): part is string => Boolean(part));
 
   return parts.length > 0 ? `Sources: ${parts.join(", ")}` : "Sources: attribution pending";
+}
+
+function formatChannelInput(value: unknown) {
+  if (!Array.isArray(value)) {
+    return "";
+  }
+
+  return value.filter((entry): entry is string => typeof entry === "string").join(", ");
 }
 
 function StatCard({ label, value }: { label: string; value: number }) {

@@ -253,6 +253,58 @@ h1 {
   gap: 10px;
 }
 
+.adminForm {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.adminFormCompact {
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(217, 208, 193, 0.7);
+}
+
+.adminFormCompact:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.fieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.fieldLabelWide {
+  grid-column: 1 / -1;
+}
+
+.fieldCheckbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.fieldInput,
+.fieldTextarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fffefb;
+  color: var(--ink);
+  font: inherit;
+}
+
+.fieldTextarea {
+  resize: vertical;
+  min-height: 88px;
+}
+
 .jobButton {
   border: 0;
   border-radius: 999px;
