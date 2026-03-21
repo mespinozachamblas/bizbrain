@@ -15,6 +15,7 @@
     "db:migrate:dev": "pnpm --filter @bizbrain/db db:migrate:dev",
     "db:status": "pnpm --filter @bizbrain/db db:status",
     "db:seed": "pnpm --filter @bizbrain/db db:seed",
+    "import:research-config": "tsx scripts/import-research-config.ts",
     "worker:daily-ingest": "pnpm --filter @bizbrain/worker daily-ingest",
     "worker:daily-enrich-score": "pnpm --filter @bizbrain/worker daily-enrich-score",
     "worker:daily-digest-email": "pnpm --filter @bizbrain/worker daily-digest-email",
