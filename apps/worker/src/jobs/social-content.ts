@@ -1,0 +1,459 @@
+import { researchStreamChannels, researchStreamIds, socialDraftSchema, type SocialDraft } from "@bizbrain/core";
+import { db } from "@bizbrain/db";
+import { buildSocialDraftPrompt } from "@bizbrain/prompts";
+
+type IdeaWithCluster = {
+  id: string;
+  title: string;
+  category: string;
+  subcategory: string | null;
+  businessType: string | null;
+  targetCustomer: string | null;
+  problemSummary: string | null;
+  solutionConcept: string | null;
+  monetizationAngle: string | null;
+  evidenceSummary: string | null;
+  qualityScore: number | null;
+  sourceAttributionJson: unknown;
+  cluster: {
+    title: string;
+    summary: string | null;
+  } | null;
+};
+
+type TopicRecord = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  enabledChannelsJson: unknown;
+  keywordsJson: unknown;
+  exclusionsJson: unknown;
+  defaultAssetMode: string | null;
+  defaultCopyFramework: {
+    id: string;
+    name: string;
+    description: string | null;
+    structureJson: unknown;
+  } | null;
+  defaultStyleProfile: {
+    id: string;
+    name: string;
+    description: string | null;
+    inspirationSummary: string | null;
+    styleTraitsJson: unknown;
+    guardrailsJson: unknown;
+  } | null;
+};
+
+type SocialDraftContext = {
+  topics: TopicRecord[];
+  recordsWritten: number;
+  warnings: string[];
+};
+
+export async function syncSocialContentDrafts() {
+  const socialStream = await db.researchStream.findUnique({
+    where: { id: researchStreamIds.socialMedia },
+    include: {
+      defaultCopyFramework: true,
+      defaultStyleProfile: true
+    }
+  });
+
+  if (!socialStream) {
+    return { recordsWritten: 0, warnings: ["Social media research stream is not configured."] };
+  }
+
+  const [topics, ideas] = await Promise.all([
+    db.topic.findMany({
+      where: {
+        researchStreamId: socialStream.id,
+        enabled: true
+      },
+      include: {
+        defaultCopyFramework: true,
+        defaultStyleProfile: true
+      },
+      orderBy: { name: "asc" }
+    }),
+    db.idea.findMany({
+      where: {
+        researchStreamId: researchStreamIds.opportunity
+      },
+      orderBy: [{ qualityScore: "desc" }, { updatedAt: "desc" }],
+      take: 12,
+      include: {
+        cluster: true
+      }
+    })
+  ]);
+
+  if (topics.length === 0 || ideas.length === 0) {
+    return { recordsWritten: 0, warnings: [] };
+  }
+
+  const result: SocialDraftContext = {
+    topics,
+    recordsWritten: 0,
+    warnings: []
+  };
+
+  for (const topic of topics) {
+    const matchedIdeas = ideas
+      .map((idea) => ({
+        idea,
+        score: scoreIdeaForTopic(idea, topic)
+      }))
+      .filter((entry) => entry.score > 0)
+      .sort((left, right) => right.score - left.score || (right.idea.qualityScore ?? 0) - (left.idea.qualityScore ?? 0))
+      .slice(0, 2);
+
+    for (const { idea } of matchedIdeas) {
+      const channels = resolveTopicChannels(topic.enabledChannelsJson);
+
+      for (const channel of channels) {
+        try {
+          const framework = topic.defaultCopyFramework ?? socialStream.defaultCopyFramework ?? null;
+          const styleProfile = topic.defaultStyleProfile ?? socialStream.defaultStyleProfile ?? null;
+          const assetMode = topic.defaultAssetMode ?? socialStream.defaultAssetMode ?? "none";
+          const generated = (await generateSocialDraft({
+            channel,
+            idea,
+            topic,
+            framework,
+            styleProfile,
+            assetMode
+          })) ?? buildFallbackSocialDraft({
+            channel,
+            idea,
+            topic,
+            frameworkName: framework?.name ?? "custom",
+            styleName: styleProfile?.name ?? "founder educator",
+            assetMode
+          });
+
+          const existingDraft = await db.contentDraft.findFirst({
+            where: {
+              researchStreamId: socialStream.id,
+              topicId: topic.id,
+              sourceIdeaId: idea.id,
+              targetChannel: channel
+            },
+            select: { id: true }
+          });
+
+          const data = {
+            researchStreamId: socialStream.id,
+            topicId: topic.id,
+            sourceIdeaId: idea.id,
+            copyFrameworkId: framework?.id ?? null,
+            styleProfileId: styleProfile?.id ?? null,
+            title: generated.title,
+            targetChannel: channel,
+            targetAudience: generated.targetAudience,
+            hook: generated.hook,
+            thesis: generated.thesis,
+            supportingPointsJson: generated.supportingPoints,
+            counterpoint: generated.counterpoint,
+            cta: generated.cta,
+            draftMarkdown: generated.draftMarkdown,
+            visualBriefJson: generated.visualBrief,
+            infographicBriefJson: generated.infographicBrief,
+            infographicFormat: generated.infographicBrief.format,
+            infographicPanelsJson: generated.infographicBrief.panels,
+            assetMode,
+            assetStatus: "draft",
+            qualityScore: generated.qualityScore,
+            sourceAttributionJson: idea.sourceAttributionJson ?? undefined,
+            status: "draft"
+          };
+
+          if (existingDraft) {
+            await db.contentDraft.update({
+              where: { id: existingDraft.id },
+              data
+            });
+          } else {
+            await db.contentDraft.create({
+              data
+            });
+          }
+
+          result.recordsWritten += 1;
+        } catch (error) {
+          result.warnings.push(`${topic.slug}/${channel}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+function resolveTopicChannels(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [...researchStreamChannels];
+  }
+
+  const channels = value
+    .filter((entry): entry is string => typeof entry === "string")
+    .filter((entry): entry is (typeof researchStreamChannels)[number] =>
+      researchStreamChannels.includes(entry as (typeof researchStreamChannels)[number])
+    );
+
+  return channels.length > 0 ? channels : [...researchStreamChannels];
+}
+
+function scoreIdeaForTopic(idea: IdeaWithCluster, topic: TopicRecord) {
+  const keywords = Array.isArray(topic.keywordsJson)
+    ? topic.keywordsJson.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.toLowerCase())
+    : [];
+  const exclusions = Array.isArray(topic.exclusionsJson)
+    ? topic.exclusionsJson.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.toLowerCase())
+    : [];
+  const haystack = [
+    idea.title,
+    idea.category,
+    idea.subcategory,
+    idea.targetCustomer,
+    idea.problemSummary,
+    idea.solutionConcept,
+    idea.evidenceSummary,
+    idea.cluster?.summary,
+    idea.cluster?.title
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (exclusions.some((term) => haystack.includes(term))) {
+    return 0;
+  }
+
+  let score = idea.qualityScore ?? 0;
+
+  for (const keyword of keywords) {
+    if (haystack.includes(keyword)) {
+      score += 3;
+    }
+  }
+
+  if (topic.slug.includes("linkedin") && /(founder|operator|team|startup)/.test(haystack)) {
+    score += 2;
+  }
+
+  if (topic.slug.includes("x") && /(trend|automation|distribution|fintech)/.test(haystack)) {
+    score += 2;
+  }
+
+  return score;
+}
+
+async function generateSocialDraft(input: {
+  channel: (typeof researchStreamChannels)[number];
+  idea: IdeaWithCluster;
+  topic: TopicRecord;
+  framework: { name: string; description: string | null; structureJson: unknown } | null;
+  styleProfile: { name: string; description: string | null; inspirationSummary: string | null; styleTraitsJson: unknown; guardrailsJson: unknown } | null;
+  assetMode: string;
+}) {
+  if (!process.env.OPENAI_API_KEY) {
+    return null;
+  }
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: process.env.OPENAI_ENRICH_MODEL ?? "gpt-5-mini",
+      input: [
+        {
+          role: "system",
+          content: [{ type: "input_text", text: buildSocialDraftPrompt() }]
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: [
+                `CHANNEL: ${input.channel}`,
+                `TOPIC: ${input.topic.name}`,
+                `TOPIC_DESCRIPTION: ${input.topic.description ?? "(none)"}`,
+                `COPY_FRAMEWORK: ${input.framework?.name ?? "Use the topic/stream default persuasion structure."}`,
+                `COPY_FRAMEWORK_DETAILS: ${JSON.stringify(input.framework?.structureJson ?? [])}`,
+                `STYLE_PROFILE: ${input.styleProfile?.name ?? "Founder educator"}`,
+                `STYLE_DESCRIPTION: ${input.styleProfile?.description ?? "(none)"}`,
+                `STYLE_INSPIRATION: ${input.styleProfile?.inspirationSummary ?? "(none)"}`,
+                `STYLE_TRAITS: ${JSON.stringify(input.styleProfile?.styleTraitsJson ?? [])}`,
+                `STYLE_GUARDRAILS: ${JSON.stringify(input.styleProfile?.guardrailsJson ?? [])}`,
+                `ASSET_MODE: ${input.assetMode}`,
+                `IDEA_TITLE: ${input.idea.title}`,
+                `IDEA_CATEGORY: ${input.idea.category}`,
+                `BUSINESS_TYPE: ${input.idea.businessType ?? "(none)"}`,
+                `TARGET_CUSTOMER: ${input.idea.targetCustomer ?? "(none)"}`,
+                `PROBLEM: ${input.idea.problemSummary ?? "(none)"}`,
+                `SOLUTION: ${input.idea.solutionConcept ?? "(none)"}`,
+                `MONETIZATION: ${input.idea.monetizationAngle ?? "(none)"}`,
+                `EVIDENCE: ${input.idea.evidenceSummary ?? "(none)"}`,
+                `SOURCE_ATTRIBUTION: ${JSON.stringify(input.idea.sourceAttributionJson ?? [])}`
+              ].join("\n")
+            }
+          ]
+        }
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "social_media_draft",
+          strict: true,
+          schema: socialDraftJsonSchema
+        }
+      }
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI social draft request failed with ${response.status}.`);
+  }
+
+  const payload = (await response.json()) as {
+    output?: Array<{ content?: Array<{ type: string; text?: string }> }>;
+  };
+  const textOutput =
+    payload.output
+      ?.flatMap((item) => item.content ?? [])
+      .find((contentItem) => contentItem.type === "output_text")
+      ?.text ?? null;
+
+  if (!textOutput) {
+    throw new Error("OpenAI social draft response did not include output_text.");
+  }
+
+  return socialDraftSchema.parse(JSON.parse(textOutput));
+}
+
+function buildFallbackSocialDraft(input: {
+  channel: (typeof researchStreamChannels)[number];
+  idea: IdeaWithCluster;
+  topic: TopicRecord;
+  frameworkName: string;
+  styleName: string;
+  assetMode: string;
+}): SocialDraft {
+  const audience = input.channel === "linkedin" ? "Founders and operators on LinkedIn" : "Operators and builders on X";
+  const hook =
+    input.channel === "linkedin"
+      ? `Most founders miss this signal: ${input.idea.problemSummary ?? input.idea.title}`
+      : `${input.idea.title} is a stronger business signal than it looks.`;
+  const thesis =
+    input.channel === "linkedin"
+      ? `${input.idea.title} points to a practical wedge in ${input.idea.category} that operators would understand immediately.`
+      : `${input.idea.title} shows where ${input.idea.category} demand is getting sharper.`;
+  const supportingPoints = [
+    input.idea.problemSummary ?? "The source material showed concrete operator pain.",
+    input.idea.solutionConcept ?? "There is a clear product angle, not just a generic trend.",
+    input.idea.monetizationAngle ?? "There is an identifiable way to make money from the opportunity."
+  ].slice(0, 3);
+  const cta =
+    input.channel === "linkedin"
+      ? "Would you build this as software, a service, or a marketplace?"
+      : "Would you ship this as SaaS, service, or workflow tooling?";
+  const draftMarkdown =
+    input.channel === "linkedin"
+      ? `${hook}\n\n${thesis}\n\n1. ${supportingPoints[0]}\n2. ${supportingPoints[1]}\n3. ${supportingPoints[2]}\n\nMy take: ${input.idea.solutionConcept ?? input.idea.title}\n\n${cta}`
+      : `${hook}\n\n${thesis}\n\n- ${supportingPoints[0]}\n- ${supportingPoints[1]}\n- ${supportingPoints[2]}\n\n${cta}`;
+
+  return socialDraftSchema.parse({
+    title: `${input.idea.title} (${input.channel.toUpperCase()})`,
+    targetAudience: audience,
+    hook,
+    thesis,
+    supportingPoints,
+    counterpoint: "This only matters if the pain shows up repeatedly beyond a single anecdote.",
+    cta,
+    draftMarkdown,
+    visualBrief: {
+      concept: `${input.topic.name} operator insight with a concrete business angle.`,
+      format: input.assetMode === "ai-generated" ? "editorial illustration" : "stock-led social card",
+      headlineText: input.idea.title,
+      captionText: `${input.frameworkName} structure in a ${input.styleName} voice.`,
+      ctaText: cta
+    },
+    infographicBrief: {
+      summary: `Break down the opportunity behind ${input.idea.title}.`,
+      format: input.channel === "linkedin" ? "carousel" : "single-image infographic",
+      panels: [
+        `Signal: ${input.idea.problemSummary ?? input.idea.title}`,
+        `Opportunity: ${input.idea.solutionConcept ?? "Product angle to validate."}`,
+        `Business model: ${input.idea.monetizationAngle ?? "Revenue model to test."}`
+      ]
+    },
+    qualityScore: Math.min(9.2, Math.max(6.4, input.idea.qualityScore ?? 7))
+  });
+}
+
+const socialDraftJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    title: { type: "string" },
+    targetAudience: { type: "string" },
+    hook: { type: "string" },
+    thesis: { type: "string" },
+    supportingPoints: {
+      type: "array",
+      items: { type: "string" },
+      minItems: 2,
+      maxItems: 4
+    },
+    counterpoint: { type: "string" },
+    cta: { type: "string" },
+    draftMarkdown: { type: "string" },
+    visualBrief: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        concept: { type: "string" },
+        format: { type: "string" },
+        headlineText: { type: "string" },
+        captionText: { type: "string" },
+        ctaText: { type: "string" }
+      },
+      required: ["concept", "format", "headlineText", "captionText", "ctaText"]
+    },
+    infographicBrief: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        summary: { type: "string" },
+        format: { type: "string" },
+        panels: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 3,
+          maxItems: 6
+        }
+      },
+      required: ["summary", "format", "panels"]
+    },
+    qualityScore: { type: "number", minimum: 0, maximum: 10 }
+  },
+  required: [
+    "title",
+    "targetAudience",
+    "hook",
+    "thesis",
+    "supportingPoints",
+    "counterpoint",
+    "cta",
+    "draftMarkdown",
+    "visualBrief",
+    "infographicBrief",
+    "qualityScore"
+  ]
+} as const;

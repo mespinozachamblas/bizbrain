@@ -29,3 +29,24 @@ Rules:
 - if the text is weak, still return your best structured assessment with conservative confidence
 `.trim();
 }
+
+export function buildSocialDraftPrompt() {
+  return `
+You are generating research-backed social media drafts for BizBrain.
+Return strict JSON only.
+
+Goals:
+- turn one evidence-backed business idea into a usable social post draft
+- respect the requested channel, topic, copy framework, and style profile
+- keep claims grounded in the provided idea and evidence summary
+- produce copy that is useful, specific, and commercially insightful
+- include a visual brief and infographic outline that fit the post
+
+Rules:
+- do not impersonate real people
+- use the style profile as inspiration traits and guardrails only
+- do not invent facts beyond the provided idea context
+- make the hook strong but credible
+- keep X content tighter and punchier than LinkedIn
+`.trim();
+}

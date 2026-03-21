@@ -114,6 +114,25 @@ type DashboardData = {
     styleTraitsJson: unknown;
     guardrailsJson: unknown;
   }>;
+  latestContentDrafts: Array<{
+    id: string;
+    title: string;
+    targetChannel: string;
+    status: string;
+    qualityScore: number | null;
+    hook: string | null;
+    thesis: string | null;
+    updatedAt: Date;
+    topic: {
+      name: string;
+    } | null;
+    copyFramework: {
+      name: string;
+    } | null;
+    styleProfile: {
+      name: string;
+    } | null;
+  }>;
   recentSourceRuns: Array<{
     id: string;
     runStatus: string;
@@ -504,6 +523,32 @@ export default async function HomePage() {
           )}
         </article>
 
+        <article className="card cardTall">
+          <div className="cardHeader">
+            <h2>Social drafts</h2>
+            <span className="badge">Social</span>
+          </div>
+          {dashboard.latestContentDrafts.length === 0 ? (
+            <EmptyState message="Social drafts will appear after the enrich pipeline syncs content_drafts." />
+          ) : (
+            <div className="stack">
+              {dashboard.latestContentDrafts.map((draft) => (
+                <div className="listRow listRowBlock" key={draft.id}>
+                  <div>
+                    <p className="rowTitle">{draft.title}</p>
+                    <p className="rowMeta">
+                      {draft.targetChannel} · {draft.topic?.name ?? "No topic"} · {draft.copyFramework?.name ?? "No framework"} ·{" "}
+                      {draft.styleProfile?.name ?? "No style"} · quality {draft.qualityScore?.toFixed(1) ?? "n/a"} · {draft.status}
+                    </p>
+                    <p className="rowBody">{draft.hook ?? draft.thesis ?? "Draft body pending."}</p>
+                    <p className="rowMeta">Updated {formatDate(draft.updatedAt)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+
         <article className="card">
           <div className="cardHeader">
             <h2>Recent source runs</h2>
@@ -866,6 +911,7 @@ async function getDashboardData(): Promise<DashboardData> {
       topics,
       copyFrameworks,
       styleProfiles,
+      latestContentDrafts,
       recentSourceRuns,
       recentHealthChecks
     ] = await Promise.all([
@@ -979,6 +1025,38 @@ async function getDashboardData(): Promise<DashboardData> {
             guardrailsJson: true
           }
         }),
+        db.contentDraft.findMany({
+          where: {
+            researchStreamId: "stream-social-media-research"
+          },
+          orderBy: [{ updatedAt: "desc" }],
+          take: 6,
+          select: {
+            id: true,
+            title: true,
+            targetChannel: true,
+            status: true,
+            qualityScore: true,
+            hook: true,
+            thesis: true,
+            updatedAt: true,
+            topic: {
+              select: {
+                name: true
+              }
+            },
+            copyFramework: {
+              select: {
+                name: true
+              }
+            },
+            styleProfile: {
+              select: {
+                name: true
+              }
+            }
+          }
+        }),
         db.sourceRun.findMany({
           orderBy: { startedAt: "desc" },
           take: 6,
@@ -1019,6 +1097,7 @@ async function getDashboardData(): Promise<DashboardData> {
       topics,
       copyFrameworks,
       styleProfiles,
+      latestContentDrafts,
       recentSourceRuns,
       recentHealthChecks
     };
@@ -1048,6 +1127,7 @@ function emptyDashboardData(): DashboardData {
     topics: [],
     copyFrameworks: [],
     styleProfiles: [],
+    latestContentDrafts: [],
     recentSourceRuns: [],
     recentHealthChecks: []
   };

@@ -2,6 +2,7 @@ import { db } from "@bizbrain/db";
 import { buildClusterSlug, buildClusterTitle, buildIdeaTitle, enrichSignal, enrichSignalBatchWithModel } from "./enrichment";
 import { buildSourceAttribution, inferFallbackQuality } from "./idea-quality";
 import { logJobBoundary, runJobWithTracking } from "./shared";
+import { syncSocialContentDrafts } from "./social-content";
 
 export async function runDailyEnrichScore() {
   await runJobWithTracking({
@@ -243,6 +244,10 @@ export async function runDailyEnrichScore() {
 
         recordsWritten += existingIdea ? 3 : 4;
       }
+
+      const socialDraftSync = await syncSocialContentDrafts();
+      recordsWritten += socialDraftSync.recordsWritten;
+      warnings.push(...socialDraftSync.warnings);
 
       await context.markProgress({
         recordsRead: pendingSignals.length,

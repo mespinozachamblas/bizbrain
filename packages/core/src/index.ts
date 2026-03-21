@@ -82,6 +82,30 @@ export const llmEnrichmentSchema = z.object({
   })
 });
 
+export const socialDraftSchema = z.object({
+  title: z.string(),
+  targetAudience: z.string(),
+  hook: z.string(),
+  thesis: z.string(),
+  supportingPoints: z.array(z.string()).min(2).max(4),
+  counterpoint: z.string(),
+  cta: z.string(),
+  draftMarkdown: z.string(),
+  visualBrief: z.object({
+    concept: z.string(),
+    format: z.string(),
+    headlineText: z.string(),
+    captionText: z.string(),
+    ctaText: z.string()
+  }),
+  infographicBrief: z.object({
+    summary: z.string(),
+    format: z.string(),
+    panels: z.array(z.string()).min(3).max(6)
+  }),
+  qualityScore: z.number().min(0).max(10)
+});
+
 export const sourceAttributionEntrySchema = z.object({
   sourceType: z.string(),
   signalCount: z.number().int().nonnegative(),
@@ -99,6 +123,7 @@ export type SourceSignal = z.infer<typeof sourceSignalSchema>;
 export type SourceAdapterConfig = z.infer<typeof sourceAdapterConfigSchema>;
 export type SourceConfigRecord = z.infer<typeof sourceConfigRecordSchema>;
 export type LlmEnrichment = z.infer<typeof llmEnrichmentSchema>;
+export type SocialDraft = z.infer<typeof socialDraftSchema>;
 export type SourceAttributionEntry = z.infer<typeof sourceAttributionEntrySchema>;
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
