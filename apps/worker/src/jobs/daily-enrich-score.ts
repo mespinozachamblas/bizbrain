@@ -20,7 +20,21 @@ export async function runDailyEnrichScore() {
       });
 
       if (pendingSignals.length === 0) {
-        logJobBoundary("daily-enrich-score", "No pending raw signals found. Job completed without enrichment work.");
+        const socialDraftSync = await syncSocialContentDrafts();
+
+        await context.markProgress({
+          recordsRead: 0,
+          recordsWritten: socialDraftSync.recordsWritten,
+          warnings: [
+            "No raw signals require enrichment.",
+            ...socialDraftSync.warnings
+          ]
+        });
+
+        logJobBoundary(
+          "daily-enrich-score",
+          `No pending raw signals found. Refreshed ${socialDraftSync.recordsWritten} social content draft(s).`
+        );
         return;
       }
 
