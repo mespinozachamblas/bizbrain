@@ -8,6 +8,7 @@ export async function runDailyDigestEmail() {
     jobName: "daily-digest-email",
     execute: async (context) => {
       const digestDate = context.logicalDate.toISOString().slice(0, 10);
+      const digestKey = `digest:${digestDate}:opportunity-research`;
       const generatedAt = new Date().toISOString();
       const appBaseUrl = resolveAppBaseUrl();
       const ownerEmail = process.env.OWNER_EMAIL;
@@ -17,7 +18,7 @@ export async function runDailyDigestEmail() {
         await syncOwnerRecipient(ownerEmail, researchStreamId);
       }
 
-      const [ideas, clusters, failedJobs, failedSourceChecks, recipients] = await Promise.all([
+      const [ideas, clusters, failedJobs, failedSourceChecks, recipients, existingDigest, previousDigest] = await Promise.all([
         db.idea.findMany({
           orderBy: [{ qualityScore: "desc" }, { updatedAt: "desc" }],
           take: 50,
@@ -40,14 +41,44 @@ export async function runDailyDigestEmail() {
         db.digestRecipient.findMany({
           where: { enabled: true, researchStreamId },
           orderBy: [{ isOwnerDefault: "desc" }, { email: "asc" }]
+        }),
+        db.digest.findUnique({
+          where: { digestKey },
+          select: {
+            selectionJson: true,
+            sentAt: true,
+            createdAt: true
+          }
+        }),
+        db.digest.findFirst({
+          where: {
+            researchStreamId,
+            sentAt: { not: null },
+            digestKey: { not: digestKey }
+          },
+          orderBy: [{ sentAt: "desc" }],
+          select: {
+            selectionJson: true,
+            sentAt: true,
+            createdAt: true
+          }
         })
       ]);
 
-      const sections = buildDigestSections({ ideas, clusters, failedJobs, failedSourceChecks });
+      const comparisonDigest = existingDigest ?? previousDigest;
+      const priorIdeaTitles = extractDigestIdeaTitles(comparisonDigest?.selectionJson);
+      const freshnessBaseline = comparisonDigest?.sentAt ?? comparisonDigest?.createdAt ?? null;
+      const sections = buildDigestSections({
+        ideas,
+        clusters,
+        failedJobs,
+        failedSourceChecks,
+        priorIdeaTitles,
+        freshnessBaseline
+      });
       const subject = buildDigestSubject(digestDate);
       const markdownBody = renderDigestMarkdown({ digestDate, generatedAt, sections, appBaseUrl });
       const htmlBody = renderDigestHtml({ digestDate, generatedAt, sections, appBaseUrl });
-      const digestKey = `digest:${digestDate}:opportunity-research`;
 
       const digest = await db.digest.upsert({
         where: { digestKey },
@@ -200,6 +231,8 @@ type DigestInputs = {
   clusters: Awaited<ReturnType<typeof db.trendCluster.findMany>>;
   failedJobs: Awaited<ReturnType<typeof db.jobRun.findMany>>;
   failedSourceChecks: Awaited<ReturnType<typeof db.sourceHealthCheck.findMany>>;
+  priorIdeaTitles: Set<string>;
+  freshnessBaseline: Date | null;
 };
 
 type DigestIdeaRecord = DigestInputs["ideas"][number] & {
@@ -215,7 +248,7 @@ type DigestIdeaRecord = DigestInputs["ideas"][number] & {
 };
 
 function buildDigestSections(input: DigestInputs) {
-  const rankedIdeas = rankDigestIdeas(input.ideas);
+  const rankedIdeas = rankDigestIdeas(input.ideas, input.priorIdeaTitles, input.freshnessBaseline);
   const topIdeas = rankedIdeas.slice(0, 3);
   const curatedClusters = collectClustersFromIdeas(topIdeas.length > 0 ? topIdeas : rankedIdeas.slice(0, 3));
   const risingClusters = curatedClusters.length > 0 ? curatedClusters : rankDigestClusters(input.clusters).slice(0, 3);
@@ -238,7 +271,7 @@ function buildDigestSections(input: DigestInputs) {
       alerts: [],
       plainLanguageSummary:
         topIdeas.length > 0
-          ? "These are the newest idea records, with the business type and product shape called out more explicitly."
+          ? "These ideas are prioritized toward what is newly surfaced or materially updated since the last digest, with the business type and product shape called out explicitly."
           : "The pipeline did not have any new idea records ready yet."
     },
     {
@@ -330,9 +363,10 @@ function formatIdeaDigestLine(idea: DigestIdeaRecord) {
   const solutionConcept = summarizeDigestText(idea.solutionConcept ?? "Solution shape still needs refinement.", 220);
   const monetization = summarizeDigestText(idea.monetizationAngle ?? "Revenue model still needs validation.", 180);
   const sources = summarizeIdeaSources(idea.sourceAttributionJson);
+  const freshnessLabel = summarizeFreshnessLabel(idea);
 
   return [
-    `${idea.title} [${businessType}]`,
+    `${freshnessLabel ? `${freshnessLabel} ` : ""}${idea.title} [${businessType}]`,
     `Customer: ${targetCustomer}`,
     `Problem: ${problemSummary}`,
     `Business: ${solutionConcept}`,
@@ -415,15 +449,45 @@ function summarizeDigestText(input: string, maxLength: number) {
   return normalized;
 }
 
-function rankDigestIdeas(ideas: DigestIdeaRecord[]) {
+function rankDigestIdeas(ideas: DigestIdeaRecord[], priorIdeaTitles: Set<string>, freshnessBaseline: Date | null) {
   return ideas
     .map((idea) => ({
       idea,
-      quality: idea.qualityScore ?? scoreDigestIdea(idea)
+      quality: idea.qualityScore ?? scoreDigestIdea(idea),
+      freshness: scoreIdeaFreshness(idea, priorIdeaTitles, freshnessBaseline)
     }))
     .filter(({ quality }) => quality >= 6)
-    .sort((left, right) => right.quality - left.quality || right.idea.updatedAt.getTime() - left.idea.updatedAt.getTime())
+    .sort(
+      (left, right) =>
+        right.freshness - left.freshness ||
+        right.quality - left.quality ||
+        right.idea.updatedAt.getTime() - left.idea.updatedAt.getTime()
+    )
     .map(({ idea }) => idea);
+}
+
+function scoreIdeaFreshness(idea: DigestIdeaRecord, priorIdeaTitles: Set<string>, freshnessBaseline: Date | null) {
+  let score = 0;
+  const createdAt = "createdAt" in idea && idea.createdAt instanceof Date ? idea.createdAt : null;
+  const titleKey = normalizeIdeaTitle(idea.title);
+
+  if (freshnessBaseline) {
+    if (createdAt && createdAt.getTime() > freshnessBaseline.getTime()) {
+      score += 8;
+    } else if (idea.updatedAt.getTime() > freshnessBaseline.getTime()) {
+      score += 5;
+    }
+  } else {
+    score += 2;
+  }
+
+  if (priorIdeaTitles.has(titleKey)) {
+    score -= 6;
+  } else {
+    score += 2;
+  }
+
+  return score;
 }
 
 function scoreDigestIdea(idea: DigestIdeaRecord) {
@@ -505,6 +569,16 @@ function collectClustersFromIdeas(ideas: DigestIdeaRecord[]) {
     .slice(0, 3);
 }
 
+function summarizeFreshnessLabel(idea: DigestIdeaRecord) {
+  const createdAt = "createdAt" in idea && idea.createdAt instanceof Date ? idea.createdAt : null;
+
+  if (createdAt && Math.abs(idea.updatedAt.getTime() - createdAt.getTime()) < 60_000) {
+    return "[New]";
+  }
+
+  return "[Updated]";
+}
+
 function rankDigestClusters(clusters: DigestInputs["clusters"]) {
   return clusters.filter((cluster) => {
     if (cluster.primaryCategory === "general") {
@@ -539,6 +613,38 @@ function summarizeIdeaSources(value: unknown) {
     .slice(0, 3);
 
   return parts.length > 0 ? parts.join(", ") : null;
+}
+
+function extractDigestIdeaTitles(selectionJson: unknown) {
+  const titles = new Set<string>();
+
+  if (!Array.isArray(selectionJson)) {
+    return titles;
+  }
+
+  for (const section of selectionJson) {
+    if (!section || typeof section !== "object" || !("items" in section) || !Array.isArray(section.items)) {
+      continue;
+    }
+
+    for (const item of section.items) {
+      if (typeof item !== "string") {
+        continue;
+      }
+
+      const title = item.split(" | ")[0]?.replace(/^\[(?:New|Updated)\]\s*/, "").split(" [")[0]?.trim();
+
+      if (title) {
+        titles.add(normalizeIdeaTitle(title));
+      }
+    }
+  }
+
+  return titles;
+}
+
+function normalizeIdeaTitle(value: string) {
+  return value.trim().toLowerCase();
 }
 
 async function syncOwnerRecipient(ownerEmail: string, researchStreamId: string) {
