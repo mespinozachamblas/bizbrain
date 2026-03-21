@@ -3,11 +3,15 @@ import { db } from "@bizbrain/db";
 export const dynamic = "force-dynamic";
 
 import {
+  createCopyFramework,
   createResearchStream,
+  createStyleProfile,
   createTopic,
   runPipelineJob,
   runSourceCheck,
+  updateCopyFramework,
   updateResearchStream,
+  updateStyleProfile,
   updateTopic
 } from "./actions";
 
@@ -96,11 +100,19 @@ type DashboardData = {
     id: string;
     name: string;
     slug: string;
+    description: string | null;
+    enabled: boolean;
+    structureJson: unknown;
   }>;
   styleProfiles: Array<{
     id: string;
     name: string;
     slug: string;
+    description: string | null;
+    inspirationSummary: string | null;
+    enabled: boolean;
+    styleTraitsJson: unknown;
+    guardrailsJson: unknown;
   }>;
   recentSourceRuns: Array<{
     id: string;
@@ -325,6 +337,93 @@ export default async function HomePage() {
             Topics steer source matching, social outputs, and future draft generation. Configure them before adding more
             stream-specific automation.
           </p>
+        </article>
+
+        <article className="card controlCard">
+          <div className="cardHeader">
+            <h2>Create copy framework</h2>
+            <span className="badge">Messaging</span>
+          </div>
+          <form action={createCopyFramework} className="adminForm">
+            <label className="fieldLabel">
+              Name
+              <input className="fieldInput" name="name" placeholder="AIDA" required type="text" />
+            </label>
+            <label className="fieldLabel">
+              Slug
+              <input className="fieldInput" name="slug" placeholder="aida" type="text" />
+            </label>
+            <label className="fieldLabel fieldLabelWide">
+              Description
+              <textarea
+                className="fieldTextarea"
+                name="description"
+                placeholder="Attention, interest, desire, action sequence for social and email hooks."
+                rows={3}
+              />
+            </label>
+            <label className="fieldLabel fieldLabelWide">
+              Structure
+              <input className="fieldInput" name="structure" placeholder="attention, interest, desire, action" type="text" />
+            </label>
+            <label className="fieldCheckbox">
+              <input defaultChecked name="enabled" type="checkbox" />
+              Enabled
+            </label>
+            <button className="jobButton" type="submit">
+              Create framework
+            </button>
+          </form>
+        </article>
+
+        <article className="card controlCard">
+          <div className="cardHeader">
+            <h2>Create style profile</h2>
+            <span className="badge">Voice</span>
+          </div>
+          <form action={createStyleProfile} className="adminForm">
+            <label className="fieldLabel">
+              Name
+              <input className="fieldInput" name="name" placeholder="Founder educator" required type="text" />
+            </label>
+            <label className="fieldLabel">
+              Slug
+              <input className="fieldInput" name="slug" placeholder="founder-educator" type="text" />
+            </label>
+            <label className="fieldLabel fieldLabelWide">
+              Description
+              <textarea
+                className="fieldTextarea"
+                name="description"
+                placeholder="Plainspoken operator voice with clear lessons and light persuasion."
+                rows={3}
+              />
+            </label>
+            <label className="fieldLabel fieldLabelWide">
+              Inspiration summary
+              <textarea
+                className="fieldTextarea"
+                name="inspirationSummary"
+                placeholder="Direct-response clarity mixed with practical founder education."
+                rows={2}
+              />
+            </label>
+            <label className="fieldLabel fieldLabelWide">
+              Style traits
+              <input className="fieldInput" name="styleTraits" placeholder="direct, concrete, story-led, persuasive" type="text" />
+            </label>
+            <label className="fieldLabel fieldLabelWide">
+              Guardrails
+              <input className="fieldInput" name="guardrails" placeholder="no hype, no fake urgency, no impersonation" type="text" />
+            </label>
+            <label className="fieldCheckbox">
+              <input defaultChecked name="enabled" type="checkbox" />
+              Enabled
+            </label>
+            <button className="jobButton" type="submit">
+              Create style
+            </button>
+          </form>
         </article>
       </section>
 
@@ -609,6 +708,101 @@ export default async function HomePage() {
           )}
         </article>
 
+        <article className="card cardTall">
+          <div className="cardHeader">
+            <h2>Copy frameworks</h2>
+            <span className="badge">Messaging</span>
+          </div>
+          {dashboard.copyFrameworks.length === 0 ? (
+            <EmptyState message="No copy frameworks are configured yet." />
+          ) : (
+            <div className="stack">
+              {dashboard.copyFrameworks.map((framework) => (
+                <form action={updateCopyFramework} className="adminForm adminFormCompact" key={framework.id}>
+                  <input name="id" type="hidden" value={framework.id} />
+                  <label className="fieldLabel">
+                    Name
+                    <input className="fieldInput" defaultValue={framework.name} name="name" required type="text" />
+                  </label>
+                  <label className="fieldLabel">
+                    Slug
+                    <input className="fieldInput" defaultValue={framework.slug} name="slug" required type="text" />
+                  </label>
+                  <label className="fieldLabel fieldLabelWide">
+                    Description
+                    <textarea className="fieldTextarea" defaultValue={framework.description ?? ""} name="description" rows={2} />
+                  </label>
+                  <label className="fieldLabel fieldLabelWide">
+                    Structure
+                    <input className="fieldInput" defaultValue={formatListInput(framework.structureJson)} name="structure" type="text" />
+                  </label>
+                  <label className="fieldCheckbox">
+                    <input defaultChecked={framework.enabled} name="enabled" type="checkbox" />
+                    Enabled
+                  </label>
+                  <button className="jobButton jobButtonSecondary" type="submit">
+                    Save framework
+                  </button>
+                </form>
+              ))}
+            </div>
+          )}
+        </article>
+
+        <article className="card cardTall">
+          <div className="cardHeader">
+            <h2>Style profiles</h2>
+            <span className="badge">Voice</span>
+          </div>
+          {dashboard.styleProfiles.length === 0 ? (
+            <EmptyState message="No style profiles are configured yet." />
+          ) : (
+            <div className="stack">
+              {dashboard.styleProfiles.map((profile) => (
+                <form action={updateStyleProfile} className="adminForm adminFormCompact" key={profile.id}>
+                  <input name="id" type="hidden" value={profile.id} />
+                  <label className="fieldLabel">
+                    Name
+                    <input className="fieldInput" defaultValue={profile.name} name="name" required type="text" />
+                  </label>
+                  <label className="fieldLabel">
+                    Slug
+                    <input className="fieldInput" defaultValue={profile.slug} name="slug" required type="text" />
+                  </label>
+                  <label className="fieldLabel fieldLabelWide">
+                    Description
+                    <textarea className="fieldTextarea" defaultValue={profile.description ?? ""} name="description" rows={2} />
+                  </label>
+                  <label className="fieldLabel fieldLabelWide">
+                    Inspiration summary
+                    <textarea
+                      className="fieldTextarea"
+                      defaultValue={profile.inspirationSummary ?? ""}
+                      name="inspirationSummary"
+                      rows={2}
+                    />
+                  </label>
+                  <label className="fieldLabel fieldLabelWide">
+                    Style traits
+                    <input className="fieldInput" defaultValue={formatListInput(profile.styleTraitsJson)} name="styleTraits" type="text" />
+                  </label>
+                  <label className="fieldLabel fieldLabelWide">
+                    Guardrails
+                    <input className="fieldInput" defaultValue={formatListInput(profile.guardrailsJson)} name="guardrails" type="text" />
+                  </label>
+                  <label className="fieldCheckbox">
+                    <input defaultChecked={profile.enabled} name="enabled" type="checkbox" />
+                    Enabled
+                  </label>
+                  <button className="jobButton jobButtonSecondary" type="submit">
+                    Save style
+                  </button>
+                </form>
+              ))}
+            </div>
+          )}
+        </article>
+
         <article className="card">
           <div className="cardHeader">
             <h2>Digest recipients</h2>
@@ -762,21 +956,27 @@ async function getDashboardData(): Promise<DashboardData> {
           }
         }),
         db.copyFramework.findMany({
-          where: { enabled: true },
           orderBy: { name: "asc" },
           select: {
             id: true,
             name: true,
-            slug: true
+            slug: true,
+            description: true,
+            enabled: true,
+            structureJson: true
           }
         }),
         db.styleProfile.findMany({
-          where: { enabled: true },
           orderBy: { name: "asc" },
           select: {
             id: true,
             name: true,
-            slug: true
+            slug: true,
+            description: true,
+            inspirationSummary: true,
+            enabled: true,
+            styleTraitsJson: true,
+            guardrailsJson: true
           }
         }),
         db.sourceRun.findMany({

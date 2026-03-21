@@ -235,6 +235,162 @@ export async function updateTopic(formData: FormData) {
   revalidatePath("/");
 }
 
+export async function createCopyFramework(formData: FormData) {
+  const name = readRequiredString(formData, "name");
+  const slugInput = readOptionalString(formData, "slug");
+  const description = readOptionalString(formData, "description");
+  const enabled = readBoolean(formData, "enabled", true);
+  const structure = parseList(formData.get("structure"));
+  const slug = slugify(slugInput ?? name);
+
+  if (!slug) {
+    throw new Error("Copy framework slug is required.");
+  }
+
+  const existing = await db.copyFramework.findUnique({
+    where: { slug },
+    select: { id: true }
+  });
+
+  if (existing) {
+    throw new Error(`Copy framework slug "${slug}" already exists.`);
+  }
+
+  await db.copyFramework.create({
+    data: {
+      id: `framework-${slug}`,
+      name,
+      slug,
+      description,
+      enabled,
+      structureJson: structure
+    }
+  });
+
+  revalidatePath("/");
+}
+
+export async function updateCopyFramework(formData: FormData) {
+  const id = readRequiredString(formData, "id");
+  const name = readRequiredString(formData, "name");
+  const slugInput = readRequiredString(formData, "slug");
+  const description = readOptionalString(formData, "description");
+  const enabled = readBoolean(formData, "enabled", false);
+  const structure = parseList(formData.get("structure"));
+  const slug = slugify(slugInput);
+
+  if (!slug) {
+    throw new Error("Copy framework slug is required.");
+  }
+
+  const conflicting = await db.copyFramework.findFirst({
+    where: {
+      slug,
+      id: { not: id }
+    },
+    select: { id: true }
+  });
+
+  if (conflicting) {
+    throw new Error(`Copy framework slug "${slug}" already exists.`);
+  }
+
+  await db.copyFramework.update({
+    where: { id },
+    data: {
+      name,
+      slug,
+      description,
+      enabled,
+      structureJson: structure
+    }
+  });
+
+  revalidatePath("/");
+}
+
+export async function createStyleProfile(formData: FormData) {
+  const name = readRequiredString(formData, "name");
+  const slugInput = readOptionalString(formData, "slug");
+  const description = readOptionalString(formData, "description");
+  const inspirationSummary = readOptionalString(formData, "inspirationSummary");
+  const enabled = readBoolean(formData, "enabled", true);
+  const styleTraits = parseList(formData.get("styleTraits"));
+  const guardrails = parseList(formData.get("guardrails"));
+  const slug = slugify(slugInput ?? name);
+
+  if (!slug) {
+    throw new Error("Style profile slug is required.");
+  }
+
+  const existing = await db.styleProfile.findUnique({
+    where: { slug },
+    select: { id: true }
+  });
+
+  if (existing) {
+    throw new Error(`Style profile slug "${slug}" already exists.`);
+  }
+
+  await db.styleProfile.create({
+    data: {
+      id: `style-${slug}`,
+      name,
+      slug,
+      description,
+      inspirationSummary,
+      enabled,
+      styleTraitsJson: styleTraits,
+      guardrailsJson: guardrails
+    }
+  });
+
+  revalidatePath("/");
+}
+
+export async function updateStyleProfile(formData: FormData) {
+  const id = readRequiredString(formData, "id");
+  const name = readRequiredString(formData, "name");
+  const slugInput = readRequiredString(formData, "slug");
+  const description = readOptionalString(formData, "description");
+  const inspirationSummary = readOptionalString(formData, "inspirationSummary");
+  const enabled = readBoolean(formData, "enabled", false);
+  const styleTraits = parseList(formData.get("styleTraits"));
+  const guardrails = parseList(formData.get("guardrails"));
+  const slug = slugify(slugInput);
+
+  if (!slug) {
+    throw new Error("Style profile slug is required.");
+  }
+
+  const conflicting = await db.styleProfile.findFirst({
+    where: {
+      slug,
+      id: { not: id }
+    },
+    select: { id: true }
+  });
+
+  if (conflicting) {
+    throw new Error(`Style profile slug "${slug}" already exists.`);
+  }
+
+  await db.styleProfile.update({
+    where: { id },
+    data: {
+      name,
+      slug,
+      description,
+      inspirationSummary,
+      enabled,
+      styleTraitsJson: styleTraits,
+      guardrailsJson: guardrails
+    }
+  });
+
+  revalidatePath("/");
+}
+
 function readRequiredString(formData: FormData, key: string) {
   const value = formData.get(key);
 
