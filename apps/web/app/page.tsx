@@ -41,6 +41,10 @@ type DashboardData = {
   }>;
   digestRecipients: Array<{
     id: string;
+    researchStream: {
+      slug: string;
+      name: string;
+    };
     email: string;
     enabled: boolean;
     isOwnerDefault: boolean;
@@ -277,7 +281,9 @@ export default async function HomePage() {
                 <div className="listRow" key={recipient.id}>
                   <div>
                     <p className="rowTitle">{recipient.email}</p>
-                    <p className="rowMeta">{recipient.isOwnerDefault ? "Owner default" : "Additional recipient"}</p>
+                    <p className="rowMeta">
+                      {recipient.researchStream.name} · {recipient.isOwnerDefault ? "Owner default" : "Additional recipient"}
+                    </p>
                   </div>
                   <span className={`status status-${recipient.enabled ? "enabled" : "disabled"}`}>
                     {recipient.enabled ? "enabled" : "disabled"}
@@ -353,7 +359,15 @@ async function getDashboardData(): Promise<DashboardData> {
           }
         }),
         db.digestRecipient.findMany({
-          orderBy: [{ isOwnerDefault: "desc" }, { email: "asc" }]
+          orderBy: [{ researchStreamId: "asc" }, { isOwnerDefault: "desc" }, { email: "asc" }],
+          include: {
+            researchStream: {
+              select: {
+                slug: true,
+                name: true
+              }
+            }
+          }
         }),
         db.sourceConfig.findMany({
           orderBy: { sourceType: "asc" },

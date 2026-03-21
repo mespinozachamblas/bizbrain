@@ -1,4 +1,4 @@
-import { digestSectionSchema } from "@bizbrain/core";
+import { digestSectionSchema, researchStreamIds } from "@bizbrain/core";
 import { db } from "@bizbrain/db";
 import { buildDigestSubject, renderDigestHtml, renderDigestMarkdown, sendWithResend } from "@bizbrain/email";
 import { logJobBoundary, runJobWithTracking } from "./shared";
@@ -11,9 +11,10 @@ export async function runDailyDigestEmail() {
       const generatedAt = new Date().toISOString();
       const appBaseUrl = resolveAppBaseUrl();
       const ownerEmail = process.env.OWNER_EMAIL;
+      const researchStreamId = researchStreamIds.opportunity;
 
       if (ownerEmail) {
-        await syncOwnerRecipient(ownerEmail);
+        await syncOwnerRecipient(ownerEmail, researchStreamId);
       }
 
       const [ideas, clusters, failedJobs, failedSourceChecks, recipients] = await Promise.all([
@@ -37,7 +38,7 @@ export async function runDailyDigestEmail() {
           take: 5
         }),
         db.digestRecipient.findMany({
-          where: { enabled: true },
+          where: { enabled: true, researchStreamId },
           orderBy: [{ isOwnerDefault: "desc" }, { email: "asc" }]
         })
       ]);
@@ -46,11 +47,12 @@ export async function runDailyDigestEmail() {
       const subject = buildDigestSubject(digestDate);
       const markdownBody = renderDigestMarkdown({ digestDate, generatedAt, sections, appBaseUrl });
       const htmlBody = renderDigestHtml({ digestDate, generatedAt, sections, appBaseUrl });
-      const digestKey = `digest:${digestDate}`;
+      const digestKey = `digest:${digestDate}:opportunity-research`;
 
       const digest = await db.digest.upsert({
         where: { digestKey },
         update: {
+          researchStreamId,
           subject,
           markdownBody,
           htmlBody,
@@ -58,6 +60,7 @@ export async function runDailyDigestEmail() {
           status: recipients.length > 0 ? "ready" : "skipped"
         },
         create: {
+          researchStreamId,
           digestDate: context.logicalDate,
           digestKey,
           subject,
@@ -90,7 +93,7 @@ export async function runDailyDigestEmail() {
       let deliveryWrites = 1;
 
       for (const recipient of recipients) {
-        const deliveryKey = `digest:${digestDate}:${recipient.email.toLowerCase()}`;
+        const deliveryKey = `digest:${digestDate}:opportunity-research:${recipient.email.toLowerCase()}`;
         const existingDelivery = await db.emailDelivery.findUnique({ where: { deliveryKey } });
 
         if (existingDelivery?.sendStatus === "sent") {
@@ -538,11 +541,12 @@ function summarizeIdeaSources(value: unknown) {
   return parts.length > 0 ? parts.join(", ") : null;
 }
 
-async function syncOwnerRecipient(ownerEmail: string) {
+async function syncOwnerRecipient(ownerEmail: string, researchStreamId: string) {
   const normalizedOwnerEmail = ownerEmail.trim().toLowerCase();
 
   await db.digestRecipient.updateMany({
     where: {
+      researchStreamId,
       isOwnerDefault: true,
       email: { not: normalizedOwnerEmail }
     },
@@ -552,12 +556,18 @@ async function syncOwnerRecipient(ownerEmail: string) {
   });
 
   await db.digestRecipient.upsert({
-    where: { email: normalizedOwnerEmail },
+    where: {
+      researchStreamId_email: {
+        researchStreamId,
+        email: normalizedOwnerEmail
+      }
+    },
     update: {
       enabled: true,
       isOwnerDefault: true
     },
     create: {
+      researchStreamId,
       email: normalizedOwnerEmail,
       enabled: true,
       isOwnerDefault: true
@@ -566,7 +576,10 @@ async function syncOwnerRecipient(ownerEmail: string) {
 
   if (normalizedOwnerEmail !== "owner@example.com") {
     await db.digestRecipient.updateMany({
-      where: { email: "owner@example.com" },
+      where: {
+        researchStreamId,
+        email: "owner@example.com"
+      },
       data: {
         enabled: false,
         isOwnerDefault: false

@@ -11,6 +11,12 @@ export const jobNames = [
 export const jobStatuses = ["pending", "running", "succeeded", "failed", "skipped"] as const;
 export const sourceTypes = ["reddit", "google-trends", "hacker-news", "product-hunt"] as const;
 export const sourceModes = ["sample", "live"] as const;
+export const researchStreamSlugs = ["opportunity-research", "social-media-research"] as const;
+export const researchStreamIds = {
+  opportunity: "stream-opportunity-research",
+  socialMedia: "stream-social-media-research"
+} as const;
+export const researchStreamChannels = ["linkedin", "x"] as const;
 
 export const digestSectionSchema = z.object({
   sectionTitle: z.string(),
@@ -87,6 +93,7 @@ export type JobName = (typeof jobNames)[number];
 export type JobStatus = (typeof jobStatuses)[number];
 export type SourceType = (typeof sourceTypes)[number];
 export type SourceMode = (typeof sourceModes)[number];
+export type ResearchStreamSlug = (typeof researchStreamSlugs)[number];
 export type DigestSection = z.infer<typeof digestSectionSchema>;
 export type SourceSignal = z.infer<typeof sourceSignalSchema>;
 export type SourceAdapterConfig = z.infer<typeof sourceAdapterConfigSchema>;

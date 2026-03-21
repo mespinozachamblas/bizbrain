@@ -20,16 +20,18 @@ model User {
 }
 
 model SourceConfig {
-  id             String                @id @default(cuid())
-  sourceType     String                @map("source_type")
-  enabled        Boolean               @default(true)
-  nicheModes     Json?                 @map("niche_modes")
-  configJson     Json                  @map("config_json")
-  createdAt      DateTime              @default(now()) @map("created_at")
-  updatedAt      DateTime              @updatedAt @map("updated_at")
-  versions       SourceConfigVersion[]
-  healthChecks   SourceHealthCheck[]
-  sourceRuns     SourceRun[]
+  id                    String                @id @default(cuid())
+  researchStreamIdsJson Json?                 @map("research_stream_ids_json")
+  topicIdsJson          Json?                 @map("topic_ids_json")
+  sourceType            String                @map("source_type")
+  enabled               Boolean               @default(true)
+  nicheModes            Json?                 @map("niche_modes")
+  configJson            Json                  @map("config_json")
+  createdAt             DateTime              @default(now()) @map("created_at")
+  updatedAt             DateTime              @updatedAt @map("updated_at")
+  versions              SourceConfigVersion[]
+  healthChecks          SourceHealthCheck[]
+  sourceRuns            SourceRun[]
 
   @@index([sourceType])
   @@map("source_configs")
@@ -50,18 +52,105 @@ model SourceConfigVersion {
   @@map("source_config_versions")
 }
 
+model ResearchStream {
+  id                   String           @id
+  slug                 String           @unique
+  name                 String
+  description          String?
+  enabled              Boolean          @default(true)
+  enabledChannelsJson  Json?            @map("enabled_channels_json")
+  deliveryType         String           @default("email") @map("delivery_type")
+  scheduleCron         String?          @map("schedule_cron")
+  defaultCopyFrameworkId String?        @map("default_copy_framework_id")
+  defaultStyleProfileId  String?        @map("default_style_profile_id")
+  defaultAssetMode     String?          @map("default_asset_mode")
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+  defaultCopyFramework CopyFramework?   @relation("ResearchStreamDefaultCopyFramework", fields: [defaultCopyFrameworkId], references: [id], onDelete: SetNull)
+  defaultStyleProfile  StyleProfile?    @relation("ResearchStreamDefaultStyleProfile", fields: [defaultStyleProfileId], references: [id], onDelete: SetNull)
+  topics               Topic[]
+  ideas                Idea[]
+  digests              Digest[]
+  digestRecipients     DigestRecipient[]
+  contentDrafts        ContentDraft[]
+
+  @@map("research_streams")
+}
+
+model Topic {
+  id                    String          @id
+  researchStreamId      String          @map("research_stream_id")
+  slug                  String
+  name                  String
+  description           String?
+  enabledChannelsJson   Json?           @map("enabled_channels_json")
+  keywordsJson          Json?           @map("keywords_json")
+  exclusionsJson        Json?           @map("exclusions_json")
+  sourcePreferencesJson Json?           @map("source_preferences_json")
+  defaultCopyFrameworkId String?        @map("default_copy_framework_id")
+  defaultStyleProfileId  String?        @map("default_style_profile_id")
+  defaultAssetMode      String?         @map("default_asset_mode")
+  enabled               Boolean         @default(true)
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+  researchStream        ResearchStream  @relation(fields: [researchStreamId], references: [id], onDelete: Cascade)
+  defaultCopyFramework  CopyFramework?  @relation("TopicDefaultCopyFramework", fields: [defaultCopyFrameworkId], references: [id], onDelete: SetNull)
+  defaultStyleProfile   StyleProfile?   @relation("TopicDefaultStyleProfile", fields: [defaultStyleProfileId], references: [id], onDelete: SetNull)
+  ideas                 Idea[]
+  contentDrafts         ContentDraft[]
+
+  @@unique([researchStreamId, slug])
+  @@index([researchStreamId, enabled])
+  @@map("topics")
+}
+
+model CopyFramework {
+  id                           String           @id
+  slug                         String           @unique
+  name                         String
+  description                  String?
+  structureJson                Json?            @map("structure_json")
+  enabled                      Boolean          @default(true)
+  createdAt                    DateTime         @default(now()) @map("created_at")
+  updatedAt                    DateTime         @updatedAt @map("updated_at")
+  researchStreamDefaults       ResearchStream[] @relation("ResearchStreamDefaultCopyFramework")
+  topicDefaults                Topic[]          @relation("TopicDefaultCopyFramework")
+  contentDrafts                ContentDraft[]
+
+  @@map("copy_frameworks")
+}
+
+model StyleProfile {
+  id                           String           @id
+  slug                         String           @unique
+  name                         String
+  description                  String?
+  inspirationSummary           String?          @map("inspiration_summary")
+  styleTraitsJson              Json?            @map("style_traits_json")
+  guardrailsJson               Json?            @map("guardrails_json")
+  enabled                      Boolean          @default(true)
+  createdAt                    DateTime         @default(now()) @map("created_at")
+  updatedAt                    DateTime         @updatedAt @map("updated_at")
+  researchStreamDefaults       ResearchStream[] @relation("ResearchStreamDefaultStyleProfile")
+  topicDefaults                Topic[]          @relation("TopicDefaultStyleProfile")
+  contentDrafts                ContentDraft[]
+
+  @@map("style_profiles")
+}
+
 model RawSignal {
-  id                String              @id @default(cuid())
-  sourceType        String              @map("source_type")
-  sourceRecordId    String              @map("source_record_id")
-  sourceUrl         String?             @map("source_url")
-  title             String?
-  body              String?
-  authorName        String?             @map("author_name")
-  occurredAt        DateTime?           @map("occurred_at")
-  ingestedAt        DateTime            @default(now()) @map("ingested_at")
-  dedupeHash        String              @map("dedupe_hash")
-  enrichment        EnrichedSignal?
+  id                 String              @id @default(cuid())
+  topicMatchesJson   Json?               @map("topic_matches_json")
+  sourceType         String              @map("source_type")
+  sourceRecordId     String              @map("source_record_id")
+  sourceUrl          String?             @map("source_url")
+  title              String?
+  body               String?
+  authorName         String?             @map("author_name")
+  occurredAt         DateTime?           @map("occurred_at")
+  ingestedAt         DateTime            @default(now()) @map("ingested_at")
+  dedupeHash         String              @map("dedupe_hash")
+  enrichment         EnrichedSignal?
   clusterMemberships ClusterMembership[]
 
   @@unique([sourceType, sourceRecordId])
@@ -167,6 +256,8 @@ model ClusterMembership {
 
 model Idea {
   id                      String       @id @default(cuid())
+  researchStreamId        String       @default("stream-opportunity-research") @map("research_stream_id")
+  primaryTopicId          String?      @map("primary_topic_id")
   clusterId               String       @map("cluster_id")
   title                   String
   category                String
@@ -188,15 +279,59 @@ model Idea {
   notesMarkdown           String?      @map("notes_markdown")
   createdAt               DateTime     @default(now()) @map("created_at")
   updatedAt               DateTime     @updatedAt @map("updated_at")
+  researchStream          ResearchStream @relation(fields: [researchStreamId], references: [id], onDelete: Restrict)
+  primaryTopic            Topic?       @relation(fields: [primaryTopicId], references: [id], onDelete: SetNull)
   cluster                 TrendCluster @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+  contentDrafts           ContentDraft[]
 
   @@index([status, category, updatedAt(sort: Desc)])
   @@index([qualityScore(sort: Desc), updatedAt(sort: Desc)])
+  @@index([researchStreamId, qualityScore(sort: Desc), updatedAt(sort: Desc)])
   @@map("ideas")
+}
+
+model ContentDraft {
+  id                 String          @id @default(cuid())
+  researchStreamId   String          @default("stream-social-media-research") @map("research_stream_id")
+  topicId            String?         @map("topic_id")
+  sourceIdeaId       String?         @map("source_idea_id")
+  copyFrameworkId    String?         @map("copy_framework_id")
+  styleProfileId     String?         @map("style_profile_id")
+  title              String
+  targetChannel      String          @map("target_channel")
+  targetAudience     String?         @map("target_audience")
+  hook               String?
+  thesis             String?
+  supportingPointsJson Json?         @map("supporting_points_json")
+  counterpoint       String?
+  cta                String?
+  draftMarkdown      String?         @map("draft_markdown")
+  draftHtml          String?         @map("draft_html")
+  visualBriefJson    Json?           @map("visual_brief_json")
+  infographicBriefJson Json?         @map("infographic_brief_json")
+  infographicFormat  String?         @map("infographic_format")
+  infographicPanelsJson Json?        @map("infographic_panels_json")
+  assetMode          String?         @map("asset_mode")
+  assetStatus        String?         @map("asset_status")
+  assetCandidatesJson Json?          @map("asset_candidates_json")
+  qualityScore       Float?          @map("quality_score")
+  sourceAttributionJson Json?        @map("source_attribution_json")
+  status             String
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+  researchStream     ResearchStream  @relation(fields: [researchStreamId], references: [id], onDelete: Restrict)
+  topic              Topic?          @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  sourceIdea         Idea?           @relation(fields: [sourceIdeaId], references: [id], onDelete: SetNull)
+  copyFramework      CopyFramework?  @relation(fields: [copyFrameworkId], references: [id], onDelete: SetNull)
+  styleProfile       StyleProfile?   @relation(fields: [styleProfileId], references: [id], onDelete: SetNull)
+
+  @@index([researchStreamId, status, updatedAt(sort: Desc)])
+  @@map("content_drafts")
 }
 
 model Digest {
   id              String          @id @default(cuid())
+  researchStreamId String         @default("stream-opportunity-research") @map("research_stream_id")
   digestDate      DateTime        @map("digest_date")
   digestKey       String          @unique @map("digest_key")
   subject         String
@@ -206,6 +341,7 @@ model Digest {
   status          String
   createdAt       DateTime        @default(now()) @map("created_at")
   sentAt          DateTime?       @map("sent_at")
+  researchStream  ResearchStream  @relation(fields: [researchStreamId], references: [id], onDelete: Restrict)
   emailDeliveries EmailDelivery[]
 
   @@index([digestDate])
@@ -214,13 +350,16 @@ model Digest {
 
 model DigestRecipient {
   id              String          @id @default(cuid())
-  email           String          @unique
+  researchStreamId String         @default("stream-opportunity-research") @map("research_stream_id")
+  email           String
   enabled         Boolean         @default(true)
   isOwnerDefault  Boolean         @default(false) @map("is_owner_default")
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
+  researchStream  ResearchStream  @relation(fields: [researchStreamId], references: [id], onDelete: Cascade)
   emailDeliveries EmailDelivery[]
 
+  @@unique([researchStreamId, email])
   @@map("digest_recipients")
 }
 

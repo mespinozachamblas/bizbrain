@@ -12,6 +12,7 @@
     "test": "node ../../scripts/placeholder-task.mjs db:test"
   },
   "dependencies": {
+    "@bizbrain/core": "workspace:*",
     "@prisma/client": "^6.0.0"
   },
   "devDependencies": {
