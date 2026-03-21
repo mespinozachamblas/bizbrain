@@ -117,14 +117,7 @@ export async function syncSocialContentDrafts() {
           const framework = topic.defaultCopyFramework ?? socialStream.defaultCopyFramework ?? null;
           const styleProfile = topic.defaultStyleProfile ?? socialStream.defaultStyleProfile ?? null;
           const assetMode = topic.defaultAssetMode ?? socialStream.defaultAssetMode ?? "none";
-          const generated = (await generateSocialDraft({
-            channel,
-            idea,
-            topic,
-            framework,
-            styleProfile,
-            assetMode
-          })) ?? buildFallbackSocialDraft({
+          const fallbackDraft = buildFallbackSocialDraft({
             channel,
             idea,
             topic,
@@ -132,6 +125,20 @@ export async function syncSocialContentDrafts() {
             styleName: styleProfile?.name ?? "founder educator",
             assetMode
           });
+          let generated = fallbackDraft;
+
+          try {
+            generated = (await generateSocialDraft({
+              channel,
+              idea,
+              topic,
+              framework,
+              styleProfile,
+              assetMode
+            })) ?? fallbackDraft;
+          } catch (error) {
+            result.warnings.push(`${topic.slug}/${channel}: ${error instanceof Error ? error.message : String(error)}`);
+          }
 
           const existingDraft = await db.contentDraft.findFirst({
             where: {
@@ -182,7 +189,7 @@ export async function syncSocialContentDrafts() {
 
           result.recordsWritten += 1;
         } catch (error) {
-          result.warnings.push(`${topic.slug}/${channel}: ${error instanceof Error ? error.message : String(error)}`);
+          result.warnings.push(`${topic.slug}/${channel}: failed to persist draft: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
     }
