@@ -24,6 +24,7 @@ export async function runDailyIngest() {
       }
 
       let rawSignalsWritten = 0;
+      const warnings: string[] = [];
 
       for (const sourceConfig of sourceConfigs) {
         const parsedSourceConfig = sourceConfigRecordSchema.parse({
@@ -34,63 +35,90 @@ export async function runDailyIngest() {
         });
         const adapter = getSourceAdapter(parsedSourceConfig.sourceType);
         const startedAt = new Date();
-        const signals = await adapter.fetchSignals({
-          sourceType: parsedSourceConfig.sourceType,
-          configJson: parsedSourceConfig.configJson as never
-        });
         const resolvedMode = adapter.getMode(parsedSourceConfig.configJson);
 
-        for (const signal of signals) {
-          await db.rawSignal.upsert({
-            where: {
-              sourceType_sourceRecordId: {
-                sourceType: parsedSourceConfig.sourceType,
-                sourceRecordId: signal.sourceRecordId
+        try {
+          const signals = await adapter.fetchSignals({
+            sourceType: parsedSourceConfig.sourceType,
+            configJson: parsedSourceConfig.configJson as never
+          });
+
+          for (const signal of signals) {
+            await db.rawSignal.upsert({
+              where: {
+                sourceType_sourceRecordId: {
+                  sourceType: parsedSourceConfig.sourceType,
+                  sourceRecordId: signal.sourceRecordId
+                }
+              },
+              update: {
+                sourceUrl: signal.sourceUrl,
+                title: signal.title,
+                body: signal.body,
+                authorName: signal.authorName,
+                occurredAt: signal.occurredAt
+              },
+              create: {
+                sourceType: sourceConfig.sourceType,
+                sourceRecordId: signal.sourceRecordId,
+                sourceUrl: signal.sourceUrl,
+                title: signal.title,
+                body: signal.body,
+                authorName: signal.authorName,
+                occurredAt: signal.occurredAt,
+                dedupeHash: buildSignalDedupeHash(parsedSourceConfig.sourceType, signal.sourceRecordId)
               }
+            });
+          }
+
+          await context.createSourceRun({
+            sourceConfigId: sourceConfig.id,
+            status: "succeeded",
+            recordsRead: signals.length,
+            recordsWritten: signals.length,
+            warnings: {
+              sourceType: parsedSourceConfig.sourceType,
+              mode: resolvedMode,
+              note:
+                resolvedMode === "live"
+                  ? "Pulled live source data through the configured adapter."
+                  : "Using deterministic sample signals for this source."
             },
-            update: {
-              sourceUrl: signal.sourceUrl,
-              title: signal.title,
-              body: signal.body,
-              authorName: signal.authorName,
-              occurredAt: signal.occurredAt
+            startedAt,
+            finishedAt: new Date()
+          });
+
+          rawSignalsWritten += signals.length;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+
+          warnings.push(`${parsedSourceConfig.sourceType}: ${message}`);
+
+          await context.createSourceRun({
+            sourceConfigId: sourceConfig.id,
+            status: "failed",
+            recordsRead: 0,
+            recordsWritten: 0,
+            warnings: {
+              sourceType: parsedSourceConfig.sourceType,
+              mode: resolvedMode,
+              note: "Source ingest failed. Other sources continued."
             },
-            create: {
-              sourceType: sourceConfig.sourceType,
-              sourceRecordId: signal.sourceRecordId,
-              sourceUrl: signal.sourceUrl,
-              title: signal.title,
-              body: signal.body,
-              authorName: signal.authorName,
-              occurredAt: signal.occurredAt,
-              dedupeHash: buildSignalDedupeHash(parsedSourceConfig.sourceType, signal.sourceRecordId)
-            }
+            errors: {
+              sourceType: parsedSourceConfig.sourceType,
+              mode: resolvedMode,
+              message
+            },
+            startedAt,
+            finishedAt: new Date()
           });
         }
-
-        await context.createSourceRun({
-          sourceConfigId: sourceConfig.id,
-          status: "succeeded",
-          recordsRead: signals.length,
-          recordsWritten: signals.length,
-          warnings: {
-            sourceType: parsedSourceConfig.sourceType,
-            mode: resolvedMode,
-            note:
-              resolvedMode === "live"
-                ? "Pulled live source data through the configured adapter."
-                : "Using deterministic sample signals for this source."
-          },
-          startedAt,
-          finishedAt: new Date()
-        });
-
-        rawSignalsWritten += signals.length;
       }
 
       await context.markProgress({
         recordsRead: sourceConfigs.length,
-        recordsWritten: rawSignalsWritten
+        recordsWritten: rawSignalsWritten,
+        warnings
       });
 
       logJobBoundary(
