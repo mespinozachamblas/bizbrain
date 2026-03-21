@@ -383,11 +383,29 @@ function summarizeDigestText(input: string, maxLength: number) {
     return normalized;
   }
 
-  const truncated = normalized.slice(0, maxLength);
-  const boundary = Math.max(truncated.lastIndexOf(". "), truncated.lastIndexOf(", "), truncated.lastIndexOf(" "));
-  const safeCutoff = boundary > maxLength * 0.6 ? boundary : maxLength;
+  const sentences = normalized.split(/(?<=[.!?])\s+/).filter(Boolean);
 
-  return `${truncated.slice(0, safeCutoff).trimEnd()}...`;
+  if (sentences.length > 1) {
+    const selected: string[] = [];
+
+    for (const sentence of sentences) {
+      const candidate = selected.length > 0 ? `${selected.join(" ")} ${sentence}` : sentence;
+
+      if (candidate.length > maxLength) {
+        break;
+      }
+
+      selected.push(sentence);
+    }
+
+    if (selected.length > 0) {
+      return selected.join(" ");
+    }
+
+    return sentences[0];
+  }
+
+  return normalized;
 }
 
 function rankDigestIdeas(ideas: DigestIdeaRecord[]) {
