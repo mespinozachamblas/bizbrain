@@ -68,10 +68,19 @@ export const llmEnrichmentSchema = z.object({
     problemSummary: z.string(),
     solutionConcept: z.string(),
     monetizationAngle: z.string(),
+    qualityScore: z.number().min(0).max(10),
+    qualityReason: z.string(),
     validationQuestions: z.array(z.string()).min(2).max(5),
     riskNotes: z.string(),
     evidenceSummary: z.string()
   })
+});
+
+export const sourceAttributionEntrySchema = z.object({
+  sourceType: z.string(),
+  signalCount: z.number().int().nonnegative(),
+  sampleTitles: z.array(z.string()).max(3),
+  sampleUrls: z.array(z.string().url()).max(3)
 });
 
 export type JobName = (typeof jobNames)[number];
@@ -83,6 +92,7 @@ export type SourceSignal = z.infer<typeof sourceSignalSchema>;
 export type SourceAdapterConfig = z.infer<typeof sourceAdapterConfigSchema>;
 export type SourceConfigRecord = z.infer<typeof sourceConfigRecordSchema>;
 export type LlmEnrichment = z.infer<typeof llmEnrichmentSchema>;
+export type SourceAttributionEntry = z.infer<typeof sourceAttributionEntrySchema>;
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 

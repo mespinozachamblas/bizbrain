@@ -111,6 +111,8 @@ const batchedLlmEnrichmentSchema = {
               problemSummary: { type: "string" },
               solutionConcept: { type: "string" },
               monetizationAngle: { type: "string" },
+              qualityScore: { type: "number", minimum: 0, maximum: 10 },
+              qualityReason: { type: "string" },
               validationQuestions: {
                 type: "array",
                 items: { type: "string" },
@@ -127,6 +129,8 @@ const batchedLlmEnrichmentSchema = {
               "problemSummary",
               "solutionConcept",
               "monetizationAngle",
+              "qualityScore",
+              "qualityReason",
               "validationQuestions",
               "riskNotes",
               "evidenceSummary"

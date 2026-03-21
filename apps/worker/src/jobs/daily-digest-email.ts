@@ -18,7 +18,7 @@ export async function runDailyDigestEmail() {
 
       const [ideas, clusters, failedJobs, failedSourceChecks, recipients] = await Promise.all([
         db.idea.findMany({
-          orderBy: { updatedAt: "desc" },
+          orderBy: [{ qualityScore: "desc" }, { updatedAt: "desc" }],
           take: 50,
           include: { cluster: true }
         }),
@@ -326,14 +326,18 @@ function formatIdeaDigestLine(idea: DigestIdeaRecord) {
   const problemSummary = summarizeDigestText(idea.problemSummary ?? idea.evidenceSummary ?? "Needs manual review.", 220);
   const solutionConcept = summarizeDigestText(idea.solutionConcept ?? "Solution shape still needs refinement.", 220);
   const monetization = summarizeDigestText(idea.monetizationAngle ?? "Revenue model still needs validation.", 180);
+  const sources = summarizeIdeaSources(idea.sourceAttributionJson);
 
   return [
     `${idea.title} [${businessType}]`,
     `Customer: ${targetCustomer}`,
     `Problem: ${problemSummary}`,
     `Business: ${solutionConcept}`,
-    `Monetization: ${monetization}`
-  ].join(" | ");
+    `Monetization: ${monetization}`,
+    sources ? `Sources: ${sources}` : null
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" | ");
 }
 
 function inferBusinessType(idea: DigestIdeaRecord) {
@@ -412,7 +416,7 @@ function rankDigestIdeas(ideas: DigestIdeaRecord[]) {
   return ideas
     .map((idea) => ({
       idea,
-      quality: scoreDigestIdea(idea)
+      quality: idea.qualityScore ?? scoreDigestIdea(idea)
     }))
     .filter(({ quality }) => quality >= 6)
     .sort((left, right) => right.quality - left.quality || right.idea.updatedAt.getTime() - left.idea.updatedAt.getTime())
@@ -506,6 +510,32 @@ function rankDigestClusters(clusters: DigestInputs["clusters"]) {
 
     return isSpecificDigestText(cluster.summary);
   });
+}
+
+function summarizeIdeaSources(value: unknown) {
+  if (!Array.isArray(value) || value.length === 0) {
+    return null;
+  }
+
+  const parts = value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      const sourceType = "sourceType" in entry && typeof entry.sourceType === "string" ? entry.sourceType : null;
+      const signalCount = "signalCount" in entry && typeof entry.signalCount === "number" ? entry.signalCount : null;
+
+      if (!sourceType || signalCount === null) {
+        return null;
+      }
+
+      return `${sourceType} (${signalCount})`;
+    })
+    .filter((part): part is string => Boolean(part))
+    .slice(0, 3);
+
+  return parts.length > 0 ? parts.join(", ") : null;
 }
 
 async function syncOwnerRecipient(ownerEmail: string) {

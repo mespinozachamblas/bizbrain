@@ -180,6 +180,9 @@ model Idea {
   validationQuestionsJson Json?        @map("validation_questions_json")
   evidenceSummary         String?      @map("evidence_summary")
   riskNotes               String?      @map("risk_notes")
+  qualityScore            Float?       @map("quality_score")
+  qualityReason           String?      @map("quality_reason")
+  sourceAttributionJson   Json?        @map("source_attribution_json")
   scoreSnapshot           Json?        @map("score_snapshot")
   status                  String
   notesMarkdown           String?      @map("notes_markdown")
@@ -188,6 +191,7 @@ model Idea {
   cluster                 TrendCluster @relation(fields: [clusterId], references: [id], onDelete: Cascade)
 
   @@index([status, category, updatedAt(sort: Desc)])
+  @@index([qualityScore(sort: Desc), updatedAt(sort: Desc)])
   @@map("ideas")
 }
 

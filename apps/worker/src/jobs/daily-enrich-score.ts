@@ -1,5 +1,6 @@
 import { db } from "@bizbrain/db";
 import { buildClusterSlug, buildClusterTitle, buildIdeaTitle, enrichSignal, enrichSignalBatchWithModel } from "./enrichment";
+import { buildSourceAttribution, inferFallbackQuality } from "./idea-quality";
 import { logJobBoundary, runJobWithTracking } from "./shared";
 
 export async function runDailyEnrichScore() {
@@ -130,6 +131,19 @@ export async function runDailyEnrichScore() {
           where: { clusterId: cluster.id }
         });
 
+        const clusterMemberships = await db.clusterMembership.findMany({
+          where: { clusterId: cluster.id },
+          include: {
+            rawSignal: {
+              select: {
+                sourceType: true,
+                title: true,
+                sourceUrl: true
+              }
+            }
+          }
+        });
+
         const scoreFrequency = clusterSignalCount;
         const scoreMomentum = Math.min(clusterSignalCount * 0.4, 5);
         const scoreIntent = enrichment.intentPhrases.length > 0 ? 2 : 1;
@@ -159,6 +173,21 @@ export async function runDailyEnrichScore() {
           where: { clusterId: cluster.id }
         });
 
+        const sourceAttribution = buildSourceAttribution(clusterMemberships);
+        const fallbackQuality = inferFallbackQuality({
+          category: enrichment.primaryCategory,
+          businessType: llmEnrichment?.idea.businessType ?? inferFallbackBusinessType(enrichment.primaryCategory, enrichment.clusterSeed),
+          targetCustomer: llmEnrichment?.idea.targetCustomer ?? "Founder / operator",
+          problemSummary: llmEnrichment?.idea.problemSummary ?? enrichment.summary,
+          solutionConcept:
+            llmEnrichment?.idea.solutionConcept ??
+            `Build a lightweight ${enrichment.primaryCategory} workflow tool around ${enrichment.clusterSeed}.`,
+          monetizationAngle:
+            llmEnrichment?.idea.monetizationAngle ?? "Subscription SaaS with premium workflow automation.",
+          signalCount: clusterSignalCount,
+          sourceAttribution
+        });
+
         const ideaData = {
           title: llmEnrichment?.idea.title ?? buildIdeaTitle(cluster.title),
           category: enrichment.primaryCategory,
@@ -182,6 +211,9 @@ export async function runDailyEnrichScore() {
           riskNotes:
             llmEnrichment?.idea.riskNotes ??
             "Deterministic baseline only. Requires manual validation and later model-assisted refinement.",
+          qualityScore: llmEnrichment?.idea.qualityScore ?? fallbackQuality.qualityScore,
+          qualityReason: llmEnrichment?.idea.qualityReason ?? fallbackQuality.qualityReason,
+          sourceAttributionJson: sourceAttribution,
           scoreSnapshot: {
             scoreTotal,
             scoreFrequency,
@@ -259,6 +291,7 @@ function resolveEnrichmentBatchDelayMs() {
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
 
 function inferFallbackBusinessType(primaryCategory: string, clusterSeed: string) {
   const haystack = `${primaryCategory} ${clusterSeed}`.toLowerCase();

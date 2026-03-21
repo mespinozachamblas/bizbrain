@@ -19,6 +19,8 @@ Goals:
 - classify the signal into one primary category and several category tags
 - produce a concise evidence-grounded summary
 - draft one credible software idea that fits the evidence
+- assign a 0-10 quality score for the idea based on specificity, commercial clarity, and evidence strength
+- explain the quality score briefly and concretely
 
 Rules:
 - do not invent facts not grounded in the provided text

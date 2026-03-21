@@ -32,9 +32,12 @@ type DashboardData = {
     title: string;
     category: string;
     businessType: string | null;
+    qualityScore: number | null;
+    qualityReason: string | null;
     status: string;
     updatedAt: Date;
     evidenceSummary: string | null;
+    sourceAttributionJson: unknown;
   }>;
   digestRecipients: Array<{
     id: string;
@@ -187,7 +190,7 @@ export default async function HomePage() {
 
         <article className="card cardTall">
           <div className="cardHeader">
-            <h2>Latest ideas</h2>
+            <h2>Top ideas</h2>
             <span className="badge">Review</span>
           </div>
           {dashboard.latestIdeas.length === 0 ? (
@@ -199,10 +202,12 @@ export default async function HomePage() {
                   <div>
                     <p className="rowTitle">{idea.title}</p>
                     <p className="rowMeta">
-                      {idea.businessType ?? "Business type pending"} · {idea.category} · {idea.status} · updated{" "}
-                      {formatDate(idea.updatedAt)}
+                      {idea.businessType ?? "Business type pending"} · {idea.category} · quality{" "}
+                      {idea.qualityScore?.toFixed(1) ?? "n/a"} · {idea.status} · updated {formatDate(idea.updatedAt)}
                     </p>
                     <p className="rowBody">{idea.evidenceSummary ?? "No evidence summary yet."}</p>
+                    <p className="rowMeta">{idea.qualityReason ?? "Quality explanation pending."}</p>
+                    <p className="rowMeta">{formatSourceAttribution(idea.sourceAttributionJson)}</p>
                   </div>
                 </div>
               ))}
@@ -332,16 +337,19 @@ async function getDashboardData(): Promise<DashboardData> {
           take: 5
         }),
         db.idea.findMany({
-          orderBy: { updatedAt: "desc" },
+          orderBy: [{ qualityScore: "desc" }, { updatedAt: "desc" }],
           take: 5,
           select: {
             id: true,
             title: true,
             category: true,
             businessType: true,
+            qualityScore: true,
+            qualityReason: true,
             status: true,
             updatedAt: true,
-            evidenceSummary: true
+            evidenceSummary: true,
+            sourceAttributionJson: true
           }
         }),
         db.digestRecipient.findMany({
@@ -419,6 +427,31 @@ function emptyDashboardData(): DashboardData {
     recentSourceRuns: [],
     recentHealthChecks: []
   };
+}
+
+function formatSourceAttribution(value: unknown) {
+  if (!Array.isArray(value) || value.length === 0) {
+    return "Sources: attribution pending";
+  }
+
+  const parts = value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      const sourceType = "sourceType" in entry && typeof entry.sourceType === "string" ? entry.sourceType : null;
+      const signalCount = "signalCount" in entry && typeof entry.signalCount === "number" ? entry.signalCount : null;
+
+      if (!sourceType || signalCount === null) {
+        return null;
+      }
+
+      return `${sourceType} (${signalCount})`;
+    })
+    .filter((part): part is string => Boolean(part));
+
+  return parts.length > 0 ? `Sources: ${parts.join(", ")}` : "Sources: attribution pending";
 }
 
 function StatCard({ label, value }: { label: string; value: number }) {
