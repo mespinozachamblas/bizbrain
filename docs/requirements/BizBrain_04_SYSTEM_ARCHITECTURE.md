@@ -6,6 +6,8 @@ This version uses a **Railway-first operational architecture** with:
 - multiple scheduled cron services
 - one primary Postgres database
 - Resend for outbound daily email
+- separate research streams for opportunity research and social media research
+- configurable copy frameworks, style profiles, visual briefs, and infographic briefs for social media outputs across LinkedIn and X
 - Cursor/Codex as development and maintenance agents, not as the core runtime
 
 ## 2. Architectural Principle
@@ -24,6 +26,9 @@ Agents should not be the sole mechanism that keeps daily production jobs alive.
 - Next.js app
 - dashboard
 - idea detail pages
+- topic settings
+- research stream settings
+- copy framework and style profile settings
 - source settings
 - job history
 - digest archive
@@ -40,7 +45,8 @@ Agents should not be the sole mechanism that keeps daily production jobs alive.
 - enrichment pipeline
 - clustering pipeline
 - scoring pipeline
-- digest pipeline
+- opportunity digest pipeline
+- social media research pipeline
 - email pipeline
 
 ### Data layer
@@ -59,10 +65,11 @@ Agents should not be the sole mechanism that keeps daily production jobs alive.
 1. `cron-daily-ingest` starts and writes a run record.
 2. New source items are normalized and persisted.
 3. `cron-daily-enrich-score` enriches signals, updates clusters, recalculates scores, and creates new ideas.
-4. `cron-daily-digest-email` selects the best items for the current date.
-5. Digest content is saved, rendered, and sent through Resend.
-6. Web app surfaces the latest ideas, runs, and digest records.
-7. Weekly maintenance reprocesses edge cases and keeps the dataset clean.
+4. `cron-daily-digest-email` selects the best opportunity items for the current date.
+5. `cron-daily-social-media-digest-email` selects the best social media research items for the current date.
+6. Digest content is saved, rendered, and sent through Resend.
+7. Web app surfaces the latest ideas, social research drafts, runs, and digest records.
+8. Weekly maintenance reprocesses edge cases and keeps the dataset clean.
 
 ## 5. Agent-Aware Repo Architecture
 The repository should expose three layers of agent guidance:
@@ -114,6 +121,7 @@ Mitigation:
 
 ### Growth
 - more sources
+- more configurable topics and streams
 - pgvector or dedicated vector search
 - team workspaces
 - more granular alerting

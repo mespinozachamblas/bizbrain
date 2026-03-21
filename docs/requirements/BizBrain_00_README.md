@@ -1,6 +1,6 @@
 # BizBrain — Automated Workflow Edition
 
-This package regenerates the requirements set around a **Railway-first runtime**, **agent-assisted workflows for Cursor/Codex**, **daily email digests via Resend**, and **repo-local plus global skills/rules** for tighter development control.
+This package regenerates the requirements set around a **Railway-first runtime**, **agent-assisted workflows for Cursor/Codex**, **configurable research topics and streams**, **daily email digests via Resend**, and **repo-local plus global skills/rules** for tighter development control.
 
 ## Naming
 - **Primary product name:** BizBrain
@@ -17,6 +17,7 @@ This package regenerates the requirements set around a **Railway-first runtime**
   - updated product and technical requirements
   - automation and agent requirements
   - Resend email requirements
+  - dual-stream research requirements for opportunity research and social media research
   - repo-local project rules for Cursor
   - repo-local skills for Codex/Cursor-style agents
   - templates for global rules and global skills

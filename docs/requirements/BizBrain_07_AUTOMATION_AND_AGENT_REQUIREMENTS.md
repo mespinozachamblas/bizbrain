@@ -29,6 +29,7 @@ Responsibilities:
 - normalize
 - dedupe
 - persist raw signals
+- map signals to configured topics and research streams
 
 ### daily-enrich-score
 Responsibilities:
@@ -36,12 +37,21 @@ Responsibilities:
 - update clusters
 - recompute scores
 - generate ideas above threshold
+- compute idea quality and source attribution
+- generate structured content drafts for enabled non-opportunity streams
 
 ### daily-digest-email
 Responsibilities:
 - select top items
-- render digest
+- render opportunity research digest
 - send via Resend to all enabled recipients
+- persist send result
+
+### daily-social-media-digest-email
+Responsibilities:
+- select top social media research outputs
+- render social media research digest
+- send via Resend to all enabled recipients for that stream
 - persist send result
 
 ### weekly-maintenance
@@ -70,6 +80,14 @@ Run when:
 - email template changes
 - digest selection logic changes
 - prompt wording changes
+- quality filtering changes for opportunity emails
+
+### social-media-digest-review
+Run when:
+- social media digest template changes
+- LinkedIn draft schema changes
+- social-media stream selection logic changes
+- topic-to-stream routing changes
 
 ### source-ingestion-triage
 Run when:
@@ -93,6 +111,8 @@ Agents working in this repo must:
 - keep production email safe and non-spammy
 - produce strict JSON where downstream parsers expect it
 - run or recommend verification commands before handoff
+- treat research streams as separate output products with separate recipient and idempotency boundaries
+- keep topic configuration editable without requiring code changes
 
 ## 6. Report-First Workflows
 The following changes should begin with a report, not an edit:
@@ -102,6 +122,8 @@ The following changes should begin with a report, not an edit:
 - digest selection logic changes
 - changes to email sending behavior
 - major source adapter rewrites
+- research stream model changes
+- topic taxonomy overhauls
 
 ## 7. Automation Safety Requirements
 - every job run has a lock
@@ -112,6 +134,9 @@ The following changes should begin with a report, not an edit:
 - digest content is stored before send
 - non-prod environments default to a safe recipient list
 - source failures degrade gracefully
+- one research stream failing does not block another stream from producing or sending
+- each stream has isolated resend and idempotency handling
+- topic configuration changes are audit-safe and do not require deploys
 
 ## 8. GitHub / CI Support
 Codex can be used in CI or GitHub Actions for:
@@ -132,6 +157,8 @@ Use for:
 - cron runbooks
 - digest review
 - migration review
+- topic and stream configuration review
+- social media digest QA
 
 ### Global skills
 Use for:
@@ -144,7 +171,9 @@ Project-specific business logic should stay local to the repo rather than living
 
 ## 10. Acceptance Criteria
 - scheduled jobs run daily on Railway
-- daily digest reaches each enabled recipient via Resend
+- opportunity digest reaches each enabled recipient via Resend
+- social media digest reaches each enabled recipient via Resend when that stream is enabled
 - agents have stable repo instructions
 - verification workflows are reusable
 - risky changes are gated by report-first expectations
+- topics and research streams can be reconfigured without code edits

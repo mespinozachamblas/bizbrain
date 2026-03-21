@@ -17,6 +17,9 @@
 - add dashboard shell
 - add admin settings screens
 - add digest recipient management
+- add research stream management
+- add topic management
+- add copy framework and style profile management
 - add job-run history UI
 
 ## Phase 2 — Source and Ingestion Pipeline
@@ -40,8 +43,9 @@
 - implement weighted scoring model
 - implement compliance / trust friction scoring for finance ideas
 - create idea generation prompts with strict JSON schema
+- add first-class idea quality scoring and source attribution
 - build idea detail pages
-- add statuses, notes, and tags
+- add statuses, notes, tags, and revisit/ignore feedback controls
 
 ## Phase 5 — Daily Digest and Resend
 - build digest selection rules
@@ -51,7 +55,21 @@
 - persist delivery records
 - deploy `cron-daily-digest-email`
 
-## Phase 6 — Agent Hardening
+## Phase 6 — Social Media Research Stream
+- add social media research stream schema and settings
+- create social-media-specific prompts and strict JSON schema
+- implement LinkedIn-style draft generation
+- implement X post and thread draft generation
+- add content draft review states and approval workflow
+- add configurable copy frameworks such as AIDA, PAS, BAB, and educational authority-led structures
+- add configurable marketer-style profiles and trait bundles
+- add visual brief generation for stock and AI-generated asset modes
+- add infographic brief and panel-outline generation for LinkedIn educational posts
+- build separate markdown and HTML templates
+- implement stream-specific recipients and subject lines
+- deploy `cron-daily-social-media-digest-email`
+
+## Phase 7 — Agent Hardening
 - refine rules after first real development cycles
 - add verification skill
 - add migration safety skill
@@ -59,7 +77,7 @@
 - add prompt regression checklist
 - add CI hooks for tests and linting
 
-## Phase 7 — Maintenance and Quality
+## Phase 8 — Maintenance and Quality
 - weekly cleanup job
 - source health checks
 - retry tooling for failed digests
@@ -72,16 +90,21 @@
 4. enrichment and clustering
 5. scoring engine
 6. idea generation
-7. digest generation
-8. email delivery
-9. tests and fixtures
-10. maintenance workflows
+7. topic and stream management
+8. opportunity digest generation
+9. social media research generation
+10. email delivery
+11. tests and fixtures
+12. maintenance workflows
 
 ## Definition of Done for MVP
 - daily jobs run end to end on Railway
 - top results are visible in app
 - daily digest email sends successfully through Resend to each configured recipient
+- social media research digest sends successfully through Resend to each configured recipient
 - job-run logs explain what happened each day
 - source health and source-level failures are visible in the app
+- topics and research streams can be configured without code changes
+- reviewers can mark ideas and content drafts with lightweight feedback states
 - rules and skills are present and used in normal development
 - repo can be safely handed to Cursor/Codex with limited drift

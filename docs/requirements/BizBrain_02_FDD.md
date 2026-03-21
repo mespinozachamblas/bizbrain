@@ -17,12 +17,28 @@
 - User can enable or disable sources.
 - User can configure source-specific filters such as subreddit lists, keywords, and exclusions.
 - User can set niche mode preferences such as fintech, finance products, or property management.
+- User can assign one or more topics to a source configuration.
+- User can scope a source to one or more research streams.
 
 ### Behavior
 - Source settings screen stores source configs.
 - Config changes are versioned and logged.
 - Source test action validates credentials and basic connectivity.
 - Source test results are persisted so the dashboard can show the latest health state per source.
+
+## 2A. Topic and Research Stream Management
+### Requirements
+- User can add, edit, enable, disable, archive, or delete topics without code changes.
+- User can define multiple research streams such as `opportunity-research` and `social-media-research`.
+- Each research stream can have its own topics, recipients, and delivery rules.
+- User can configure copywriting frameworks such as AIDA, PAS, BAB, and other structured persuasive formats for social media outputs.
+- User can configure marketer-style profiles inspired by recognized schools of sales and copywriting, such as Russell Brunson funnel-led framing, David Ogilvy clarity-led framing, Eugene Schwartz awareness-led framing, Claude Hopkins proof-led framing, Gary Halbert direct-response framing, Joanna Wiebe conversion-focused framing, April Dunford positioning-led framing, and Seth Godin permission or idea-led framing.
+
+### Behavior
+- Topic settings screen stores topic name, keywords, exclusions, and stream assignment.
+- Research stream settings screen stores stream metadata, enabled status, and email delivery preferences.
+- Sources can contribute to more than one topic and more than one stream where appropriate.
+- Social media research settings store enabled channels such as `linkedin` and `x`, plus default copy framework, style profile, and media mode preferences per topic or per stream.
 
 ## 3. Ingestion Jobs
 ### Requirements
@@ -33,7 +49,8 @@
 ### Behavior
 - `daily-ingest` fetches new records only.
 - `daily-enrich-score` processes newly ingested items that lack enrichment, updates cluster scoring, and determines idea eligibility.
-- `daily-digest-email` compiles and emails the summary.
+- `daily-digest-email` compiles and emails the opportunity research summary.
+- `daily-social-media-digest-email` compiles and emails the social media research summary.
 
 ## 4. Normalization and Enrichment
 ### Requirements
@@ -85,6 +102,8 @@ The final opportunity score is calculated from weighted components. Finance idea
 - System generates structured ideas only from evidence-backed clusters.
 - The generated output must follow a strict schema.
 - The user can edit, reject, or promote any idea.
+- System must store a first-class idea quality score and quality reason.
+- System must store source attribution explaining which sources contributed to an idea.
 
 ### Output fields
 - title
@@ -98,17 +117,24 @@ The final opportunity score is calculated from weighted components. Finance idea
 - validation questions
 - evidence summary
 - risk notes
+- quality score
+- quality reason
+- source attribution summary
 
 ## 8. Idea Database
 ### Requirements
 - User can search, filter, sort, and annotate ideas.
 - User can filter specifically for fintech and finance product concepts.
 - User can maintain statuses.
+- User can filter ideas by topic and research stream.
+- User can see which sources contributed to an idea.
+- User can mark ideas as promising, ignore, or revisit for later review.
 
 ### Status values
 - new
 - reviewing
 - promising
+- revisit
 - validating
 - rejected
 - incubating
@@ -125,6 +151,9 @@ The final opportunity score is calculated from weighted components. Finance idea
 - fastest movers
 - top fintech ideas
 - top finance product concepts
+- top topics
+- research stream status
+- social media research email status
 - daily email status
 - failed source checks
 - last successful job runs
@@ -136,23 +165,61 @@ The final opportunity score is calculated from weighted components. Finance idea
 - Digest must include both summary and traceability.
 - Digest generation must be scheduled according to the owner-configured local timezone.
 - One digest can be delivered to multiple configured recipients.
+- Different research streams must generate distinct digests.
 
 ### Behavior
-- Digest service selects top items by score, novelty, and confidence.
+- Opportunity digest service selects top items by score, novelty, confidence, quality score, and source diversity.
+- Social media digest service selects top items by topic fit, hook quality, audience relevance, and source support.
 - Digest generates markdown and HTML versions.
 - Digest is saved to the database before sending.
 - Resend sends the HTML and plaintext variants to each configured recipient.
 - Delivery result is logged.
 
+## 10A. Social Media Research Output
+### Requirements
+- The system can generate LinkedIn-style research drafts from configured topics.
+- The system can generate X-ready post and thread drafts as a social media sub-stream.
+- Social media research outputs must remain separate from opportunity ideas and digests.
+- Social media outputs must follow a strict schema.
+- User can review, accept, reject, or revisit generated content drafts without affecting idea statuses.
+- The system can generate a visual brief for each content draft.
+- Visual brief can target `none`, `stock`, or `ai-generated` asset modes.
+- The system can generate infographic concepts and outlines for LinkedIn posts.
+- Infographic outputs can target carousel, single-image infographic, or short data-story formats.
+- The system must support configurable copy frameworks and style profiles without code changes.
+- Style profiles must be implemented as configurable traits and instructions, not as literal impersonation requirements.
+- Suggested stock or AI-generated assets must remain reviewable and optional before use.
+
+### Output fields
+- target channel
+- topic
+- target audience
+- hook
+- copy framework
+- style profile
+- thesis
+- supporting points
+- counterpoint or tension
+- CTA
+- draft LinkedIn post
+- draft X post
+- draft X thread outline
+- visual brief
+- asset mode recommendation
+- infographic brief
+- infographic format
+- infographic panel outline
+- source attribution
+
 ## 11. Email Delivery and Retry
 ### Requirements
 - Failed sends must be logged.
-- Email sends must be idempotent by digest date plus recipient.
+- Email sends must be idempotent by digest date plus research stream plus recipient.
 - Optional retry policy should avoid duplicate spam.
 
 ### Behavior
-- System generates a digest record keyed by date such as `digest:YYYY-MM-DD`.
-- System generates a send key such as `digest:YYYY-MM-DD:recipient@example.com`.
+- System generates a digest record keyed by date and research stream such as `digest:YYYY-MM-DD:opportunity-research`.
+- System generates a send key such as `digest:YYYY-MM-DD:social-media-research:recipient@example.com`.
 - If a digest has already been sent successfully, retry requires an override.
 - Failure states trigger retry eligibility.
 

@@ -37,14 +37,17 @@ Use `.cursor/rules/` for:
 - email delivery rules
 - migration handling
 - prompting and JSON rules
+- topic and research stream boundaries
 
 ### Layer E — Repo-local skills
 Use `.agents/skills/` for:
 - code-change verification
 - digest review
+- social media digest review
 - Railway cron runbook
 - trend-cluster triage
 - Resend delivery QA
+- topic and stream configuration QA
 
 ## 3. Design Principles
 - keep global context small
@@ -78,6 +81,9 @@ Do not move core business logic or architecture-specific rules into a broad shar
 - Resend digest safety
 - structured LLM output contracts
 - finance / fintech scoring considerations
+- topic configuration and research stream routing
+- separate opportunity and social-media digest handling
+- configurable copy framework and style-profile guardrails
 
 ## 6. Review Cadence
 Review the rules and skills after:
@@ -86,6 +92,8 @@ Review the rules and skills after:
 - first email rendering issue
 - any major prompt rewrite
 - any repeated agent failure pattern
+- any new research stream launch
+- any topic taxonomy overhaul
 
 ## 7. Anti-Patterns to Avoid
 - massive global rules files

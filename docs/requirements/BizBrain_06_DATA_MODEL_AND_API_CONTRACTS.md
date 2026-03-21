@@ -10,6 +10,8 @@
 
 ### source_configs
 - id
+- research_stream_ids_json
+- topic_ids_json
 - source_type
 - enabled
 - niche_modes
@@ -26,8 +28,63 @@
 - change_reason
 - created_at
 
+### research_streams
+- id
+- slug
+- name
+- description
+- enabled
+- enabled_channels_json
+- delivery_type
+- schedule_cron
+- default_copy_framework_id
+- default_style_profile_id
+- default_asset_mode
+- created_at
+- updated_at
+
+### topics
+- id
+- research_stream_id
+- slug
+- name
+- description
+- enabled_channels_json
+- keywords_json
+- exclusions_json
+- source_preferences_json
+- default_copy_framework_id
+- default_style_profile_id
+- default_asset_mode
+- enabled
+- created_at
+- updated_at
+
+### copy_frameworks
+- id
+- slug
+- name
+- description
+- structure_json
+- enabled
+- created_at
+- updated_at
+
+### style_profiles
+- id
+- slug
+- name
+- description
+- inspiration_summary
+- style_traits_json
+- guardrails_json
+- enabled
+- created_at
+- updated_at
+
 ### raw_signals
 - id
+- topic_matches_json
 - source_type
 - source_record_id
 - source_url
@@ -104,6 +161,8 @@
 
 ### ideas
 - id
+- research_stream_id
+- primary_topic_id
 - cluster_id
 - title
 - category
@@ -116,14 +175,48 @@
 - validation_questions_json
 - evidence_summary
 - risk_notes
+- quality_score
+- quality_reason
+- source_attribution_json
 - score_snapshot
 - status
 - notes_markdown
 - created_at
 - updated_at
 
+### content_drafts
+- id
+- research_stream_id
+- topic_id
+- source_idea_id
+- copy_framework_id
+- style_profile_id
+- title
+- target_channel
+- target_audience
+- hook
+- thesis
+- supporting_points_json
+- counterpoint
+- cta
+- draft_markdown
+- draft_html
+- visual_brief_json
+- infographic_brief_json
+- infographic_format
+- infographic_panels_json
+- asset_mode
+- asset_status
+- asset_candidates_json
+- quality_score
+- source_attribution_json
+- status
+- created_at
+- updated_at
+
 ### digests
 - id
+- research_stream_id
 - digest_date
 - digest_key
 - subject
@@ -136,6 +229,7 @@
 
 ### digest_recipients
 - id
+- research_stream_id
 - email
 - enabled
 - is_owner_default
@@ -182,12 +276,17 @@
 - trend_clusters on `score_total desc`
 - trend_clusters on `(primary_category, score_total desc)`
 - ideas on `(status, category, updated_at desc)`
+- ideas on `(research_stream_id, quality_score desc, updated_at desc)`
+- topics on `(research_stream_id, enabled)`
+- content_drafts on `(research_stream_id, status, updated_at desc)`
 - digests on `digest_date`
 - job_runs on `(job_name, logical_date)`
 
 ## 3. HTTP / Internal API Contracts
 ### GET `/api/ideas`
 Filters:
+- `researchStream`
+- `topicId`
 - `status`
 - `category`
 - `subcategory`
@@ -209,13 +308,100 @@ Updates:
 - notes
 - tags
 - priority flags
+- reviewer feedback state
 
 ### GET `/api/clusters`
 Filters:
+- `researchStream`
 - `category`
 - `minScore`
 - `status`
 - `q`
+
+### GET `/api/admin/research-streams`
+Returns:
+- research streams
+- enabled status
+- delivery config summary
+
+### POST `/api/admin/research-streams`
+Creates:
+- name
+- slug
+- description
+- enabled state
+
+### PATCH `/api/admin/research-streams/:id`
+Updates:
+- name
+- enabled
+- enabled channels
+- delivery settings
+- default content generation settings
+
+### GET `/api/admin/topics`
+Filters:
+- `researchStream`
+- `enabled`
+
+### POST `/api/admin/topics`
+Creates:
+- research stream id
+- topic name
+- keywords
+- exclusions
+- source preferences
+
+### PATCH `/api/admin/topics/:id`
+Updates:
+- name
+- enabled
+- enabled channels
+- keywords
+- exclusions
+- source preferences
+- default copy framework
+- default style profile
+- default asset mode
+
+### GET `/api/admin/copy-frameworks`
+Returns:
+- configured copywriting frameworks
+- enabled status
+
+### POST `/api/admin/copy-frameworks`
+Creates:
+- name
+- slug
+- description
+- structure definition
+
+### PATCH `/api/admin/copy-frameworks/:id`
+Updates:
+- name
+- enabled
+- structure definition
+
+### GET `/api/admin/style-profiles`
+Returns:
+- configured marketer-style profiles
+- enabled status
+
+### POST `/api/admin/style-profiles`
+Creates:
+- name
+- slug
+- description
+- inspiration summary
+- style traits
+- guardrails
+
+### PATCH `/api/admin/style-profiles/:id`
+Updates:
+- name
+- enabled
+- style traits
+- guardrails
 
 ### POST `/api/admin/jobs/:jobName/run`
 - admin only
@@ -232,6 +418,7 @@ Filters:
 ### POST `/api/admin/digests/:digestDate/send`
 - resend daily digest for a selected date
 - admin only
+- optional `researchStream`
 - optional `force`
 
 ### GET `/api/admin/sources/health`
@@ -245,16 +432,25 @@ Returns:
 - configured recipients
 - enabled status
 - owner default flag
+- research stream association
 
 ### POST `/api/admin/digest-recipients`
 Creates:
+- research stream id
 - recipient email
 - enabled state
 
 ### PATCH `/api/admin/digest-recipients/:id`
 Updates:
+- research stream id
 - enabled
 - email
+
+### PATCH `/api/content-drafts/:id`
+Updates:
+- status
+- reviewer feedback state
+- notes
 
 ## 4. LLM Contract Schemas
 ### cluster summary schema
@@ -267,6 +463,8 @@ Updates:
 
 ### idea schema
 - `title`
+- `researchStream`
+- `primaryTopic`
 - `category`
 - `subcategory`
 - `targetCustomer`
@@ -276,6 +474,30 @@ Updates:
 - `goToMarket[]`
 - `validationQuestions[]`
 - `riskNotes[]`
+- `qualityScore`
+- `qualityReason`
+- `sourceAttribution[]`
+
+### social media draft schema
+- `targetChannel`
+- `topic`
+- `targetAudience`
+- `hook`
+- `copyFramework`
+- `styleProfile`
+- `thesis`
+- `supportingPoints[]`
+- `counterpoint`
+- `cta`
+- `draftLinkedInPost`
+- `draftXPost`
+- `draftXThreadOutline[]`
+- `visualBrief`
+- `infographicBrief`
+- `infographicFormat`
+- `infographicPanels[]`
+- `assetMode`
+- `sourceAttribution[]`
 
 ### digest item schema
 - `sectionTitle`
@@ -284,7 +506,7 @@ Updates:
 - `plainLanguageSummary`
 
 ## 5. Retry and Idempotency Keys
-- digest record key: `digest:{date}`
-- digest send key: `digest:{date}:{recipient}`
+- digest record key: `digest:{date}:{researchStream}`
+- digest send key: `digest:{date}:{researchStream}:{recipient}`
 - job lock key: `job:{jobName}:{logicalDate}`
 - ingestion dedupe key: `source:{sourceType}:{sourceRecordId}`

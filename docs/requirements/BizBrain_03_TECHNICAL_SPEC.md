@@ -46,12 +46,19 @@ Purpose:
 
 ### Service 4: cron-daily-digest-email
 Purpose:
-- build digest
+- build opportunity digest
 - render email
 - send via Resend
 - record send status
 
-### Optional Service 5: cron-weekly-maintenance
+### Service 5: cron-daily-social-media-digest-email
+Purpose:
+- build social media research digest
+- render email
+- send via Resend
+- record send status
+
+### Optional Service 6: cron-weekly-maintenance
 Purpose:
 - stale cluster cleanup
 - re-clustering candidates
@@ -75,9 +82,14 @@ A Firestore adapter may still be added later if you want shared patterns with ot
 - cluster membership
 
 ### Opportunity intelligence
+- research streams
+- topics
+- copy frameworks
+- style profiles
 - clusters
 - opportunity scores
 - ideas
+- social media research drafts
 - validation notes
 
 ### Operations
@@ -102,6 +114,7 @@ A Firestore adapter may still be added later if you want shared patterns with ot
 - `daily-ingest`: `05 06 * * *`
 - `daily-enrich-score`: `20 06 * * *`
 - `daily-digest-email`: `35 06 * * *`
+- `daily-social-media-digest-email`: `50 06 * * *`
 - `weekly-maintenance`: `00 08 * * 0`
 
 The cron schedule should be defined and displayed in the owner-configured local timezone. The system must not intentionally drift relative to local clock time during daylight saving transitions.
@@ -136,17 +149,24 @@ Each cron job must:
 6. Mark digest as sent.
 7. Retry only on explicit failure states.
 
+The same delivery pattern should be used for both the opportunity digest and the social media research digest, with separate stream identifiers and recipient sets.
+
 ### Required env vars
 - `DATABASE_URL`
 - `RESEND_API_KEY`
 - `EMAIL_FROM`
 - `OWNER_EMAIL`
 - `DIGEST_RECIPIENTS`
+- `SOCIAL_DIGEST_RECIPIENTS`
 - `APP_BASE_URL`
 - `CRON_SHARED_SECRET`
 - `OPENAI_API_KEY`
 - `OWNER_TIMEZONE`
 - `SOURCE_*`
+
+Optional future provider vars:
+- stock media provider credentials
+- image generation provider credentials
 
 ## 9. AI Output Contracts
 All model output used by the pipeline must be schema-validated.
@@ -156,6 +176,12 @@ All model output used by the pipeline must be schema-validated.
 - opportunity scoring explanation JSON
 - idea generation JSON
 - digest section JSON
+- social media research draft JSON
+- visual brief JSON
+- infographic brief JSON
+- copy framework and style profile metadata JSON
+
+Social media draft contracts must support at least `linkedin` and `x` target channels.
 
 The pipeline should never rely on free-form LLM prose alone for downstream writes.
 
@@ -165,6 +191,7 @@ The pipeline should never rely on free-form LLM prose alone for downstream write
 - source test failures and runtime failures are stored per source for later triage
 - digest generation can degrade gracefully if one source fails
 - send-email failure does not erase digest content
+- one research stream failing does not block another stream from completing
 
 ## 11. Observability
 ### Minimum requirements
@@ -172,6 +199,7 @@ The pipeline should never rely on free-form LLM prose alone for downstream write
 - application logs with request or run IDs
 - job-run dashboard in app
 - email-send status history
+- stream-level delivery status history
 - alert when a scheduled job misses its expected completion window
 
 ## 12. Security
