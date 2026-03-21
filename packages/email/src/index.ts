@@ -5,9 +5,12 @@ export type DigestRenderInput = {
   generatedAt: string;
   sections: DigestSection[];
   appBaseUrl?: string;
+  digestTitle?: string;
+  reviewLinkLabel?: string;
 };
 
 export function renderDigestMarkdown(input: DigestRenderInput) {
+  const digestTitle = input.digestTitle ?? "Opportunity Digest";
   const sectionText = input.sections
     .map((section) =>
       [
@@ -20,12 +23,15 @@ export function renderDigestMarkdown(input: DigestRenderInput) {
     )
     .join("\n\n");
 
-  const reviewLink = input.appBaseUrl ? `\n\nReview full pipeline state: ${input.appBaseUrl}` : "";
+  const reviewLink = input.appBaseUrl
+    ? `\n\n${input.reviewLinkLabel ?? "Review full pipeline state"}: ${input.appBaseUrl}`
+    : "";
 
-  return `# Opportunity Digest\n\nDate: ${input.digestDate}\nGenerated: ${input.generatedAt}\n\n${sectionText}${reviewLink}`;
+  return `# ${digestTitle}\n\nDate: ${input.digestDate}\nGenerated: ${input.generatedAt}\n\n${sectionText}${reviewLink}`;
 }
 
 export function renderDigestHtml(input: DigestRenderInput) {
+  const digestTitle = input.digestTitle ?? "Opportunity Digest";
   const sections = input.sections
     .map((section) => {
       const items = section.items.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
@@ -46,7 +52,9 @@ export function renderDigestHtml(input: DigestRenderInput) {
     .join("");
 
   const reviewLink = input.appBaseUrl
-    ? `<p style="margin:24px 0 0;font-size:14px;"><a href="${escapeHtml(input.appBaseUrl)}" style="color:#0f766e;text-decoration:none;">Open BizBrain dashboard</a></p>`
+    ? `<p style="margin:24px 0 0;font-size:14px;"><a href="${escapeHtml(input.appBaseUrl)}" style="color:#0f766e;text-decoration:none;">${escapeHtml(
+        input.reviewLinkLabel ?? "Open BizBrain dashboard"
+      )}</a></p>`
     : "";
 
   return `<!DOCTYPE html>
@@ -55,7 +63,7 @@ export function renderDigestHtml(input: DigestRenderInput) {
     <main style="max-width:640px;margin:0 auto;padding:32px 20px;">
       <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:20px;padding:28px;">
         <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0f766e;">BizBrain</p>
-        <h1 style="margin:0 0 8px;font-size:28px;line-height:1.2;">Opportunity Digest</h1>
+        <h1 style="margin:0 0 8px;font-size:28px;line-height:1.2;">${escapeHtml(digestTitle)}</h1>
         <p style="margin:0;color:#4b5563;font-size:14px;line-height:1.6;">Date: ${escapeHtml(input.digestDate)}<br/>Generated: ${escapeHtml(input.generatedAt)}</p>
         <div style="margin-top:28px;">${sections}</div>
         ${reviewLink}
@@ -65,8 +73,8 @@ export function renderDigestHtml(input: DigestRenderInput) {
 </html>`;
 }
 
-export function buildDigestSubject(digestDate: string) {
-  return `Opportunity Digest — ${digestDate}`;
+export function buildDigestSubject(digestDate: string, digestTitle = "Opportunity Digest") {
+  return `${digestTitle} — ${digestDate}`;
 }
 
 type SendResendEmailInput = {

@@ -5,6 +5,7 @@ export const jobNames = [
   "daily-ingest",
   "daily-enrich-score",
   "daily-digest-email",
+  "daily-social-media-digest-email",
   "weekly-maintenance"
 ] as const;
 
