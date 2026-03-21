@@ -2,7 +2,14 @@ import { jobNames } from "@bizbrain/core";
 import { db } from "@bizbrain/db";
 export const dynamic = "force-dynamic";
 
-import { createResearchStream, runPipelineJob, runSourceCheck, updateResearchStream } from "./actions";
+import {
+  createResearchStream,
+  createTopic,
+  runPipelineJob,
+  runSourceCheck,
+  updateResearchStream,
+  updateTopic
+} from "./actions";
 
 type DashboardData = {
   stats: {
@@ -64,6 +71,36 @@ type DashboardData = {
     scheduleCron: string | null;
     defaultAssetMode: string | null;
     enabledChannelsJson: unknown;
+  }>;
+  topics: Array<{
+    id: string;
+    researchStreamId: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    enabled: boolean;
+    defaultAssetMode: string | null;
+    defaultCopyFrameworkId: string | null;
+    defaultStyleProfileId: string | null;
+    enabledChannelsJson: unknown;
+    keywordsJson: unknown;
+    exclusionsJson: unknown;
+    sourcePreferencesJson: unknown;
+    researchStream: {
+      id: string;
+      name: string;
+      slug: string;
+    };
+  }>;
+  copyFrameworks: Array<{
+    id: string;
+    name: string;
+    slug: string;
+  }>;
+  styleProfiles: Array<{
+    id: string;
+    name: string;
+    slug: string;
   }>;
   recentSourceRuns: Array<{
     id: string;
@@ -199,6 +236,95 @@ export default async function HomePage() {
               Create stream
             </button>
           </form>
+        </article>
+
+        <article className="card controlCard">
+          <div className="cardHeader">
+            <h2>Create topic</h2>
+            <span className="badge">Topics</span>
+          </div>
+          <form action={createTopic} className="adminForm">
+            <label className="fieldLabel">
+              Research stream
+              <select className="fieldInput" defaultValue={dashboard.researchStreams[0]?.id ?? ""} name="researchStreamId" required>
+                {dashboard.researchStreams.map((stream) => (
+                  <option key={stream.id} value={stream.id}>
+                    {stream.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="fieldLabel">
+              Name
+              <input className="fieldInput" name="name" placeholder="Mortgage underwriting friction" required type="text" />
+            </label>
+            <label className="fieldLabel">
+              Slug
+              <input className="fieldInput" name="slug" placeholder="mortgage-underwriting-friction" type="text" />
+            </label>
+            <label className="fieldLabel">
+              Channels
+              <input className="fieldInput" defaultValue="email" name="enabledChannels" placeholder="email, linkedin, x" type="text" />
+            </label>
+            <label className="fieldLabel fieldLabelWide">
+              Description
+              <textarea
+                className="fieldTextarea"
+                name="description"
+                placeholder="Signals and content angles around underwriting delays, occupancy rules, and borrower confusion."
+                rows={3}
+              />
+            </label>
+            <label className="fieldLabel fieldLabelWide">
+              Keywords
+              <input className="fieldInput" name="keywords" placeholder="mortgage, underwriting, occupancy, seasoning" type="text" />
+            </label>
+            <label className="fieldLabel fieldLabelWide">
+              Exclusions
+              <input className="fieldInput" name="exclusions" placeholder="job post, giveaway, promo" type="text" />
+            </label>
+            <label className="fieldLabel fieldLabelWide">
+              Source preferences
+              <input className="fieldInput" name="sourcePreferences" placeholder="reddit, hacker-news, product-hunt" type="text" />
+            </label>
+            <label className="fieldLabel">
+              Default framework
+              <select className="fieldInput" defaultValue="" name="defaultCopyFrameworkId">
+                <option value="">Use stream default</option>
+                {dashboard.copyFrameworks.map((framework) => (
+                  <option key={framework.id} value={framework.id}>
+                    {framework.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="fieldLabel">
+              Default style
+              <select className="fieldInput" defaultValue="" name="defaultStyleProfileId">
+                <option value="">Use stream default</option>
+                {dashboard.styleProfiles.map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="fieldLabel">
+              Asset mode
+              <input className="fieldInput" defaultValue="none" name="defaultAssetMode" placeholder="none" type="text" />
+            </label>
+            <label className="fieldCheckbox">
+              <input defaultChecked name="enabled" type="checkbox" />
+              Enabled
+            </label>
+            <button className="jobButton" disabled={dashboard.researchStreams.length === 0} type="submit">
+              Create topic
+            </button>
+          </form>
+          <p className="helperText">
+            Topics steer source matching, social outputs, and future draft generation. Configure them before adding more
+            stream-specific automation.
+          </p>
         </article>
       </section>
 
@@ -386,6 +512,103 @@ export default async function HomePage() {
           )}
         </article>
 
+        <article className="card cardTall">
+          <div className="cardHeader">
+            <h2>Topics</h2>
+            <span className="badge">Config</span>
+          </div>
+          {dashboard.topics.length === 0 ? (
+            <EmptyState message="No topics are configured yet." />
+          ) : (
+            <div className="stack">
+              {dashboard.topics.map((topic) => (
+                <form action={updateTopic} className="adminForm adminFormCompact" key={topic.id}>
+                  <input name="id" type="hidden" value={topic.id} />
+                  <label className="fieldLabel">
+                    Research stream
+                    <select className="fieldInput" defaultValue={topic.researchStreamId} name="researchStreamId" required>
+                      {dashboard.researchStreams.map((stream) => (
+                        <option key={stream.id} value={stream.id}>
+                          {stream.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="fieldLabel">
+                    Name
+                    <input className="fieldInput" defaultValue={topic.name} name="name" required type="text" />
+                  </label>
+                  <label className="fieldLabel">
+                    Slug
+                    <input className="fieldInput" defaultValue={topic.slug} name="slug" required type="text" />
+                  </label>
+                  <label className="fieldLabel">
+                    Channels
+                    <input className="fieldInput" defaultValue={formatListInput(topic.enabledChannelsJson)} name="enabledChannels" type="text" />
+                  </label>
+                  <label className="fieldLabel fieldLabelWide">
+                    Description
+                    <textarea className="fieldTextarea" defaultValue={topic.description ?? ""} name="description" rows={2} />
+                  </label>
+                  <label className="fieldLabel fieldLabelWide">
+                    Keywords
+                    <input className="fieldInput" defaultValue={formatListInput(topic.keywordsJson)} name="keywords" type="text" />
+                  </label>
+                  <label className="fieldLabel fieldLabelWide">
+                    Exclusions
+                    <input className="fieldInput" defaultValue={formatListInput(topic.exclusionsJson)} name="exclusions" type="text" />
+                  </label>
+                  <label className="fieldLabel fieldLabelWide">
+                    Source preferences
+                    <input
+                      className="fieldInput"
+                      defaultValue={formatListInput(topic.sourcePreferencesJson)}
+                      name="sourcePreferences"
+                      type="text"
+                    />
+                  </label>
+                  <label className="fieldLabel">
+                    Default framework
+                    <select className="fieldInput" defaultValue={topic.defaultCopyFrameworkId ?? ""} name="defaultCopyFrameworkId">
+                      <option value="">Use stream default</option>
+                      {dashboard.copyFrameworks.map((framework) => (
+                        <option key={framework.id} value={framework.id}>
+                          {framework.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="fieldLabel">
+                    Default style
+                    <select className="fieldInput" defaultValue={topic.defaultStyleProfileId ?? ""} name="defaultStyleProfileId">
+                      <option value="">Use stream default</option>
+                      {dashboard.styleProfiles.map((profile) => (
+                        <option key={profile.id} value={profile.id}>
+                          {profile.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="fieldLabel">
+                    Asset mode
+                    <input className="fieldInput" defaultValue={topic.defaultAssetMode ?? ""} name="defaultAssetMode" type="text" />
+                  </label>
+                  <label className="fieldCheckbox">
+                    <input defaultChecked={topic.enabled} name="enabled" type="checkbox" />
+                    Enabled
+                  </label>
+                  <p className="rowMeta topicMeta">
+                    Stream: {topic.researchStream.name} ({topic.researchStream.slug})
+                  </p>
+                  <button className="jobButton jobButtonSecondary" type="submit">
+                    Save topic
+                  </button>
+                </form>
+              ))}
+            </div>
+          )}
+        </article>
+
         <article className="card">
           <div className="cardHeader">
             <h2>Digest recipients</h2>
@@ -446,6 +669,9 @@ async function getDashboardData(): Promise<DashboardData> {
       digestRecipients,
       sourceConfigs,
       researchStreams,
+      topics,
+      copyFrameworks,
+      styleProfiles,
       recentSourceRuns,
       recentHealthChecks
     ] = await Promise.all([
@@ -510,6 +736,49 @@ async function getDashboardData(): Promise<DashboardData> {
             enabledChannelsJson: true
           }
         }),
+        db.topic.findMany({
+          orderBy: [{ researchStreamId: "asc" }, { name: "asc" }],
+          select: {
+            id: true,
+            researchStreamId: true,
+            slug: true,
+            name: true,
+            description: true,
+            enabled: true,
+            defaultAssetMode: true,
+            defaultCopyFrameworkId: true,
+            defaultStyleProfileId: true,
+            enabledChannelsJson: true,
+            keywordsJson: true,
+            exclusionsJson: true,
+            sourcePreferencesJson: true,
+            researchStream: {
+              select: {
+                id: true,
+                name: true,
+                slug: true
+              }
+            }
+          }
+        }),
+        db.copyFramework.findMany({
+          where: { enabled: true },
+          orderBy: { name: "asc" },
+          select: {
+            id: true,
+            name: true,
+            slug: true
+          }
+        }),
+        db.styleProfile.findMany({
+          where: { enabled: true },
+          orderBy: { name: "asc" },
+          select: {
+            id: true,
+            name: true,
+            slug: true
+          }
+        }),
         db.sourceRun.findMany({
           orderBy: { startedAt: "desc" },
           take: 6,
@@ -547,6 +816,9 @@ async function getDashboardData(): Promise<DashboardData> {
       digestRecipients,
       sourceConfigs,
       researchStreams,
+      topics,
+      copyFrameworks,
+      styleProfiles,
       recentSourceRuns,
       recentHealthChecks
     };
@@ -573,6 +845,9 @@ function emptyDashboardData(): DashboardData {
     digestRecipients: [],
     sourceConfigs: [],
     researchStreams: [],
+    topics: [],
+    copyFrameworks: [],
+    styleProfiles: [],
     recentSourceRuns: [],
     recentHealthChecks: []
   };
@@ -604,6 +879,10 @@ function formatSourceAttribution(value: unknown) {
 }
 
 function formatChannelInput(value: unknown) {
+  return formatListInput(value);
+}
+
+function formatListInput(value: unknown) {
   if (!Array.isArray(value)) {
     return "";
   }

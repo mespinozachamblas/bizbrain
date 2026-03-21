@@ -111,6 +111,130 @@ export async function updateResearchStream(formData: FormData) {
   revalidatePath("/");
 }
 
+export async function createTopic(formData: FormData) {
+  const researchStreamId = readRequiredString(formData, "researchStreamId");
+  const name = readRequiredString(formData, "name");
+  const slugInput = readOptionalString(formData, "slug");
+  const description = readOptionalString(formData, "description");
+  const defaultAssetMode = readOptionalString(formData, "defaultAssetMode");
+  const defaultCopyFrameworkId = readOptionalString(formData, "defaultCopyFrameworkId");
+  const defaultStyleProfileId = readOptionalString(formData, "defaultStyleProfileId");
+  const enabled = readBoolean(formData, "enabled", true);
+  const enabledChannels = parseChannels(formData.get("enabledChannels"));
+  const keywords = parseList(formData.get("keywords"));
+  const exclusions = parseList(formData.get("exclusions"));
+  const sourcePreferences = parseList(formData.get("sourcePreferences"));
+  const slug = slugify(slugInput ?? name);
+
+  if (!slug) {
+    throw new Error("Topic slug is required.");
+  }
+
+  const stream = await db.researchStream.findUnique({
+    where: { id: researchStreamId },
+    select: { id: true }
+  });
+
+  if (!stream) {
+    throw new Error("Unknown research stream requested.");
+  }
+
+  const existing = await db.topic.findFirst({
+    where: {
+      researchStreamId,
+      slug
+    },
+    select: { id: true }
+  });
+
+  if (existing) {
+    throw new Error(`Topic slug "${slug}" already exists in this research stream.`);
+  }
+
+  await db.topic.create({
+    data: {
+      id: `topic-${researchStreamId.replace(/^stream-/, "")}-${slug}`,
+      researchStreamId,
+      name,
+      slug,
+      description,
+      enabled,
+      enabledChannelsJson: enabledChannels,
+      keywordsJson: keywords,
+      exclusionsJson: exclusions,
+      sourcePreferencesJson: sourcePreferences,
+      defaultAssetMode,
+      defaultCopyFrameworkId,
+      defaultStyleProfileId
+    }
+  });
+
+  revalidatePath("/");
+}
+
+export async function updateTopic(formData: FormData) {
+  const id = readRequiredString(formData, "id");
+  const researchStreamId = readRequiredString(formData, "researchStreamId");
+  const name = readRequiredString(formData, "name");
+  const slugInput = readRequiredString(formData, "slug");
+  const description = readOptionalString(formData, "description");
+  const defaultAssetMode = readOptionalString(formData, "defaultAssetMode");
+  const defaultCopyFrameworkId = readOptionalString(formData, "defaultCopyFrameworkId");
+  const defaultStyleProfileId = readOptionalString(formData, "defaultStyleProfileId");
+  const enabled = readBoolean(formData, "enabled", false);
+  const enabledChannels = parseChannels(formData.get("enabledChannels"));
+  const keywords = parseList(formData.get("keywords"));
+  const exclusions = parseList(formData.get("exclusions"));
+  const sourcePreferences = parseList(formData.get("sourcePreferences"));
+  const slug = slugify(slugInput);
+
+  if (!slug) {
+    throw new Error("Topic slug is required.");
+  }
+
+  const stream = await db.researchStream.findUnique({
+    where: { id: researchStreamId },
+    select: { id: true }
+  });
+
+  if (!stream) {
+    throw new Error("Unknown research stream requested.");
+  }
+
+  const conflicting = await db.topic.findFirst({
+    where: {
+      researchStreamId,
+      slug,
+      id: { not: id }
+    },
+    select: { id: true }
+  });
+
+  if (conflicting) {
+    throw new Error(`Topic slug "${slug}" already exists in this research stream.`);
+  }
+
+  await db.topic.update({
+    where: { id },
+    data: {
+      researchStreamId,
+      name,
+      slug,
+      description,
+      enabled,
+      enabledChannelsJson: enabledChannels,
+      keywordsJson: keywords,
+      exclusionsJson: exclusions,
+      sourcePreferencesJson: sourcePreferences,
+      defaultAssetMode,
+      defaultCopyFrameworkId,
+      defaultStyleProfileId
+    }
+  });
+
+  revalidatePath("/");
+}
+
 function readRequiredString(formData: FormData, key: string) {
   const value = formData.get(key);
 
@@ -147,9 +271,17 @@ function parseChannels(value: FormDataEntryValue | null) {
     return [];
   }
 
+  return parseList(value).map((entry) => entry.toLowerCase());
+}
+
+function parseList(value: FormDataEntryValue | null) {
+  if (typeof value !== "string") {
+    return [];
+  }
+
   return [...new Set(value
     .split(",")
-    .map((entry) => entry.trim().toLowerCase())
+    .map((entry) => entry.trim())
     .filter(Boolean))];
 }
 
