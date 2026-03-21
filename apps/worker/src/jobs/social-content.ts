@@ -262,60 +262,76 @@ async function generateSocialDraft(input: {
     return null;
   }
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: process.env.OPENAI_ENRICH_MODEL ?? "gpt-5-mini",
-      input: [
-        {
-          role: "system",
-          content: [{ type: "input_text", text: buildSocialDraftPrompt() }]
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: [
-                `CHANNEL: ${input.channel}`,
-                `TOPIC: ${input.topic.name}`,
-                `TOPIC_DESCRIPTION: ${input.topic.description ?? "(none)"}`,
-                `COPY_FRAMEWORK: ${input.framework?.name ?? "Use the topic/stream default persuasion structure."}`,
-                `COPY_FRAMEWORK_DETAILS: ${JSON.stringify(input.framework?.structureJson ?? [])}`,
-                `STYLE_PROFILE: ${input.styleProfile?.name ?? "Founder educator"}`,
-                `STYLE_DESCRIPTION: ${input.styleProfile?.description ?? "(none)"}`,
-                `STYLE_INSPIRATION: ${input.styleProfile?.inspirationSummary ?? "(none)"}`,
-                `STYLE_TRAITS: ${JSON.stringify(input.styleProfile?.styleTraitsJson ?? [])}`,
-                `STYLE_GUARDRAILS: ${JSON.stringify(input.styleProfile?.guardrailsJson ?? [])}`,
-                `ASSET_MODE: ${input.assetMode}`,
-                `IDEA_TITLE: ${input.idea.title}`,
-                `IDEA_CATEGORY: ${input.idea.category}`,
-                `BUSINESS_TYPE: ${input.idea.businessType ?? "(none)"}`,
-                `TARGET_CUSTOMER: ${input.idea.targetCustomer ?? "(none)"}`,
-                `PROBLEM: ${input.idea.problemSummary ?? "(none)"}`,
-                `SOLUTION: ${input.idea.solutionConcept ?? "(none)"}`,
-                `MONETIZATION: ${input.idea.monetizationAngle ?? "(none)"}`,
-                `EVIDENCE: ${input.idea.evidenceSummary ?? "(none)"}`,
-                `SOURCE_ATTRIBUTION: ${JSON.stringify(input.idea.sourceAttributionJson ?? [])}`
-              ].join("\n")
-            }
-          ]
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), resolveSocialDraftTimeoutMs());
+
+  let response: Response;
+
+  try {
+    response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: process.env.OPENAI_ENRICH_MODEL ?? "gpt-5-mini",
+        input: [
+          {
+            role: "system",
+            content: [{ type: "input_text", text: buildSocialDraftPrompt() }]
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: [
+                  `CHANNEL: ${input.channel}`,
+                  `TOPIC: ${input.topic.name}`,
+                  `TOPIC_DESCRIPTION: ${input.topic.description ?? "(none)"}`,
+                  `COPY_FRAMEWORK: ${input.framework?.name ?? "Use the topic/stream default persuasion structure."}`,
+                  `COPY_FRAMEWORK_DETAILS: ${JSON.stringify(input.framework?.structureJson ?? [])}`,
+                  `STYLE_PROFILE: ${input.styleProfile?.name ?? "Founder educator"}`,
+                  `STYLE_DESCRIPTION: ${input.styleProfile?.description ?? "(none)"}`,
+                  `STYLE_INSPIRATION: ${input.styleProfile?.inspirationSummary ?? "(none)"}`,
+                  `STYLE_TRAITS: ${JSON.stringify(input.styleProfile?.styleTraitsJson ?? [])}`,
+                  `STYLE_GUARDRAILS: ${JSON.stringify(input.styleProfile?.guardrailsJson ?? [])}`,
+                  `ASSET_MODE: ${input.assetMode}`,
+                  `IDEA_TITLE: ${input.idea.title}`,
+                  `IDEA_CATEGORY: ${input.idea.category}`,
+                  `BUSINESS_TYPE: ${input.idea.businessType ?? "(none)"}`,
+                  `TARGET_CUSTOMER: ${input.idea.targetCustomer ?? "(none)"}`,
+                  `PROBLEM: ${input.idea.problemSummary ?? "(none)"}`,
+                  `SOLUTION: ${input.idea.solutionConcept ?? "(none)"}`,
+                  `MONETIZATION: ${input.idea.monetizationAngle ?? "(none)"}`,
+                  `EVIDENCE: ${input.idea.evidenceSummary ?? "(none)"}`,
+                  `SOURCE_ATTRIBUTION: ${JSON.stringify(input.idea.sourceAttributionJson ?? [])}`
+                ].join("\n")
+              }
+            ]
+          }
+        ],
+        text: {
+          format: {
+            type: "json_schema",
+            name: "social_media_draft",
+            strict: true,
+            schema: socialDraftJsonSchema
+          }
         }
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "social_media_draft",
-          strict: true,
-          schema: socialDraftJsonSchema
-        }
-      }
-    })
-  });
+      })
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("OpenAI social draft request timed out.");
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     throw new Error(`OpenAI social draft request failed with ${response.status}.`);
@@ -335,6 +351,16 @@ async function generateSocialDraft(input: {
   }
 
   return socialDraftSchema.parse(JSON.parse(textOutput));
+}
+
+function resolveSocialDraftTimeoutMs() {
+  const parsed = Number(process.env.OPENAI_SOCIAL_DRAFT_TIMEOUT_MS ?? "20000");
+
+  if (!Number.isFinite(parsed) || parsed < 5000) {
+    return 20000;
+  }
+
+  return parsed;
 }
 
 function buildFallbackSocialDraft(input: {
