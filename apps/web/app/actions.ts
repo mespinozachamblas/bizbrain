@@ -15,6 +15,7 @@ export async function runPipelineJob(formData: FormData) {
 
   await workerJobs[jobName as JobName]();
   revalidatePath("/");
+  revalidatePath("/ideas");
   revalidatePath("/social-drafts");
 }
 
@@ -45,6 +46,24 @@ export async function updateContentDraftStatus(formData: FormData) {
 
   revalidatePath("/");
   revalidatePath("/social-drafts");
+}
+
+export async function updateIdeaStatus(formData: FormData) {
+  const id = readRequiredString(formData, "id");
+  const status = readRequiredString(formData, "status");
+  const allowedStatuses = new Set(["new", "promising", "revisit", "ignore"]);
+
+  if (!allowedStatuses.has(status)) {
+    throw new Error(`Unsupported idea status: ${status}`);
+  }
+
+  await db.idea.update({
+    where: { id },
+    data: { status }
+  });
+
+  revalidatePath("/");
+  revalidatePath("/ideas");
 }
 
 export async function createResearchStream(formData: FormData) {
