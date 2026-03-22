@@ -30,6 +30,7 @@ type TopicRecord = {
   enabledChannelsJson: unknown;
   keywordsJson: unknown;
   exclusionsJson: unknown;
+  sourcePreferencesJson: unknown;
   defaultAssetMode: string | null;
   defaultCopyFramework: {
     id: string;
@@ -568,7 +569,7 @@ function buildFallbackSocialDraft(input: {
 
 async function buildSupportingStatsResearch(
   idea: Pick<IdeaWithCluster, "clusterId" | "title" | "category" | "problemSummary" | "sourceAttributionJson">,
-  topic: Pick<TopicRecord, "name" | "slug">,
+  topic: Pick<TopicRecord, "name" | "slug" | "sourcePreferencesJson">,
   channel: (typeof researchStreamChannels)[number]
 ) {
   const [cluster, membershipStats] = await Promise.all([
@@ -597,6 +598,9 @@ async function buildSupportingStatsResearch(
 
   const sourceCounts = new Map<string, number>();
   const sourceUrls = new Map<string, string>();
+  const preferredStatSources = Array.isArray(topic.sourcePreferencesJson)
+    ? topic.sourcePreferencesJson.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.toLowerCase())
+    : [];
 
   for (const membership of membershipStats) {
     const sourceType = membership.rawSignal.sourceType;
@@ -635,7 +639,7 @@ async function buildSupportingStatsResearch(
           ? `Latest matched evidence was seen on ${cluster.lastSeenAt.toISOString().slice(0, 10)}.`
           : "Latest evidence date is not stored.",
       confidenceNote: totalSignals >= 4 ? "Moderate confidence from repeated signal clustering." : "Early signal; useful, but still light on repeated evidence.",
-      recommendedUsage: `Lead with the pattern, then connect it to ${topic.name}.`
+      recommendedUsage: `Lead with the pattern, then connect it to ${topic.name}.${renderPreferredStatSourceHint(preferredStatSources)}`
     });
   }
 
@@ -651,7 +655,7 @@ async function buildSupportingStatsResearch(
       sourceDate: cluster?.lastSeenAt?.toISOString().slice(0, 10) ?? null,
       freshnessNote: "This is based on the current cluster membership and source attribution, not a market-size estimate.",
       confidenceNote: sourceDiversity >= 3 ? "Higher confidence because multiple source classes contributed." : "Moderate confidence with limited source diversity.",
-      recommendedUsage: `Use when you want to emphasize cross-source validation in ${topic.slug}.`
+      recommendedUsage: `Use when you want to emphasize cross-source validation in ${topic.slug}.${renderPreferredStatSourceHint(preferredStatSources)}`
     });
   }
 
@@ -671,11 +675,23 @@ async function buildSupportingStatsResearch(
       sourceDate: cluster?.lastSeenAt?.toISOString().slice(0, 10) ?? null,
       freshnessNote: "Source concentration can shift as new signals arrive; treat this as a current snapshot.",
       confidenceNote: percentage >= 60 ? "Moderate confidence for a source-concentration stat." : "Use cautiously; the mix is still fairly distributed.",
-      recommendedUsage: `Use sparingly as a supporting stat, not as the main headline claim.`
+      recommendedUsage: `Use sparingly as a supporting stat, not as the main headline claim.${renderPreferredStatSourceHint(preferredStatSources)}`
     });
   }
 
   return stats.slice(0, 3);
+}
+
+function renderPreferredStatSourceHint(preferredStatSources: string[]) {
+  const statsHints = preferredStatSources.filter((entry) =>
+    ["google-trends", "government-data", "industry-report", "marketplace-data", "benchmark-report", "public-company", "census"].includes(entry)
+  );
+
+  if (statsHints.length === 0) {
+    return "";
+  }
+
+  return ` Prefer validating with ${statsHints.join(", ")} when stronger external numbers are available.`;
 }
 
 function buildFallbackSupportingStats(input: {

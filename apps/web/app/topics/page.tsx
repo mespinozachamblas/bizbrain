@@ -74,6 +74,9 @@ export default async function TopicsPage({ searchParams }: PageProps) {
               Source preferences
               <input className="fieldInput" name="sourcePreferences" placeholder="reddit, hacker-news, product-hunt" type="text" />
             </label>
+            <p className="helperText">
+              Include stats preferences here too when useful, for example `google-trends, government-data, industry-report`.
+            </p>
             <label className="fieldLabel">
               Default framework
               <select className="fieldInput" defaultValue="" name="defaultCopyFrameworkId">
@@ -196,6 +199,10 @@ export default async function TopicsPage({ searchParams }: PageProps) {
                       Source preferences
                       <input className="fieldInput" defaultValue={formatListInput(topic.sourcePreferencesJson)} name="sourcePreferences" type="text" />
                     </label>
+                    <p className="helperText">
+                      Use source preferences to guide both signal matching and preferred stats-source classes such as `google-trends`,
+                      `government-data`, `industry-report`, or `marketplace-data`.
+                    </p>
                     <label className="fieldLabel">
                       Default framework
                       <select className="fieldInput" defaultValue={topic.defaultCopyFrameworkId ?? ""} name="defaultCopyFrameworkId">
