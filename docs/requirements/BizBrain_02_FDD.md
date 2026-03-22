@@ -190,6 +190,8 @@ The final opportunity score is calculated from weighted components. Finance idea
 - Google Images, Pinterest, and similar search/discovery surfaces must be treated as reference-only or source-discovery inputs unless the original asset license is independently verified from the origin site.
 - The system can generate infographic concepts and outlines for LinkedIn posts.
 - Infographic outputs can target carousel, single-image infographic, or short data-story formats.
+- The system can generate wow-factor statistics research for social drafts and infographics when relevant to the configured topic or stream.
+- Statistics research must remain evidence-backed and must store the cited source, source URL, claim wording, and any confidence or freshness note used in the draft.
 - The system must support configurable copy frameworks and style profiles without code changes.
 - Style profiles must be implemented as configurable traits and instructions, not as literal impersonation requirements.
 - Suggested stock or AI-generated assets must remain reviewable and optional before use.
@@ -211,6 +213,9 @@ The final opportunity score is calculated from weighted components. Finance idea
 - draft X post
 - draft X thread outline
 - visual brief
+- supporting statistics
+- statistic citations
+- statistic freshness or confidence note
 - media candidates
 - media provenance
 - publishability status

@@ -202,6 +202,7 @@
 - draft_markdown
 - draft_html
 - visual_brief_json
+- supporting_stats_json
 - infographic_brief_json
 - infographic_format
 - infographic_panels_json
@@ -494,6 +495,7 @@ Updates:
 - `draftXPost`
 - `draftXThreadOutline[]`
 - `visualBrief`
+- `supportingStats[]`
 - `mediaCandidates[]`
 - `mediaPolicy`
 - `infographicBrief`
@@ -514,6 +516,16 @@ Updates:
 - `requiresHumanReview`
 - `referenceOnly`
 - `rightsNotes[]`
+
+### supporting stat schema
+- `claim`
+- `plainLanguageAngle`
+- `sourceName`
+- `sourceUrl`
+- `sourceDate`
+- `freshnessNote`
+- `confidenceNote`
+- `recommendedUsage`
 
 ### digest item schema
 - `sectionTitle`
