@@ -1,6 +1,7 @@
 import { jobNames } from "@bizbrain/core";
 
-import { runPipelineJob } from "./actions";
+import { forceSendSocialDigestReviewCopy, runPipelineJob } from "./actions";
+import { ServerActionForm } from "./action-forms";
 import { getDashboardData, formatDate, formatSourceAttribution } from "./dashboard-data";
 import { EmptyState, StatCard } from "./dashboard-ui";
 
@@ -46,6 +47,26 @@ export default async function HomePage() {
           <p className="helperText">
             These are the shared operational jobs: ingest and enrich feed both research streams, while the two digest-email
             jobs send the business-opportunity and social-media outputs separately.
+          </p>
+          <p className="helperText">
+            The normal digest buttons respect daily idempotency. If today’s social digest was already sent, use the review-copy
+            control below.
+          </p>
+        </article>
+
+        <article className="card controlCard">
+          <div className="cardHeader">
+            <h2>Review copies</h2>
+            <span className="badge">Email</span>
+          </div>
+          <ServerActionForm action={forceSendSocialDigestReviewCopy} className="adminForm">
+            <button className="jobButton" type="submit">
+              Force send social digest
+            </button>
+          </ServerActionForm>
+          <p className="helperText">
+            Sends the latest stored Social Media Research digest to the enabled recipients again, even if today’s normal digest
+            was already sent.
           </p>
         </article>
 

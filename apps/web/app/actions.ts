@@ -1,7 +1,8 @@
 "use server";
 
-import { sourceAdapterConfigSchema, sourceTypes, type JobName } from "@bizbrain/core";
+import { researchStreamIds, sourceAdapterConfigSchema, sourceTypes, type JobName } from "@bizbrain/core";
 import { db } from "@bizbrain/db";
+import { sendWithResend } from "@bizbrain/email";
 import { revalidatePath } from "next/cache";
 import { regenerateIdeaById } from "../../worker/src/jobs/daily-enrich-score";
 import { workerJobs } from "../../worker/src/jobs/registry";
@@ -617,6 +618,109 @@ export async function regenerateContentDraft(formData: FormData) {
   revalidatePath("/social-drafts");
 }
 
+export async function forceSendSocialDigestReviewCopy(_: ActionState, _formData: FormData): Promise<ActionState> {
+  try {
+    const researchStreamId = researchStreamIds.socialMedia;
+    const resendApiKey = process.env.RESEND_API_KEY;
+    const emailFrom = process.env.EMAIL_FROM;
+    const replyTo = parseReplyTo(process.env.SOCIAL_DIGEST_REPLY_TO ?? process.env.DIGEST_REPLY_TO);
+
+    if (!resendApiKey) {
+      throw new Error("RESEND_API_KEY is not configured.");
+    }
+
+    if (!emailFrom) {
+      throw new Error("EMAIL_FROM is not configured.");
+    }
+
+    const [digest, recipients] = await Promise.all([
+      db.digest.findFirst({
+        where: { researchStreamId },
+        orderBy: [{ createdAt: "desc" }]
+      }),
+      db.digestRecipient.findMany({
+        where: { researchStreamId, enabled: true },
+        orderBy: [{ isOwnerDefault: "desc" }, { email: "asc" }]
+      })
+    ]);
+
+    if (!digest) {
+      throw new Error("No social digest exists yet. Run daily-social-media-digest-email first.");
+    }
+
+    if (!digest.markdownBody || !digest.htmlBody) {
+      throw new Error("The latest social digest does not have a stored email body yet. Run daily-social-media-digest-email again.");
+    }
+
+    if (recipients.length === 0) {
+      throw new Error("No enabled Social Media Research recipients are configured.");
+    }
+
+    let sentCount = 0;
+    const failures: string[] = [];
+
+    for (const recipient of recipients) {
+      const result = await sendWithResend({
+        apiKey: resendApiKey,
+        from: emailFrom,
+        to: recipient.email,
+        subject: `${digest.subject} [Review Copy]`,
+        text: digest.markdownBody,
+        html: digest.htmlBody,
+        replyTo
+      });
+
+      await db.emailDelivery.create({
+        data: {
+          digestId: digest.id,
+          recipientId: recipient.id,
+          recipientEmail: recipient.email,
+          provider: "resend",
+          deliveryKey: `force:${Date.now()}:${recipient.email.toLowerCase()}:${Math.random().toString(36).slice(2, 8)}`,
+          providerMessageId: result.id ?? null,
+          sendStatus: result.error ? "failed" : "sent",
+          errorText: result.error ?? null,
+          attemptedAt: new Date()
+        }
+      });
+
+      if (result.error) {
+        failures.push(`${recipient.email}: ${result.error}`);
+      } else {
+        sentCount += 1;
+      }
+    }
+
+    if (sentCount > 0) {
+      await db.digest.update({
+        where: { id: digest.id },
+        data: {
+          status: "sent",
+          sentAt: new Date()
+        }
+      });
+    }
+
+    revalidatePath("/");
+    revalidatePath("/recipients");
+    revalidatePath("/jobs");
+
+    if (failures.length > 0 && sentCount === 0) {
+      throw new Error(`Review copy failed: ${failures.join("; ")}`);
+    }
+
+    return {
+      status: failures.length > 0 ? "success" : "success",
+      message:
+        failures.length > 0
+          ? `Sent ${sentCount} review cop${sentCount === 1 ? "y" : "ies"} with some failures: ${failures.join("; ")}`
+          : `Sent ${sentCount} social digest review cop${sentCount === 1 ? "y" : "ies"}.`
+    };
+  } catch (error) {
+    return toActionErrorState(error);
+  }
+}
+
 export async function createDigestRecipient(_: ActionState, formData: FormData): Promise<ActionState> {
   try {
     const researchStreamId = readRequiredString(formData, "researchStreamId");
@@ -914,4 +1018,13 @@ function toActionErrorState(error: unknown): ActionState {
     status: "error",
     message: error instanceof Error ? error.message : "Something went wrong while saving."
   };
+}
+
+function parseReplyTo(input: string | undefined) {
+  const values = (input ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return values.length > 0 ? values : undefined;
 }

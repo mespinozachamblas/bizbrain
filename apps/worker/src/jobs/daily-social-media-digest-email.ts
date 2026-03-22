@@ -209,6 +209,10 @@ export async function runDailySocialMediaDigestEmail() {
         }
       });
 
+      if (recipients.length > 0 && deliveryAttempts === 0 && successfulSendCount > 0) {
+        warnings.push("Social digest was already sent today. Use the force-send control to send another review copy.");
+      }
+
       await db.digest.update({
         where: { id: digest.id },
         data: {
