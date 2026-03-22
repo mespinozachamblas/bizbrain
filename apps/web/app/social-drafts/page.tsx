@@ -1,5 +1,5 @@
 import { db } from "@bizbrain/db";
-import { regenerateContentDraft, runPipelineJob, updateContentDraftAssetStatus, updateContentDraftStatus } from "../actions";
+import { regenerateContentDraft, runPipelineJob, updateContentDraftAssetStatus, updateContentDraftStatStatus, updateContentDraftStatus } from "../actions";
 import { formatDate, formatListInput, formatSourceAttribution, getDashboardData, readSearchParam } from "../dashboard-data";
 import { EmptyState } from "../dashboard-ui";
 
@@ -221,6 +221,8 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                                 <div className="evidenceCard" key={`${draft.id}-stat-${index}`}>
                                   <p className="rowMeta">
                                     <span className="badge">{stat.sourceClassLabel}</span>
+                                    {" "}
+                                    <span className={`status status-${normalizeStatReviewStatus(stat.reviewStatus)}`}>{stat.reviewStatus}</span>
                                   </p>
                                   <p className="rowTitle">{stat.claim}</p>
                                   <p className="rowBody">
@@ -244,6 +246,23 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                                       {stat.sourceUrl}
                                     </a>
                                   </p>
+                                  <div className="jobButtons">
+                                    {[
+                                      ["approved", "Approve"],
+                                      ["use-with-caution", "Use With Caution"],
+                                      ["rejected", "Reject"],
+                                      ["pending", "Reset"]
+                                    ].map(([reviewStatus, label]) => (
+                                      <form action={updateContentDraftStatStatus} key={`${draft.id}-stat-${index}-${reviewStatus}`}>
+                                        <input name="id" type="hidden" value={draft.id} />
+                                        <input name="statIndex" type="hidden" value={String(index)} />
+                                        <input name="reviewStatus" type="hidden" value={reviewStatus} />
+                                        <button className="jobButton jobButtonSecondary" type="submit">
+                                          {label}
+                                        </button>
+                                      </form>
+                                    ))}
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -451,6 +470,10 @@ function readSupportingStats(value: unknown) {
       freshnessNote: typeof entry.freshnessNote === "string" ? entry.freshnessNote : "No freshness note recorded.",
       confidenceNote: typeof entry.confidenceNote === "string" ? entry.confidenceNote : "No confidence note recorded.",
       recommendedUsage: typeof entry.recommendedUsage === "string" ? entry.recommendedUsage : "No usage guidance recorded.",
+      reviewStatus:
+        typeof entry.reviewStatus === "string" && ["pending", "approved", "use-with-caution", "rejected"].includes(entry.reviewStatus)
+          ? entry.reviewStatus
+          : "pending",
       sourceClassLabel: inferStatSourceClass(
         typeof entry.sourceName === "string" ? entry.sourceName : "Unknown source",
         typeof entry.sourceUrl === "string" ? entry.sourceUrl : "#"
@@ -482,6 +505,22 @@ function summarizeStatSourceClasses(
 ) {
   const labels = [...new Set(stats.map((stat) => stat.sourceClassLabel))];
   return labels.join(", ");
+}
+
+function normalizeStatReviewStatus(status: string) {
+  if (status === "approved") {
+    return "enabled";
+  }
+
+  if (status === "use-with-caution") {
+    return "running";
+  }
+
+  if (status === "rejected") {
+    return "failed";
+  }
+
+  return "skipped";
 }
 
 function normalizeDraftStatus(status: string) {

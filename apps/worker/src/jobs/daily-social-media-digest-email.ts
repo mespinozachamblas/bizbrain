@@ -287,6 +287,7 @@ type SupportingStat = {
   freshnessNote: string;
   confidenceNote: string;
   recommendedUsage: string;
+  reviewStatus: string;
 };
 
 function buildSocialDigestSections(input: SocialDigestInputs) {
@@ -410,7 +411,11 @@ function readSupportingStats(value: unknown): SupportingStat[] {
       sourceDate: typeof entry.sourceDate === "string" ? entry.sourceDate : null,
       freshnessNote: typeof entry.freshnessNote === "string" ? entry.freshnessNote : "No freshness note recorded.",
       confidenceNote: typeof entry.confidenceNote === "string" ? entry.confidenceNote : "No confidence note recorded.",
-      recommendedUsage: typeof entry.recommendedUsage === "string" ? entry.recommendedUsage : "No usage guidance recorded."
+      recommendedUsage: typeof entry.recommendedUsage === "string" ? entry.recommendedUsage : "No usage guidance recorded.",
+      reviewStatus:
+        typeof entry.reviewStatus === "string" && ["pending", "approved", "use-with-caution", "rejected"].includes(entry.reviewStatus)
+          ? entry.reviewStatus
+          : "pending"
     }));
 }
 
@@ -426,6 +431,7 @@ function collectTopSupportingStats(drafts: Array<SocialDigestDraft & { freshness
         statScore: scoreSupportingStat(stat, draft)
       }))
     )
+    .filter((stat) => stat.reviewStatus !== "rejected")
     .sort((left, right) => right.statScore - left.statScore || right.draftQualityScore - left.draftQualityScore)
     .filter((stat, index, all) => {
       const normalizedClaim = normalizeComparableText(stat.claim);
@@ -445,6 +451,7 @@ function formatSupportingStatLine(
     `Topic: ${stat.topicName}`,
     `Draft: ${stat.draftTitle}`,
     `Source class: ${stat.sourceClass}`,
+    `Review: ${stat.reviewStatus}`,
     `Source: ${stat.sourceName} (${stat.sourceUrl})`,
     `Freshness: ${ensureSentence(stat.freshnessNote)}`,
     `Confidence: ${ensureSentence(stat.confidenceNote)}`
@@ -531,6 +538,12 @@ function scoreSupportingStat(
 
   if (!sourceUrl.includes("app.bizbrain.local")) {
     score += 3;
+  }
+
+  if (stat.reviewStatus === "approved") {
+    score += 3;
+  } else if (stat.reviewStatus === "use-with-caution") {
+    score -= 1;
   }
 
   if (confidenceText.includes("higher confidence")) {

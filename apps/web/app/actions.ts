@@ -187,6 +187,49 @@ export async function updateContentDraftAssetStatus(formData: FormData) {
   revalidatePath("/social-drafts");
 }
 
+export async function updateContentDraftStatStatus(formData: FormData) {
+  const id = readRequiredString(formData, "id");
+  const statIndex = Number(readRequiredString(formData, "statIndex"));
+  const reviewStatus = readRequiredString(formData, "reviewStatus");
+  const allowedStatuses = new Set(["pending", "approved", "use-with-caution", "rejected"]);
+
+  if (!Number.isInteger(statIndex) || statIndex < 0) {
+    throw new Error("Invalid supporting stat index.");
+  }
+
+  if (!allowedStatuses.has(reviewStatus)) {
+    throw new Error(`Unsupported supporting stat review status: ${reviewStatus}`);
+  }
+
+  const draft = await db.contentDraft.findUnique({
+    where: { id },
+    select: { supportingStatsJson: true }
+  });
+
+  if (!draft || !Array.isArray(draft.supportingStatsJson) || !draft.supportingStatsJson[statIndex] || typeof draft.supportingStatsJson[statIndex] !== "object") {
+    throw new Error("Supporting stat not found.");
+  }
+
+  const supportingStats = draft.supportingStatsJson.map((entry, index) => {
+    if (index !== statIndex || !entry || typeof entry !== "object") {
+      return entry;
+    }
+
+    return {
+      ...entry,
+      reviewStatus
+    };
+  });
+
+  await db.contentDraft.update({
+    where: { id },
+    data: { supportingStatsJson: supportingStats }
+  });
+
+  revalidatePath("/");
+  revalidatePath("/social-drafts");
+}
+
 export async function updateIdeaStatus(formData: FormData) {
   const id = readRequiredString(formData, "id");
   const status = readRequiredString(formData, "status");

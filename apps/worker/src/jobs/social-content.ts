@@ -1,4 +1,4 @@
-import { researchStreamChannels, researchStreamIds, socialDraftSchema, type SocialDraft } from "@bizbrain/core";
+import { researchStreamChannels, researchStreamIds, socialDraftSchema, type SocialDraft, type SupportingStat } from "@bizbrain/core";
 import { db } from "@bizbrain/db";
 import { buildSocialDraftPrompt } from "@bizbrain/prompts";
 
@@ -377,16 +377,7 @@ async function generateSocialDraft(input: {
   framework: { name: string; description: string | null; structureJson: unknown } | null;
   styleProfile: { name: string; description: string | null; inspirationSummary: string | null; styleTraitsJson: unknown; guardrailsJson: unknown } | null;
   assetMode: string;
-  statsResearch: Array<{
-    claim: string;
-    plainLanguageAngle: string;
-    sourceName: string;
-    sourceUrl: string;
-    sourceDate: string | null;
-    freshnessNote: string;
-    confidenceNote: string;
-    recommendedUsage: string;
-  }>;
+  statsResearch: SupportingStat[];
 }) {
   if (!process.env.OPENAI_API_KEY) {
     return null;
@@ -501,16 +492,7 @@ function buildFallbackSocialDraft(input: {
   frameworkName: string;
   styleName: string;
   assetMode: string;
-  statsResearch: Array<{
-    claim: string;
-    plainLanguageAngle: string;
-    sourceName: string;
-    sourceUrl: string;
-    sourceDate: string | null;
-    freshnessNote: string;
-    confidenceNote: string;
-    recommendedUsage: string;
-  }>;
+  statsResearch: SupportingStat[];
 }): SocialDraft {
   const audience = input.channel === "linkedin" ? "Founders and operators on LinkedIn" : "Operators and builders on X";
   const hook =
@@ -618,16 +600,7 @@ async function buildSupportingStatsResearch(
   const sortedSources = [...sourceCounts.entries()].sort((a, b) => b[1] - a[1]);
   const totalSignals = cluster?.signalCount ?? membershipStats.length;
   const sourceDiversity = sortedSources.length;
-  const stats: Array<{
-    claim: string;
-    plainLanguageAngle: string;
-    sourceName: string;
-    sourceUrl: string;
-    sourceDate: string | null;
-    freshnessNote: string;
-    confidenceNote: string;
-    recommendedUsage: string;
-  }> = [];
+  const stats: SupportingStat[] = [];
 
   if (totalSignals > 0) {
     stats.push({
@@ -645,6 +618,8 @@ async function buildSupportingStatsResearch(
           : "Latest evidence date is not stored.",
       confidenceNote: totalSignals >= 4 ? "Moderate confidence from repeated signal clustering." : "Early signal; useful, but still light on repeated evidence.",
       recommendedUsage: `Lead with the pattern, then connect it to ${topic.name}.${renderPreferredStatSourceHint(preferredStatSources)}`
+      ,
+      reviewStatus: "pending"
     });
   }
 
@@ -661,6 +636,8 @@ async function buildSupportingStatsResearch(
       freshnessNote: "This is based on the current cluster membership and source attribution, not a market-size estimate.",
       confidenceNote: sourceDiversity >= 3 ? "Higher confidence because multiple source classes contributed." : "Moderate confidence with limited source diversity.",
       recommendedUsage: `Use when you want to emphasize cross-source validation in ${topic.slug}.${renderPreferredStatSourceHint(preferredStatSources)}`
+      ,
+      reviewStatus: "pending"
     });
   }
 
@@ -681,6 +658,8 @@ async function buildSupportingStatsResearch(
       freshnessNote: "Source concentration can shift as new signals arrive; treat this as a current snapshot.",
       confidenceNote: percentage >= 60 ? "Moderate confidence for a source-concentration stat." : "Use cautiously; the mix is still fairly distributed.",
       recommendedUsage: `Use sparingly as a supporting stat, not as the main headline claim.${renderPreferredStatSourceHint(preferredStatSources)}`
+      ,
+      reviewStatus: "pending"
     });
   }
 
@@ -707,16 +686,7 @@ async function fetchExternalSupportingStats(input: {
   const preferredStatSources = Array.isArray(input.topic.sourcePreferencesJson)
     ? input.topic.sourcePreferencesJson.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.toLowerCase())
     : [];
-  const stats: Array<{
-    claim: string;
-    plainLanguageAngle: string;
-    sourceName: string;
-    sourceUrl: string;
-    sourceDate: string | null;
-    freshnessNote: string;
-    confidenceNote: string;
-    recommendedUsage: string;
-  }> = [];
+  const stats: SupportingStat[] = [];
 
   if (preferredStatSources.includes("google-trends")) {
     try {
@@ -768,16 +738,7 @@ async function fetchGoogleTrendsSupportingStats(input: {
     .filter((value): value is string => Boolean(value))
     .sort()
     .reverse()[0] ?? null;
-  const stats: Array<{
-    claim: string;
-    plainLanguageAngle: string;
-    sourceName: string;
-    sourceUrl: string;
-    sourceDate: string | null;
-    freshnessNote: string;
-    confidenceNote: string;
-    recommendedUsage: string;
-  }> = [
+  const stats: SupportingStat[] = [
     {
       claim:
         trendMatches.length === 1
@@ -795,6 +756,8 @@ async function fetchGoogleTrendsSupportingStats(input: {
         : "Google Trends dates were not available on the matching items.",
       confidenceNote: trendMatches.length >= 2 ? "Moderate confidence from multiple matching trending queries." : "Early external signal from a single matching trending query.",
       recommendedUsage: `Use this as external momentum validation for ${input.topic.slug}, then connect it back to the operator pain or workflow opportunity.`
+      ,
+      reviewStatus: "pending"
     }
   ];
 
@@ -811,6 +774,8 @@ async function fetchGoogleTrendsSupportingStats(input: {
       freshnessNote: "Approximate traffic comes from the Google Trends trending feed and reflects search attention, not customer count or revenue.",
       confidenceNote: "Use with caution; this is a platform-reported approximate traffic label, not a precise benchmark.",
       recommendedUsage: `Use this as a supporting statistic for ${input.topic.name} when you want a stronger external number in the hook or infographic.`
+      ,
+      reviewStatus: "pending"
     });
   }
 
@@ -935,16 +900,7 @@ async function fetchProductHuntSupportingStats(input: {
   }
 
   const topMatch = matches[0].post;
-  const stats: Array<{
-    claim: string;
-    plainLanguageAngle: string;
-    sourceName: string;
-    sourceUrl: string;
-    sourceDate: string | null;
-    freshnessNote: string;
-    confidenceNote: string;
-    recommendedUsage: string;
-  }> = [
+  const stats: SupportingStat[] = [
     {
       claim:
         matches.length === 1
@@ -960,6 +916,8 @@ async function fetchProductHuntSupportingStats(input: {
       freshnessNote: "This reflects a recent Product Hunt launch snapshot, not a comprehensive market count.",
       confidenceNote: matches.length >= 2 ? "Moderate confidence from multiple relevant launches." : "Early external signal from a single relevant launch.",
       recommendedUsage: `Use this as marketplace validation for ${input.topic.slug}, then connect it to the practical wedge or positioning angle.`
+      ,
+      reviewStatus: "pending"
     }
   ];
 
@@ -976,6 +934,8 @@ async function fetchProductHuntSupportingStats(input: {
       freshnessNote: "Votes and comments reflect Product Hunt engagement on a specific launch day or period.",
       confidenceNote: "Use with caution; marketplace engagement is directional traction, not commercial proof.",
       recommendedUsage: `Use this as a supporting marketplace-data stat for ${input.topic.name}, especially in social hooks or infographic callouts.`
+      ,
+      reviewStatus: "pending"
     });
   }
 
@@ -1175,6 +1135,8 @@ function buildFallbackSupportingStats(input: {
       freshnessNote: "This stat is derived from the latest matched source evidence in BizBrain, not a third-party benchmark report.",
       confidenceNote: signalCount && signalCount > 1 ? "Moderate confidence from repeated source matches." : "Low-to-moderate confidence; based on limited source evidence.",
       recommendedUsage: `Use as a supporting stat in a ${input.frameworkName} draft with ${input.styleName} framing.`
+      ,
+      reviewStatus: "pending"
     };
   });
 }
@@ -1420,7 +1382,8 @@ const socialDraftJsonSchema = {
           sourceDate: { type: ["string", "null"] },
           freshnessNote: { type: "string" },
           confidenceNote: { type: "string" },
-          recommendedUsage: { type: "string" }
+          recommendedUsage: { type: "string" },
+          reviewStatus: { type: "string", enum: ["pending", "approved", "use-with-caution", "rejected"] }
         },
         required: [
           "claim",
@@ -1430,7 +1393,8 @@ const socialDraftJsonSchema = {
           "sourceDate",
           "freshnessNote",
           "confidenceNote",
-          "recommendedUsage"
+          "recommendedUsage",
+          "reviewStatus"
         ]
       }
     },
