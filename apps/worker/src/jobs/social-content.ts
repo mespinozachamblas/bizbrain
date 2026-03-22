@@ -166,6 +166,7 @@ export async function syncSocialContentDrafts() {
             cta: generated.cta,
             draftMarkdown: generated.draftMarkdown,
             visualBriefJson: generated.visualBrief,
+            supportingStatsJson: generated.supportingStats,
             infographicBriefJson: generated.infographicBrief,
             infographicFormat: generated.infographicBrief.format,
             infographicPanelsJson: generated.infographicBrief.panels,
@@ -279,6 +280,7 @@ export async function regenerateSocialDraftById(draftId: string) {
       cta: generated.cta,
       draftMarkdown: generated.draftMarkdown,
       visualBriefJson: generated.visualBrief,
+      supportingStatsJson: generated.supportingStats,
       infographicBriefJson: generated.infographicBrief,
       infographicFormat: generated.infographicBrief.format,
       infographicPanelsJson: generated.infographicBrief.panels,
@@ -531,7 +533,46 @@ function buildFallbackSocialDraft(input: {
     },
     mediaCandidates: buildFallbackMediaCandidates(input),
     mediaPolicy: buildFallbackMediaPolicy(input.assetMode),
+    supportingStats: buildFallbackSupportingStats(input),
     qualityScore: Math.min(9.2, Math.max(6.4, input.idea.qualityScore ?? 7))
+  });
+}
+
+function buildFallbackSupportingStats(input: {
+  channel: (typeof researchStreamChannels)[number];
+  idea: IdeaWithCluster;
+  topic: TopicRecord;
+  frameworkName: string;
+  styleName: string;
+  assetMode: string;
+}) {
+  const attributions = Array.isArray(input.idea.sourceAttributionJson)
+    ? input.idea.sourceAttributionJson.filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+    : [];
+
+  return attributions.slice(0, 2).map((entry) => {
+    const sourceType = typeof entry.sourceType === "string" ? entry.sourceType : "source";
+    const signalCount = typeof entry.signalCount === "number" ? entry.signalCount : null;
+    const sampleUrl = Array.isArray(entry.sampleUrls)
+      ? entry.sampleUrls.find((candidate): candidate is string => typeof candidate === "string" && candidate.startsWith("http"))
+      : null;
+
+    return {
+      claim:
+        signalCount && signalCount > 1
+          ? `${signalCount} recent ${sourceType} signals pointed at the same pain pattern behind ${input.idea.title}.`
+          : `Recent ${sourceType} evidence reinforced the core pain pattern behind ${input.idea.title}.`,
+      plainLanguageAngle:
+        input.channel === "linkedin"
+          ? "Use this as a credibility anchor before explaining the business implication."
+          : "Use this as a quick proof point before the sharper opinion.",
+      sourceName: sourceType,
+      sourceUrl: sampleUrl ?? "https://app.bizbrain.local/source-evidence",
+      sourceDate: null,
+      freshnessNote: "This stat is derived from the latest matched source evidence in BizBrain, not a third-party benchmark report.",
+      confidenceNote: signalCount && signalCount > 1 ? "Moderate confidence from repeated source matches." : "Low-to-moderate confidence; based on limited source evidence.",
+      recommendedUsage: `Use as a supporting stat in a ${input.frameworkName} draft with ${input.styleName} framing.`
+    };
   });
 }
 
@@ -762,6 +803,34 @@ const socialDraftJsonSchema = {
       },
       required: ["preferredSourceClasses", "prohibitedDirectUseSources", "humanReviewRequired", "publishingNotes"]
     },
+    supportingStats: {
+      type: "array",
+      maxItems: 5,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          claim: { type: "string" },
+          plainLanguageAngle: { type: "string" },
+          sourceName: { type: "string" },
+          sourceUrl: { type: "string", format: "uri" },
+          sourceDate: { type: ["string", "null"] },
+          freshnessNote: { type: "string" },
+          confidenceNote: { type: "string" },
+          recommendedUsage: { type: "string" }
+        },
+        required: [
+          "claim",
+          "plainLanguageAngle",
+          "sourceName",
+          "sourceUrl",
+          "sourceDate",
+          "freshnessNote",
+          "confidenceNote",
+          "recommendedUsage"
+        ]
+      }
+    },
     qualityScore: { type: "number", minimum: 0, maximum: 10 }
   },
   required: [
@@ -774,6 +843,7 @@ const socialDraftJsonSchema = {
     "cta",
     "draftMarkdown",
     "visualBrief",
+    "supportingStats",
     "infographicBrief",
     "mediaCandidates",
     "mediaPolicy",

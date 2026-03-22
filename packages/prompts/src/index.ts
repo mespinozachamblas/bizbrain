@@ -42,6 +42,7 @@ Goals:
 - produce copy that is useful, specific, and commercially insightful
 - include a visual brief and infographic outline that fit the post
 - include media candidates and a media policy that separate publishable or review-required sources from reference-only inspiration
+- include a small set of wow-factor statistics only when they can be framed conservatively and cited clearly
 
 Rules:
 - do not impersonate real people
@@ -51,5 +52,7 @@ Rules:
 - keep X content tighter and punchier than LinkedIn
 - treat Google Images, Pinterest, and similar discovery surfaces as reference-only unless independent license verification is available
 - prefer first-party assets, explicitly licensed stock, open-license libraries, and first-party generated assets for publishable or review-required suggestions
+- if you include statistics, provide source name, source URL, freshness note, confidence note, and recommended usage
+- if no credible statistic is available from the provided context, return an empty supportingStats array instead of inventing numbers
 `.trim();
 }

@@ -27,6 +27,17 @@ export const mediaCandidateSourceTypes = [
 ] as const;
 export const mediaCandidateUsageStatuses = ["publishable", "review-required", "reference-only"] as const;
 
+export const supportingStatSchema = z.object({
+  claim: z.string(),
+  plainLanguageAngle: z.string(),
+  sourceName: z.string(),
+  sourceUrl: z.string().url(),
+  sourceDate: z.string().nullable().optional(),
+  freshnessNote: z.string(),
+  confidenceNote: z.string(),
+  recommendedUsage: z.string()
+});
+
 export const digestSectionSchema = z.object({
   sectionTitle: z.string(),
   items: z.array(z.string()),
@@ -134,6 +145,7 @@ export const socialDraftSchema = z.object({
     humanReviewRequired: z.boolean(),
     publishingNotes: z.array(z.string()).min(1).max(6)
   }),
+  supportingStats: z.array(supportingStatSchema).max(5),
   qualityScore: z.number().min(0).max(10)
 });
 
@@ -152,6 +164,7 @@ export type ResearchStreamSlug = (typeof researchStreamSlugs)[number];
 export type MediaCandidateSourceType = (typeof mediaCandidateSourceTypes)[number];
 export type MediaCandidateUsageStatus = (typeof mediaCandidateUsageStatuses)[number];
 export type DigestSection = z.infer<typeof digestSectionSchema>;
+export type SupportingStat = z.infer<typeof supportingStatSchema>;
 export type SourceSignal = z.infer<typeof sourceSignalSchema>;
 export type SourceAdapterConfig = z.infer<typeof sourceAdapterConfigSchema>;
 export type SourceConfigRecord = z.infer<typeof sourceConfigRecordSchema>;

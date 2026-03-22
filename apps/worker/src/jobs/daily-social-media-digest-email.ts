@@ -278,11 +278,23 @@ type SocialDigestDraft = Awaited<ReturnType<typeof db.contentDraft.findMany<{
   };
 }>>>[number];
 
+type SupportingStat = {
+  claim: string;
+  plainLanguageAngle: string;
+  sourceName: string;
+  sourceUrl: string;
+  sourceDate: string | null;
+  freshnessNote: string;
+  confidenceNote: string;
+  recommendedUsage: string;
+};
+
 function buildSocialDigestSections(input: SocialDigestInputs) {
   const rankedDrafts = rankSocialDigestDrafts(input.drafts, input.priorDraftTitles, input.freshnessBaseline);
   const linkedinDrafts = rankedDrafts.filter((draft) => draft.targetChannel === "linkedin").slice(0, 3);
   const xDrafts = rankedDrafts.filter((draft) => draft.targetChannel === "x").slice(0, 3);
   const infographicDrafts = rankedDrafts.filter((draft) => hasInfographicPanels(draft.infographicPanelsJson)).slice(0, 3);
+  const topStats = collectTopSupportingStats(rankedDrafts).slice(0, 4);
   const healthAlerts = [
     ...input.failedJobs.map((job) => `Job ${job.jobName} failed at ${job.startedAt.toISOString()}.`),
     ...input.failedSourceChecks.map(
@@ -323,6 +335,18 @@ function buildSocialDigestSections(input: SocialDigestInputs) {
         infographicDrafts.length > 0
           ? "These concepts already have panel-ready structures for carousels or infographic-style posts."
           : "Infographic concepts will show up once draft generation creates visual and panel outlines."
+    },
+    {
+      sectionTitle: "Wow Factor Statistics",
+      items:
+        topStats.length > 0
+          ? topStats.map((stat) => formatSupportingStatLine(stat))
+          : ["No reviewable supporting statistics are available yet."],
+      alerts: [],
+      plainLanguageSummary:
+        topStats.length > 0
+          ? "These statistics are intended to give your social posts and infographics a stronger proof point, with source links and caveats."
+          : "Supporting statistics will show up here once the social generator captures reviewable quantitative claims."
     },
     {
       sectionTitle: "Pipeline Health Notes",
@@ -370,6 +394,51 @@ function formatInfographicLine(draft: SocialDigestDraft) {
 
 function hasInfographicPanels(value: unknown) {
   return toStringArray(value).length >= 3;
+}
+
+function readSupportingStats(value: unknown): SupportingStat[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+    .map((entry) => ({
+      claim: typeof entry.claim === "string" ? entry.claim : "No claim recorded.",
+      plainLanguageAngle: typeof entry.plainLanguageAngle === "string" ? entry.plainLanguageAngle : "No angle recorded.",
+      sourceName: typeof entry.sourceName === "string" ? entry.sourceName : "Unknown source",
+      sourceUrl: typeof entry.sourceUrl === "string" ? entry.sourceUrl : "https://app.bizbrain.local/source-evidence",
+      sourceDate: typeof entry.sourceDate === "string" ? entry.sourceDate : null,
+      freshnessNote: typeof entry.freshnessNote === "string" ? entry.freshnessNote : "No freshness note recorded.",
+      confidenceNote: typeof entry.confidenceNote === "string" ? entry.confidenceNote : "No confidence note recorded.",
+      recommendedUsage: typeof entry.recommendedUsage === "string" ? entry.recommendedUsage : "No usage guidance recorded."
+    }));
+}
+
+function collectTopSupportingStats(drafts: Array<SocialDigestDraft & { freshnessTag?: string | null }>) {
+  return drafts.flatMap((draft) =>
+    readSupportingStats(draft.supportingStatsJson).map((stat) => ({
+      ...stat,
+      draftTitle: draft.title,
+      topicName: draft.topic?.name ?? "Unassigned"
+    }))
+  );
+}
+
+function formatSupportingStatLine(
+  stat: SupportingStat & {
+    draftTitle: string;
+    topicName: string;
+  }
+) {
+  return [
+    stat.claim,
+    `Topic: ${stat.topicName}`,
+    `Draft: ${stat.draftTitle}`,
+    `Source: ${stat.sourceName} (${stat.sourceUrl})`,
+    `Freshness: ${ensureSentence(stat.freshnessNote)}`,
+    `Confidence: ${ensureSentence(stat.confidenceNote)}`
+  ].join(" | ");
 }
 
 function toStringArray(value: unknown) {

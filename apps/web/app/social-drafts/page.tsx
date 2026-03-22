@@ -198,10 +198,48 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                       <div className="draftSidebar">
                         <div className="stackCompact">
                         <p className="rowMeta"><strong>Visual brief:</strong> {readObjectField(draft.visualBriefJson, "concept") ?? "No visual brief yet."}</p>
+                        <p className="rowMeta"><strong>Supporting stats:</strong> {readSupportingStats(draft.supportingStatsJson).length}</p>
                         <p className="rowMeta"><strong>Infographic format:</strong> {draft.infographicFormat ?? "Not set"}</p>
                         <p className="rowMeta"><strong>Infographic panels:</strong> {formatListInput(draft.infographicPanelsJson) || "No panel outline yet."}</p>
                         <p className="rowMeta"><strong>Asset mode:</strong> {draft.assetMode ?? "none"}</p>
                         <p className="rowMeta"><strong>Asset review:</strong> {draft.assetStatus ?? "draft"}</p>
+                        </div>
+                        <div className="evidenceSection">
+                          <p className="rowBody">
+                            <strong>Supporting statistics:</strong>
+                          </p>
+                          {readSupportingStats(draft.supportingStatsJson).length === 0 ? (
+                            <p className="rowMeta">No reviewable statistics attached yet.</p>
+                          ) : (
+                            <div className="stack">
+                              {readSupportingStats(draft.supportingStatsJson).map((stat, index) => (
+                                <div className="evidenceCard" key={`${draft.id}-stat-${index}`}>
+                                  <p className="rowTitle">{stat.claim}</p>
+                                  <p className="rowBody">
+                                    <strong>Angle:</strong> {stat.plainLanguageAngle}
+                                  </p>
+                                  <p className="rowBody">
+                                    <strong>Usage:</strong> {stat.recommendedUsage}
+                                  </p>
+                                  <p className="rowMeta">
+                                    {stat.sourceName} · {stat.sourceDate ?? "date not stored"}
+                                  </p>
+                                  <p className="rowBody">
+                                    <strong>Freshness:</strong> {stat.freshnessNote}
+                                  </p>
+                                  <p className="rowBody">
+                                    <strong>Confidence:</strong> {stat.confidenceNote}
+                                  </p>
+                                  <p className="rowMeta">
+                                    <strong>Source:</strong>{" "}
+                                    <a href={stat.sourceUrl} rel="noreferrer" target="_blank">
+                                      {stat.sourceUrl}
+                                    </a>
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <div className="evidenceSection">
                           <p className="rowBody">
@@ -386,6 +424,25 @@ function readMediaCandidates(value: unknown) {
       rightsNotes: Array.isArray(entry.rightsNotes)
         ? entry.rightsNotes.filter((note): note is string => typeof note === "string")
         : []
+    }));
+}
+
+function readSupportingStats(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+    .map((entry) => ({
+      claim: typeof entry.claim === "string" ? entry.claim : "No claim recorded.",
+      plainLanguageAngle: typeof entry.plainLanguageAngle === "string" ? entry.plainLanguageAngle : "No angle recorded.",
+      sourceName: typeof entry.sourceName === "string" ? entry.sourceName : "Unknown source",
+      sourceUrl: typeof entry.sourceUrl === "string" ? entry.sourceUrl : "#",
+      sourceDate: typeof entry.sourceDate === "string" ? entry.sourceDate : null,
+      freshnessNote: typeof entry.freshnessNote === "string" ? entry.freshnessNote : "No freshness note recorded.",
+      confidenceNote: typeof entry.confidenceNote === "string" ? entry.confidenceNote : "No confidence note recorded.",
+      recommendedUsage: typeof entry.recommendedUsage === "string" ? entry.recommendedUsage : "No usage guidance recorded."
     }));
 }
 
