@@ -8,6 +8,7 @@ This version uses a **Railway-first operational architecture** with:
 - Resend for outbound daily email
 - separate research streams for opportunity research and social media research
 - configurable copy frameworks, style profiles, visual briefs, and infographic briefs for social media outputs across LinkedIn and X
+- media candidate provenance and review states for social visuals and infographics
 - Cursor/Codex as development and maintenance agents, not as the core runtime
 
 ## 2. Architectural Principle
@@ -59,6 +60,7 @@ Agents should not be the sole mechanism that keeps daily production jobs alive.
 - public data source adapters
 - OpenAI for structured generation tasks
 - Resend for email delivery
+- media source and discovery integrations with provenance capture
 - GitHub for repo automation
 
 ## 4. Sequence Flow
@@ -94,6 +96,15 @@ Mitigation:
 - persist digest before send
 - retry sends without rerunning discovery
 - log provider response
+
+### Media rights failure
+Impact:
+- post asset or infographic is not safe to publish
+Mitigation:
+- keep provenance and license metadata with every candidate
+- treat Google Images and Pinterest as reference-only unless origin rights are verified
+- require human review before publishable use
+- keep generated visuals separate from third-party source assets
 
 ### Model output failure
 Impact:

@@ -65,6 +65,9 @@
 - add configurable marketer-style profiles and trait bundles
 - add visual brief generation for stock and AI-generated asset modes
 - add infographic brief and panel-outline generation for LinkedIn educational posts
+- add media candidate provenance schema and review workflow
+- add media-source policy with approved, review-required, and reference-only source classes
+- add legal-safety checks for trademarks, likenesses, attribution, and unverified discovery-source reuse
 - build separate markdown and HTML templates
 - implement stream-specific recipients and subject lines
 - deploy `cron-daily-social-media-digest-email`
@@ -82,6 +85,7 @@
 - source health checks
 - retry tooling for failed digests
 - analytics around which ideas are opened, promoted, or rejected
+- periodic audit of media candidates lacking provenance or review decisions
 
 ## Suggested Order of Work in Cursor/Codex
 1. repo setup and rules
@@ -93,15 +97,17 @@
 7. topic and stream management
 8. opportunity digest generation
 9. social media research generation
-10. email delivery
-11. tests and fixtures
-12. maintenance workflows
+10. media provenance and legal-safety workflow
+11. email delivery
+12. tests and fixtures
+13. maintenance workflows
 
 ## Definition of Done for MVP
 - daily jobs run end to end on Railway
 - top results are visible in app
 - daily digest email sends successfully through Resend to each configured recipient
 - social media research digest sends successfully through Resend to each configured recipient
+- social media media candidates are clearly labeled publishable, review-required, or reference-only with provenance retained
 - job-run logs explain what happened each day
 - source health and source-level failures are visible in the app
 - topics and research streams can be configured without code changes

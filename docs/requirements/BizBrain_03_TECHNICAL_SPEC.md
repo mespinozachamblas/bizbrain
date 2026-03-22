@@ -90,6 +90,7 @@ A Firestore adapter may still be added later if you want shared patterns with ot
 - opportunity scores
 - ideas
 - social media research drafts
+- media candidates and provenance
 - validation notes
 
 ### Operations
@@ -167,6 +168,7 @@ The same delivery pattern should be used for both the opportunity digest and the
 Optional future provider vars:
 - stock media provider credentials
 - image generation provider credentials
+- optional media discovery provider credentials where terms allow it
 
 ## 9. AI Output Contracts
 All model output used by the pipeline must be schema-validated.
@@ -184,6 +186,15 @@ All model output used by the pipeline must be schema-validated.
 Social media draft contracts must support at least `linkedin` and `x` target channels.
 
 The pipeline should never rely on free-form LLM prose alone for downstream writes.
+
+## 9A. Media Sourcing and Rights Guardrails
+- The system must distinguish between `publishable`, `review-required`, and `reference-only` media candidates.
+- Own images, explicitly licensed stock/open-license libraries, and first-party generated assets are preferred publishable sources.
+- Preferred publishable-source classes include first-party assets plus providers such as Unsplash, Pexels, Pixabay, Openverse, and Wikimedia Commons, subject to per-asset review where required.
+- Google Images, Pinterest, and similar discovery surfaces must be treated as reference-only or origin-discovery inputs unless the original asset page and license are verified independently.
+- The system must store origin URL, source type, license label when known, attribution requirement when known, and reviewer decision for every retained media candidate.
+- The system must not auto-publish or auto-attach media candidates that include unverified trademarks, logos, celebrity/public-figure likenesses, or identifiable people without a documented rights basis.
+- Visual briefs and infographic briefs may cite reference imagery, but generated output must not assume those references are licensed for direct reuse.
 
 ## 10. Error Handling
 - invalid model output is quarantined, not silently accepted
@@ -210,6 +221,7 @@ The pipeline should never rely on free-form LLM prose alone for downstream write
 - multi-recipient delivery must support safe non-production overrides
 - prompts and templates treated as versioned assets
 - migrations require review-first workflow
+- media publication requires a human review gate before anything discovered through third-party imagery sources is used in a sent or exported asset
 
 ## 13. Testing
 - unit tests for scoring, normalization, and digest selection

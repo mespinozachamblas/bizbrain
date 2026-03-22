@@ -39,6 +39,7 @@
 - Research stream settings screen stores stream metadata, enabled status, and email delivery preferences.
 - Sources can contribute to more than one topic and more than one stream where appropriate.
 - Social media research settings store enabled channels such as `linkedin` and `x`, plus default copy framework, style profile, and media mode preferences per topic or per stream.
+- Social media research settings must also support a media sourcing policy that distinguishes allowed publishable sources from reference-only discovery sources.
 
 ## 3. Ingestion Jobs
 ### Requirements
@@ -184,11 +185,16 @@ The final opportunity score is calculated from weighted components. Finance idea
 - User can review, accept, reject, or revisit generated content drafts without affecting idea statuses.
 - The system can generate a visual brief for each content draft.
 - Visual brief can target `none`, `stock`, or `ai-generated` asset modes.
+- The system can propose media candidates from approved or reference-only sources, but must label whether each candidate is publishable, attribution-required, or reference-only.
+- Approved publishable-source classes may include first-party images, explicitly licensed stock libraries, and open-license media indexes such as Unsplash, Pexels, Pixabay, Openverse, and Wikimedia Commons.
+- Google Images, Pinterest, and similar search/discovery surfaces must be treated as reference-only or source-discovery inputs unless the original asset license is independently verified from the origin site.
 - The system can generate infographic concepts and outlines for LinkedIn posts.
 - Infographic outputs can target carousel, single-image infographic, or short data-story formats.
 - The system must support configurable copy frameworks and style profiles without code changes.
 - Style profiles must be implemented as configurable traits and instructions, not as literal impersonation requirements.
 - Suggested stock or AI-generated assets must remain reviewable and optional before use.
+- Suggested media must keep provenance metadata including origin URL, source type, license label when known, attribution requirement when known, and review status.
+- The system must avoid suggesting direct reuse of logos, trademarks, celebrity/public-figure likenesses, copyrighted editorial photos, or identifiable people without clear rights or review.
 
 ### Output fields
 - target channel
@@ -205,6 +211,9 @@ The final opportunity score is calculated from weighted components. Finance idea
 - draft X post
 - draft X thread outline
 - visual brief
+- media candidates
+- media provenance
+- publishability status
 - asset mode recommendation
 - infographic brief
 - infographic format

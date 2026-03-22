@@ -75,6 +75,7 @@ The MVP is successful if it:
 - separate daily email digest for social media research
 - manual idea review workflow
 - notes, tags, status transitions
+- reviewable media candidate workflow for social posts and infographics
 
 ### Topic and stream configuration
 - configurable topics with keywords, exclusions, and source preferences
@@ -82,6 +83,7 @@ The MVP is successful if it:
 - stream-specific recipients and delivery preferences
 - configurable copy frameworks such as AIDA, PAS, BAB, and educational authority-led structures
 - configurable marketer-style profiles inspired by established schools of direct response and category marketing such as Russell Brunson, David Ogilvy, Eugene Schwartz, Claude Hopkins, Gary Halbert, Joanna Wiebe, April Dunford, and Seth Godin
+- media source classes that can distinguish preferred publishable libraries such as Unsplash, Pexels, Pixabay, Openverse, Wikimedia Commons, and first-party images from reference-only discovery surfaces such as Google Images and Pinterest
 
 ### Automation
 - Railway cron jobs
@@ -100,6 +102,7 @@ The MVP is successful if it:
 - complex team permissions
 - automated social post publishing
 - guaranteed rights-cleared media licensing beyond configured stock providers
+- direct publication of assets discovered only through Google Images, Pinterest, or similar search/discovery surfaces without independent license verification
 
 ## User Stories
 - As a user, I want the system to ingest signals each day so I do not need to hunt manually.
@@ -115,6 +118,8 @@ The MVP is successful if it:
 - As a user, I want to choose a marketer-style profile so content can lean more direct-response, educational, contrarian, or category-creation oriented.
 - As a user, I want optional stock-image or AI-image guidance for social posts without forcing media generation every time.
 - As a user, I want optional infographic concepts and outlines for LinkedIn so the system can turn research into visual educational content.
+- As a user, I want the system to distinguish between reference-only imagery and publishable assets so I do not accidentally reuse content without rights.
+- As a user, I want media candidates to keep license, provenance, and attribution notes so I can review legal risk before publishing.
 - As a user, I want evidence linked to each idea so I can verify why it surfaced.
 - As a developer, I want clear project rules and skills so Cursor/Codex can work on the repo safely.
 - As a developer, I want scheduled jobs separated by responsibility so failures are isolated and easy to debug.
@@ -180,6 +185,8 @@ The system must email one or more configured recipients a daily summary with str
 - draft X post or thread directions or outlines
 - optional visual brief for stock or AI-generated media
 - optional infographic brief or outline for LinkedIn carousel or single-image educational posts
+- optional media candidate summaries that clearly label `publishable` versus `reference-only`
+- provenance notes for any suggested media asset that may require attribution, a release, or a manual rights check
 - audience and CTA suggestions
 - failed or skipped sources, if any
 - next recommended actions
@@ -190,6 +197,8 @@ The system must email one or more configured recipients a daily summary with str
 - LLM output can overstate certainty
 - topic configuration can become too broad and dilute relevance
 - overly rigid style profiles can make social media drafts feel synthetic or repetitive
+- reference imagery from search/discovery platforms can be mistaken for reusable assets unless provenance and rights checks are explicit
+- generated media can create trademark, likeness, or implied-endorsement risk if human review is skipped
 - cron runs can overlap or be skipped if not designed carefully
 - agents can over-edit architecture without strict repo controls
 - email digests can become verbose or repetitive
@@ -202,3 +211,5 @@ The system must email one or more configured recipients a daily summary with str
 - explainable scores
 - human review for high-impact changes
 - repo-local rules before clever prompts
+- treat Google Images, Pinterest, and similar discovery surfaces as inspiration or source-discovery tools, not automatic publishable asset libraries
+- require provenance, license context, and review state for any media candidate proposed for publication

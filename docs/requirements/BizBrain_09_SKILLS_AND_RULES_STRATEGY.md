@@ -84,6 +84,7 @@ Do not move core business logic or architecture-specific rules into a broad shar
 - topic configuration and research stream routing
 - separate opportunity and social-media digest handling
 - configurable copy framework and style-profile guardrails
+- media provenance, publishability, and legal-safety guardrails for social content
 
 ## 6. Review Cadence
 Review the rules and skills after:

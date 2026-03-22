@@ -34,6 +34,7 @@ Each social media research digest must include:
 - supporting evidence snippets or links
 - target audience context
 - optional visual brief summary for stock or AI-generated assets
+- optional media candidate summary with publishability labels and provenance notes
 - optional infographic brief summary for carousel or infographic-style LinkedIn posts
 - caution notes if a source or job failed
 - one or more structured draft post outputs
@@ -65,6 +66,7 @@ Each social media research digest must include:
 - direct link back to the app for full review
 - clear indication of which research stream produced the email
 - stream-specific framing so social media research is not confused with business opportunity research
+- do not imply a media candidate is safe to publish unless the candidate has a documented publishable or reviewed status
 
 ## 8. Optional Future Enhancements
 - Resend webhook ingestion for delivery and bounce events

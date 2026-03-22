@@ -208,6 +208,7 @@
 - asset_mode
 - asset_status
 - asset_candidates_json
+- media_policy_json
 - quality_score
 - source_attribution_json
 - status
@@ -493,11 +494,26 @@ Updates:
 - `draftXPost`
 - `draftXThreadOutline[]`
 - `visualBrief`
+- `mediaCandidates[]`
+- `mediaPolicy`
 - `infographicBrief`
 - `infographicFormat`
 - `infographicPanels[]`
 - `assetMode`
 - `sourceAttribution[]`
+
+### media candidate schema
+- `sourceType`
+- `originUrl`
+- `originDomain`
+- `candidateUrl`
+- `licenseLabel`
+- `licenseUrl`
+- `attributionText`
+- `usageStatus`
+- `requiresHumanReview`
+- `referenceOnly`
+- `rightsNotes[]`
 
 ### digest item schema
 - `sectionTitle`
