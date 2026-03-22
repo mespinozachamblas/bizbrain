@@ -12,37 +12,61 @@ const jobDefinitions: Record<
     scope: string;
     output: string;
     scheduleOwner: string;
+    railwayService: string;
+    cronUtc: string | null;
+    localTime: string;
+    rolloutState: string;
   }
 > = {
   "daily-ingest": {
     role: "Shared upstream job",
     scope: "Reads enabled source configs and writes raw signals plus per-source run records.",
     output: "Feeds both opportunity and social-media research.",
-    scheduleOwner: "Railway cron service"
+    scheduleOwner: "Railway cron service",
+    railwayService: "cron-daily-ingest",
+    cronUtc: "05 06 * * *",
+    localTime: "12:05 AM America/Edmonton",
+    rolloutState: "live"
   },
   "daily-enrich-score": {
     role: "Shared upstream job",
     scope: "Enriches raw signals, updates clusters, ideas, and social content drafts.",
     output: "Feeds both downstream digest jobs.",
-    scheduleOwner: "Railway cron service"
+    scheduleOwner: "Railway cron service",
+    railwayService: "cron-daily-enrich-score",
+    cronUtc: "20 06 * * *",
+    localTime: "12:20 AM America/Edmonton",
+    rolloutState: "live"
   },
   "daily-digest-email": {
     role: "Output job",
     scope: "Builds and sends the opportunity-research digest.",
     output: "Business opportunity email stream.",
-    scheduleOwner: "Railway cron service"
+    scheduleOwner: "Railway cron service",
+    railwayService: "cron-daily-digest-email",
+    cronUtc: "35 06 * * *",
+    localTime: "12:35 AM America/Edmonton",
+    rolloutState: "live"
   },
   "daily-social-media-digest-email": {
     role: "Output job",
     scope: "Builds and sends the social-media-research digest.",
     output: "LinkedIn/X research email stream.",
-    scheduleOwner: "Railway cron service"
+    scheduleOwner: "Railway cron service",
+    railwayService: "cron-daily-social-media-digest-email",
+    cronUtc: null,
+    localTime: "Not scheduled yet",
+    rolloutState: "pending"
   },
   "weekly-maintenance": {
     role: "Maintenance job",
     scope: "Runs periodic cleanup and maintenance tasks.",
     output: "Operational hygiene only.",
-    scheduleOwner: "Railway cron service"
+    scheduleOwner: "Railway cron service",
+    railwayService: "cron-weekly-maintenance",
+    cronUtc: "00 08 * * 0",
+    localTime: "2:00 AM Sunday America/Edmonton",
+    rolloutState: "live"
   }
 };
 
@@ -92,6 +116,11 @@ export default async function JobsPage() {
               The actual schedule source of truth for job execution is Railway. Stream-level schedule fields are planning metadata
               unless a matching cron service exists.
             </p>
+            <p className="rowBody">
+              <strong>Social posts scheduling:</strong> the social-media generation already happens inside the shared enrich job,
+              but the dedicated <code>daily-social-media-digest-email</code> cron service is still pending. That is the next
+              operational step once you want automatic social research emails on a cadence.
+            </p>
             <p className="rowMeta">
               Need to run something now? Go back to <Link href="/">Operations</Link>.
             </p>
@@ -120,10 +149,51 @@ export default async function JobsPage() {
                   <p className="rowBody">
                     <strong>Feeds:</strong> {definition?.output ?? "No output mapping yet."}
                   </p>
+                  <p className="rowBody">
+                    <strong>Railway service:</strong> {definition?.railwayService ?? "Not mapped"}
+                  </p>
+                  <p className="rowBody">
+                    <strong>UTC cron:</strong> {definition?.cronUtc ?? "Pending service creation"}
+                  </p>
+                  <p className="rowBody">
+                    <strong>Current Edmonton-local expectation:</strong> {definition?.localTime ?? "Not mapped"}
+                  </p>
                   <p className="rowMeta">
                     {latestRun
                       ? `Latest run: ${formatDate(latestRun.startedAt)} · ${latestRun.runStatus} · read ${latestRun.recordsRead} · wrote ${latestRun.recordsWritten}`
                       : "No recorded run yet."}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </article>
+
+        <article className="card cardTall">
+          <div className="cardHeader">
+            <h2>Cron ownership</h2>
+            <span className="badge">Schedules</span>
+          </div>
+          <div className="stack">
+            {jobNames.map((jobName) => {
+              const definition = jobDefinitions[jobName];
+
+              return (
+                <div className="evidenceCard" key={`${jobName}-schedule`}>
+                  <p className="rowTitle">{definition?.railwayService ?? jobName}</p>
+                  <p className="rowMeta">
+                    {jobName} · <span className={`status status-${definition?.rolloutState === "live" ? "enabled" : "running"}`}>{definition?.rolloutState ?? "unknown"}</span>
+                  </p>
+                  <p className="rowBody">
+                    <strong>UTC cron:</strong> {definition?.cronUtc ?? "Pending"}
+                  </p>
+                  <p className="rowBody">
+                    <strong>Current Edmonton-local time:</strong> {definition?.localTime ?? "Pending"}
+                  </p>
+                  <p className="rowMeta">
+                    {definition?.rolloutState === "live"
+                      ? "This job has a dedicated Railway service and schedule."
+                      : "The job exists in code and in the app, but the dedicated Railway cron service has not been created yet."}
                   </p>
                 </div>
               );
