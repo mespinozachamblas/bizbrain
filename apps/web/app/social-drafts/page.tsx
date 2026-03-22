@@ -198,7 +198,12 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                       <div className="draftSidebar">
                         <div className="stackCompact">
                         <p className="rowMeta"><strong>Visual brief:</strong> {readObjectField(draft.visualBriefJson, "concept") ?? "No visual brief yet."}</p>
-                        <p className="rowMeta"><strong>Supporting stats:</strong> {readSupportingStats(draft.supportingStatsJson).length}</p>
+                        <p className="rowMeta">
+                          <strong>Supporting stats:</strong> {readSupportingStats(draft.supportingStatsJson).length}
+                          {readSupportingStats(draft.supportingStatsJson).length > 0
+                            ? ` · ${summarizeStatSourceClasses(readSupportingStats(draft.supportingStatsJson))}`
+                            : ""}
+                        </p>
                         <p className="rowMeta"><strong>Infographic format:</strong> {draft.infographicFormat ?? "Not set"}</p>
                         <p className="rowMeta"><strong>Infographic panels:</strong> {formatListInput(draft.infographicPanelsJson) || "No panel outline yet."}</p>
                         <p className="rowMeta"><strong>Asset mode:</strong> {draft.assetMode ?? "none"}</p>
@@ -214,6 +219,9 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                             <div className="stack">
                               {readSupportingStats(draft.supportingStatsJson).map((stat, index) => (
                                 <div className="evidenceCard" key={`${draft.id}-stat-${index}`}>
+                                  <p className="rowMeta">
+                                    <span className="badge">{stat.sourceClassLabel}</span>
+                                  </p>
                                   <p className="rowTitle">{stat.claim}</p>
                                   <p className="rowBody">
                                     <strong>Angle:</strong> {stat.plainLanguageAngle}
@@ -442,8 +450,38 @@ function readSupportingStats(value: unknown) {
       sourceDate: typeof entry.sourceDate === "string" ? entry.sourceDate : null,
       freshnessNote: typeof entry.freshnessNote === "string" ? entry.freshnessNote : "No freshness note recorded.",
       confidenceNote: typeof entry.confidenceNote === "string" ? entry.confidenceNote : "No confidence note recorded.",
-      recommendedUsage: typeof entry.recommendedUsage === "string" ? entry.recommendedUsage : "No usage guidance recorded."
+      recommendedUsage: typeof entry.recommendedUsage === "string" ? entry.recommendedUsage : "No usage guidance recorded.",
+      sourceClassLabel: inferStatSourceClass(
+        typeof entry.sourceName === "string" ? entry.sourceName : "Unknown source",
+        typeof entry.sourceUrl === "string" ? entry.sourceUrl : "#"
+      )
     }));
+}
+
+function inferStatSourceClass(sourceName: string, sourceUrl: string) {
+  const normalizedName = sourceName.toLowerCase();
+  const normalizedUrl = sourceUrl.toLowerCase();
+
+  if (normalizedName.includes("google trends") || normalizedUrl.includes("trends.google.com")) {
+    return "Google Trends";
+  }
+
+  if (normalizedName.includes("product hunt") || normalizedUrl.includes("producthunt.com")) {
+    return "Product Hunt";
+  }
+
+  if (normalizedName.includes("bizbrain") || normalizedUrl.includes("app.bizbrain.local")) {
+    return "Cluster Evidence";
+  }
+
+  return "External Evidence";
+}
+
+function summarizeStatSourceClasses(
+  stats: Array<ReturnType<typeof readSupportingStats>[number]>
+) {
+  const labels = [...new Set(stats.map((stat) => stat.sourceClassLabel))];
+  return labels.join(", ");
 }
 
 function normalizeDraftStatus(status: string) {
