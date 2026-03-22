@@ -1,5 +1,6 @@
 import { db } from "@bizbrain/db";
 import { sourceTypes, type SourceType } from "@bizbrain/core";
+import { ServerActionForm } from "../action-forms";
 import { createSourceConfig, runPipelineJob, runSourceCheck, updateSourceConfig } from "../actions";
 import {
   formatDate,
@@ -94,7 +95,7 @@ export default async function SourcesPage({ searchParams }: PageProps) {
             <h2>Create source config</h2>
             <span className="badge">Create</span>
           </div>
-          <form action={createSourceConfig} className="adminForm">
+          <ServerActionForm action={createSourceConfig} className="adminForm">
             <label className="fieldLabel">
               Source type
               <select className="fieldInput" defaultValue={sourceTypes[0]} name="sourceType">
@@ -153,7 +154,7 @@ export default async function SourcesPage({ searchParams }: PageProps) {
             <button className="jobButton" type="submit">
               Create source config
             </button>
-          </form>
+          </ServerActionForm>
         </article>
 
         <article className="card cardTall">
@@ -222,7 +223,7 @@ export default async function SourcesPage({ searchParams }: PageProps) {
                     </summary>
                     <div className="draftDetailGrid">
                       <div className="draftPrimary">
-                        <form action={updateSourceConfig} className="adminForm adminFormCompact">
+                        <ServerActionForm action={updateSourceConfig} className="adminForm adminFormCompact">
                           <input name="id" type="hidden" value={source.id} />
                           <label className="fieldLabel">
                             Source type
@@ -305,7 +306,7 @@ export default async function SourcesPage({ searchParams }: PageProps) {
                           <button className="jobButton jobButtonSecondary" type="submit">
                             Save source config
                           </button>
-                        </form>
+                        </ServerActionForm>
                         <div className="stackCompact">
                           <p className="rowBody">
                             <strong>Latest run:</strong>{" "}

@@ -1,3 +1,4 @@
+import { ServerActionForm } from "../action-forms";
 import { createTopic, updateTopic } from "../actions";
 import { formatListInput, getDashboardData, matchesTopicSearch, readSearchParam } from "../dashboard-data";
 import { EmptyState } from "../dashboard-ui";
@@ -34,7 +35,7 @@ export default async function TopicsPage({ searchParams }: PageProps) {
             <h2>Create topic</h2>
             <span className="badge">Topics</span>
           </div>
-          <form action={createTopic} className="adminForm">
+          <ServerActionForm action={createTopic} className="adminForm">
             <label className="fieldLabel">
               Research stream
               <select className="fieldInput" defaultValue={dashboard.researchStreams[0]?.id ?? ""} name="researchStreamId" required>
@@ -106,7 +107,7 @@ export default async function TopicsPage({ searchParams }: PageProps) {
             <button className="jobButton" disabled={dashboard.researchStreams.length === 0} type="submit">
               Create topic
             </button>
-          </form>
+          </ServerActionForm>
         </article>
 
         <article className="card cardTall">
@@ -155,7 +156,7 @@ export default async function TopicsPage({ searchParams }: PageProps) {
                     </div>
                     <span className="status status-skipped">Edit</span>
                   </summary>
-                  <form action={updateTopic} className="adminForm adminFormCompact">
+                  <ServerActionForm action={updateTopic} className="adminForm adminFormCompact">
                     <input name="id" type="hidden" value={topic.id} />
                     <label className="fieldLabel">
                       Research stream
@@ -231,7 +232,7 @@ export default async function TopicsPage({ searchParams }: PageProps) {
                     <button className="jobButton jobButtonSecondary" type="submit">
                       Save topic
                     </button>
-                  </form>
+                  </ServerActionForm>
                 </details>
               ))}
             </div>

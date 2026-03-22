@@ -1,3 +1,4 @@
+import { ServerActionForm } from "../action-forms";
 import { createResearchStream, updateResearchStream } from "../actions";
 import { getDashboardData, matchesStreamSearch, readSearchParam, formatChannelInput } from "../dashboard-data";
 import { EmptyState } from "../dashboard-ui";
@@ -31,7 +32,7 @@ export default async function ResearchStreamsPage({ searchParams }: PageProps) {
             <h2>Create research stream</h2>
             <span className="badge">Config</span>
           </div>
-          <form action={createResearchStream} className="adminForm">
+          <ServerActionForm action={createResearchStream} className="adminForm">
             <label className="fieldLabel">
               Name
               <input className="fieldInput" name="name" placeholder="Social Media Research" required type="text" />
@@ -67,7 +68,7 @@ export default async function ResearchStreamsPage({ searchParams }: PageProps) {
             <button className="jobButton" type="submit">
               Create stream
             </button>
-          </form>
+          </ServerActionForm>
         </article>
 
         <article className="card cardTall">
@@ -106,7 +107,7 @@ export default async function ResearchStreamsPage({ searchParams }: PageProps) {
                     </div>
                     <span className="status status-skipped">Edit</span>
                   </summary>
-                  <form action={updateResearchStream} className="adminForm adminFormCompact">
+                  <ServerActionForm action={updateResearchStream} className="adminForm adminFormCompact">
                     <input name="id" type="hidden" value={stream.id} />
                     <label className="fieldLabel">
                       Name
@@ -143,7 +144,7 @@ export default async function ResearchStreamsPage({ searchParams }: PageProps) {
                     <button className="jobButton jobButtonSecondary" type="submit">
                       Save stream
                     </button>
-                  </form>
+                  </ServerActionForm>
                 </details>
               ))}
             </div>

@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { regenerateIdeaById } from "../../worker/src/jobs/daily-enrich-score";
 import { workerJobs } from "../../worker/src/jobs/registry";
 import { regenerateSocialDraftById } from "../../worker/src/jobs/social-content";
+import { type ActionState } from "./action-forms";
 import { runSourceHealthCheck } from "./source-health";
 
 export async function runPipelineJob(formData: FormData) {
@@ -35,108 +36,118 @@ export async function runSourceCheck(formData: FormData) {
   revalidatePath("/sources");
 }
 
-export async function createSourceConfig(formData: FormData) {
-  const sourceType = readRequiredString(formData, "sourceType");
-  const enabled = readBoolean(formData, "enabled", true);
-  const researchStreamIds = readStringList(formData, "researchStreamIds");
-  const topicIds = readStringList(formData, "topicIds");
-  const nicheModes = parseCommaSeparatedString(readOptionalString(formData, "nicheModes"));
-  const configJson = buildSourceConfigFromFormData(formData, sourceType);
-  const changeReason = readOptionalString(formData, "changeReason") ?? "Initial source config creation";
+export async function createSourceConfig(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const sourceType = readRequiredString(formData, "sourceType");
+    const enabled = readBoolean(formData, "enabled", true);
+    const researchStreamIds = readStringList(formData, "researchStreamIds");
+    const topicIds = readStringList(formData, "topicIds");
+    const nicheModes = parseCommaSeparatedString(readOptionalString(formData, "nicheModes"));
+    const configJson = buildSourceConfigFromFormData(formData, sourceType);
+    const changeReason = readOptionalString(formData, "changeReason") ?? "Initial source config creation";
 
-  if (!sourceTypes.includes(sourceType as (typeof sourceTypes)[number])) {
-    throw new Error(`Unsupported source type: ${sourceType}`);
-  }
+    if (!sourceTypes.includes(sourceType as (typeof sourceTypes)[number])) {
+      throw new Error(`Unsupported source type: ${sourceType}`);
+    }
 
-  await validateSourceRelations({ researchStreamIds, topicIds });
+    await validateSourceRelations({ researchStreamIds, topicIds });
 
-  await db.$transaction(async (tx) => {
-    const sourceConfig = await tx.sourceConfig.create({
-      data: {
-        sourceType,
-        enabled,
-        researchStreamIdsJson: researchStreamIds,
-        topicIdsJson: topicIds,
-        nicheModes,
-        configJson
-      }
-    });
-
-    await tx.sourceConfigVersion.create({
-      data: {
-        sourceConfigId: sourceConfig.id,
-        versionNumber: 1,
-        configJson: {
+    await db.$transaction(async (tx) => {
+      const sourceConfig = await tx.sourceConfig.create({
+        data: {
           sourceType,
           enabled,
-          researchStreamIds,
-          topicIds,
+          researchStreamIdsJson: researchStreamIds,
+          topicIdsJson: topicIds,
           nicheModes,
           configJson
-        },
-        changeReason
-      }
-    });
-  });
+        }
+      });
 
-  revalidatePath("/");
-  revalidatePath("/sources");
+      await tx.sourceConfigVersion.create({
+        data: {
+          sourceConfigId: sourceConfig.id,
+          versionNumber: 1,
+          configJson: {
+            sourceType,
+            enabled,
+            researchStreamIds,
+            topicIds,
+            nicheModes,
+            configJson
+          },
+          changeReason
+        }
+      });
+    });
+
+    revalidatePath("/");
+    revalidatePath("/sources");
+    return { status: "success", message: "Source config created." };
+  } catch (error) {
+    return toActionErrorState(error);
+  }
 }
 
-export async function updateSourceConfig(formData: FormData) {
-  const id = readRequiredString(formData, "id");
-  const sourceType = readRequiredString(formData, "sourceType");
-  const enabled = readBoolean(formData, "enabled", false);
-  const researchStreamIds = readStringList(formData, "researchStreamIds");
-  const topicIds = readStringList(formData, "topicIds");
-  const nicheModes = parseCommaSeparatedString(readOptionalString(formData, "nicheModes"));
-  const configJson = buildSourceConfigFromFormData(formData, sourceType);
-  const changeReason = readOptionalString(formData, "changeReason") ?? "Updated source config from dashboard";
+export async function updateSourceConfig(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const id = readRequiredString(formData, "id");
+    const sourceType = readRequiredString(formData, "sourceType");
+    const enabled = readBoolean(formData, "enabled", false);
+    const researchStreamIds = readStringList(formData, "researchStreamIds");
+    const topicIds = readStringList(formData, "topicIds");
+    const nicheModes = parseCommaSeparatedString(readOptionalString(formData, "nicheModes"));
+    const configJson = buildSourceConfigFromFormData(formData, sourceType);
+    const changeReason = readOptionalString(formData, "changeReason") ?? "Updated source config from dashboard";
 
-  if (!sourceTypes.includes(sourceType as (typeof sourceTypes)[number])) {
-    throw new Error(`Unsupported source type: ${sourceType}`);
-  }
+    if (!sourceTypes.includes(sourceType as (typeof sourceTypes)[number])) {
+      throw new Error(`Unsupported source type: ${sourceType}`);
+    }
 
-  await validateSourceRelations({ researchStreamIds, topicIds });
+    await validateSourceRelations({ researchStreamIds, topicIds });
 
-  await db.$transaction(async (tx) => {
-    const latestVersion = await tx.sourceConfigVersion.findFirst({
-      where: { sourceConfigId: id },
-      orderBy: { versionNumber: "desc" },
-      select: { versionNumber: true }
-    });
+    await db.$transaction(async (tx) => {
+      const latestVersion = await tx.sourceConfigVersion.findFirst({
+        where: { sourceConfigId: id },
+        orderBy: { versionNumber: "desc" },
+        select: { versionNumber: true }
+      });
 
-    await tx.sourceConfig.update({
-      where: { id },
-      data: {
-        sourceType,
-        enabled,
-        researchStreamIdsJson: researchStreamIds,
-        topicIdsJson: topicIds,
-        nicheModes,
-        configJson
-      }
-    });
-
-    await tx.sourceConfigVersion.create({
-      data: {
-        sourceConfigId: id,
-        versionNumber: (latestVersion?.versionNumber ?? 0) + 1,
-        configJson: {
+      await tx.sourceConfig.update({
+        where: { id },
+        data: {
           sourceType,
           enabled,
-          researchStreamIds,
-          topicIds,
+          researchStreamIdsJson: researchStreamIds,
+          topicIdsJson: topicIds,
           nicheModes,
           configJson
-        },
-        changeReason
-      }
-    });
-  });
+        }
+      });
 
-  revalidatePath("/");
-  revalidatePath("/sources");
+      await tx.sourceConfigVersion.create({
+        data: {
+          sourceConfigId: id,
+          versionNumber: (latestVersion?.versionNumber ?? 0) + 1,
+          configJson: {
+            sourceType,
+            enabled,
+            researchStreamIds,
+            topicIds,
+            nicheModes,
+            configJson
+          },
+          changeReason
+        }
+      });
+    });
+
+    revalidatePath("/");
+    revalidatePath("/sources");
+    return { status: "success", message: "Source config saved." };
+  } catch (error) {
+    return toActionErrorState(error);
+  }
 }
 
 export async function updateContentDraftStatus(formData: FormData) {
@@ -185,211 +196,235 @@ export async function regenerateIdea(formData: FormData) {
   revalidatePath("/social-drafts");
 }
 
-export async function createResearchStream(formData: FormData) {
-  const name = readRequiredString(formData, "name");
-  const slugInput = readOptionalString(formData, "slug");
-  const description = readOptionalString(formData, "description");
-  const scheduleCron = readOptionalString(formData, "scheduleCron");
-  const deliveryType = readOptionalString(formData, "deliveryType") ?? "email";
-  const defaultAssetMode = readOptionalString(formData, "defaultAssetMode") ?? "none";
-  const enabled = readBoolean(formData, "enabled", true);
-  const enabledChannels = parseChannels(formData.get("enabledChannels"));
-  const slug = slugify(slugInput ?? name);
+export async function createResearchStream(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const name = readRequiredString(formData, "name");
+    const slugInput = readOptionalString(formData, "slug");
+    const description = readOptionalString(formData, "description");
+    const scheduleCron = readOptionalString(formData, "scheduleCron");
+    const deliveryType = readOptionalString(formData, "deliveryType") ?? "email";
+    const defaultAssetMode = readOptionalString(formData, "defaultAssetMode") ?? "none";
+    const enabled = readBoolean(formData, "enabled", true);
+    const enabledChannels = parseChannels(formData.get("enabledChannels"));
+    const slug = slugify(slugInput ?? name);
 
-  if (!slug) {
-    throw new Error("Research stream slug is required.");
-  }
-
-  const existing = await db.researchStream.findUnique({ where: { slug } });
-
-  if (existing) {
-    throw new Error(`Research stream slug "${slug}" already exists.`);
-  }
-
-  await db.researchStream.create({
-    data: {
-      id: `stream-${slug}`,
-      name,
-      slug,
-      description,
-      enabled,
-      enabledChannelsJson: enabledChannels,
-      deliveryType,
-      scheduleCron,
-      defaultAssetMode
+    if (!slug) {
+      throw new Error("Research stream slug is required.");
     }
-  });
 
-  revalidatePath("/");
+    const existing = await db.researchStream.findUnique({ where: { slug } });
+
+    if (existing) {
+      throw new Error(`Research stream slug "${slug}" already exists.`);
+    }
+
+    await db.researchStream.create({
+      data: {
+        id: `stream-${slug}`,
+        name,
+        slug,
+        description,
+        enabled,
+        enabledChannelsJson: enabledChannels,
+        deliveryType,
+        scheduleCron,
+        defaultAssetMode
+      }
+    });
+
+    revalidatePath("/");
+    revalidatePath("/research-streams");
+    return { status: "success", message: "Research stream created." };
+  } catch (error) {
+    return toActionErrorState(error);
+  }
 }
 
-export async function updateResearchStream(formData: FormData) {
-  const id = readRequiredString(formData, "id");
-  const name = readRequiredString(formData, "name");
-  const slugInput = readRequiredString(formData, "slug");
-  const description = readOptionalString(formData, "description");
-  const scheduleCron = readOptionalString(formData, "scheduleCron");
-  const deliveryType = readOptionalString(formData, "deliveryType") ?? "email";
-  const defaultAssetMode = readOptionalString(formData, "defaultAssetMode") ?? "none";
-  const enabled = readBoolean(formData, "enabled", false);
-  const enabledChannels = parseChannels(formData.get("enabledChannels"));
-  const slug = slugify(slugInput);
+export async function updateResearchStream(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const id = readRequiredString(formData, "id");
+    const name = readRequiredString(formData, "name");
+    const slugInput = readRequiredString(formData, "slug");
+    const description = readOptionalString(formData, "description");
+    const scheduleCron = readOptionalString(formData, "scheduleCron");
+    const deliveryType = readOptionalString(formData, "deliveryType") ?? "email";
+    const defaultAssetMode = readOptionalString(formData, "defaultAssetMode") ?? "none";
+    const enabled = readBoolean(formData, "enabled", false);
+    const enabledChannels = parseChannels(formData.get("enabledChannels"));
+    const slug = slugify(slugInput);
 
-  if (!slug) {
-    throw new Error("Research stream slug is required.");
-  }
-
-  const conflicting = await db.researchStream.findFirst({
-    where: {
-      slug,
-      id: { not: id }
-    },
-    select: { id: true }
-  });
-
-  if (conflicting) {
-    throw new Error(`Research stream slug "${slug}" already exists.`);
-  }
-
-  await db.researchStream.update({
-    where: { id },
-    data: {
-      name,
-      slug,
-      description,
-      enabled,
-      enabledChannelsJson: enabledChannels,
-      deliveryType,
-      scheduleCron,
-      defaultAssetMode
+    if (!slug) {
+      throw new Error("Research stream slug is required.");
     }
-  });
 
-  revalidatePath("/");
+    const conflicting = await db.researchStream.findFirst({
+      where: {
+        slug,
+        id: { not: id }
+      },
+      select: { id: true }
+    });
+
+    if (conflicting) {
+      throw new Error(`Research stream slug "${slug}" already exists.`);
+    }
+
+    await db.researchStream.update({
+      where: { id },
+      data: {
+        name,
+        slug,
+        description,
+        enabled,
+        enabledChannelsJson: enabledChannels,
+        deliveryType,
+        scheduleCron,
+        defaultAssetMode
+      }
+    });
+
+    revalidatePath("/");
+    revalidatePath("/research-streams");
+    return { status: "success", message: "Research stream saved." };
+  } catch (error) {
+    return toActionErrorState(error);
+  }
 }
 
-export async function createTopic(formData: FormData) {
-  const researchStreamId = readRequiredString(formData, "researchStreamId");
-  const name = readRequiredString(formData, "name");
-  const slugInput = readOptionalString(formData, "slug");
-  const description = readOptionalString(formData, "description");
-  const defaultAssetMode = readOptionalString(formData, "defaultAssetMode");
-  const defaultCopyFrameworkId = readOptionalString(formData, "defaultCopyFrameworkId");
-  const defaultStyleProfileId = readOptionalString(formData, "defaultStyleProfileId");
-  const enabled = readBoolean(formData, "enabled", true);
-  const enabledChannels = parseChannels(formData.get("enabledChannels"));
-  const keywords = parseList(formData.get("keywords"));
-  const exclusions = parseList(formData.get("exclusions"));
-  const sourcePreferences = parseList(formData.get("sourcePreferences"));
-  const slug = slugify(slugInput ?? name);
+export async function createTopic(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const researchStreamId = readRequiredString(formData, "researchStreamId");
+    const name = readRequiredString(formData, "name");
+    const slugInput = readOptionalString(formData, "slug");
+    const description = readOptionalString(formData, "description");
+    const defaultAssetMode = readOptionalString(formData, "defaultAssetMode");
+    const defaultCopyFrameworkId = readOptionalString(formData, "defaultCopyFrameworkId");
+    const defaultStyleProfileId = readOptionalString(formData, "defaultStyleProfileId");
+    const enabled = readBoolean(formData, "enabled", true);
+    const enabledChannels = parseChannels(formData.get("enabledChannels"));
+    const keywords = parseList(formData.get("keywords"));
+    const exclusions = parseList(formData.get("exclusions"));
+    const sourcePreferences = parseList(formData.get("sourcePreferences"));
+    const slug = slugify(slugInput ?? name);
 
-  if (!slug) {
-    throw new Error("Topic slug is required.");
-  }
-
-  const stream = await db.researchStream.findUnique({
-    where: { id: researchStreamId },
-    select: { id: true }
-  });
-
-  if (!stream) {
-    throw new Error("Unknown research stream requested.");
-  }
-
-  const existing = await db.topic.findFirst({
-    where: {
-      researchStreamId,
-      slug
-    },
-    select: { id: true }
-  });
-
-  if (existing) {
-    throw new Error(`Topic slug "${slug}" already exists in this research stream.`);
-  }
-
-  await db.topic.create({
-    data: {
-      id: `topic-${researchStreamId.replace(/^stream-/, "")}-${slug}`,
-      researchStreamId,
-      name,
-      slug,
-      description,
-      enabled,
-      enabledChannelsJson: enabledChannels,
-      keywordsJson: keywords,
-      exclusionsJson: exclusions,
-      sourcePreferencesJson: sourcePreferences,
-      defaultAssetMode,
-      defaultCopyFrameworkId,
-      defaultStyleProfileId
+    if (!slug) {
+      throw new Error("Topic slug is required.");
     }
-  });
 
-  revalidatePath("/");
+    const stream = await db.researchStream.findUnique({
+      where: { id: researchStreamId },
+      select: { id: true }
+    });
+
+    if (!stream) {
+      throw new Error("Unknown research stream requested.");
+    }
+
+    const existing = await db.topic.findFirst({
+      where: {
+        researchStreamId,
+        slug
+      },
+      select: { id: true }
+    });
+
+    if (existing) {
+      throw new Error(`Topic slug "${slug}" already exists in this research stream.`);
+    }
+
+    await db.topic.create({
+      data: {
+        id: `topic-${researchStreamId.replace(/^stream-/, "")}-${slug}`,
+        researchStreamId,
+        name,
+        slug,
+        description,
+        enabled,
+        enabledChannelsJson: enabledChannels,
+        keywordsJson: keywords,
+        exclusionsJson: exclusions,
+        sourcePreferencesJson: sourcePreferences,
+        defaultAssetMode,
+        defaultCopyFrameworkId,
+        defaultStyleProfileId
+      }
+    });
+
+    revalidatePath("/");
+    revalidatePath("/topics");
+    return { status: "success", message: "Topic created." };
+  } catch (error) {
+    return toActionErrorState(error);
+  }
 }
 
-export async function updateTopic(formData: FormData) {
-  const id = readRequiredString(formData, "id");
-  const researchStreamId = readRequiredString(formData, "researchStreamId");
-  const name = readRequiredString(formData, "name");
-  const slugInput = readRequiredString(formData, "slug");
-  const description = readOptionalString(formData, "description");
-  const defaultAssetMode = readOptionalString(formData, "defaultAssetMode");
-  const defaultCopyFrameworkId = readOptionalString(formData, "defaultCopyFrameworkId");
-  const defaultStyleProfileId = readOptionalString(formData, "defaultStyleProfileId");
-  const enabled = readBoolean(formData, "enabled", false);
-  const enabledChannels = parseChannels(formData.get("enabledChannels"));
-  const keywords = parseList(formData.get("keywords"));
-  const exclusions = parseList(formData.get("exclusions"));
-  const sourcePreferences = parseList(formData.get("sourcePreferences"));
-  const slug = slugify(slugInput);
+export async function updateTopic(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const id = readRequiredString(formData, "id");
+    const researchStreamId = readRequiredString(formData, "researchStreamId");
+    const name = readRequiredString(formData, "name");
+    const slugInput = readRequiredString(formData, "slug");
+    const description = readOptionalString(formData, "description");
+    const defaultAssetMode = readOptionalString(formData, "defaultAssetMode");
+    const defaultCopyFrameworkId = readOptionalString(formData, "defaultCopyFrameworkId");
+    const defaultStyleProfileId = readOptionalString(formData, "defaultStyleProfileId");
+    const enabled = readBoolean(formData, "enabled", false);
+    const enabledChannels = parseChannels(formData.get("enabledChannels"));
+    const keywords = parseList(formData.get("keywords"));
+    const exclusions = parseList(formData.get("exclusions"));
+    const sourcePreferences = parseList(formData.get("sourcePreferences"));
+    const slug = slugify(slugInput);
 
-  if (!slug) {
-    throw new Error("Topic slug is required.");
-  }
-
-  const stream = await db.researchStream.findUnique({
-    where: { id: researchStreamId },
-    select: { id: true }
-  });
-
-  if (!stream) {
-    throw new Error("Unknown research stream requested.");
-  }
-
-  const conflicting = await db.topic.findFirst({
-    where: {
-      researchStreamId,
-      slug,
-      id: { not: id }
-    },
-    select: { id: true }
-  });
-
-  if (conflicting) {
-    throw new Error(`Topic slug "${slug}" already exists in this research stream.`);
-  }
-
-  await db.topic.update({
-    where: { id },
-    data: {
-      researchStreamId,
-      name,
-      slug,
-      description,
-      enabled,
-      enabledChannelsJson: enabledChannels,
-      keywordsJson: keywords,
-      exclusionsJson: exclusions,
-      sourcePreferencesJson: sourcePreferences,
-      defaultAssetMode,
-      defaultCopyFrameworkId,
-      defaultStyleProfileId
+    if (!slug) {
+      throw new Error("Topic slug is required.");
     }
-  });
 
-  revalidatePath("/");
+    const stream = await db.researchStream.findUnique({
+      where: { id: researchStreamId },
+      select: { id: true }
+    });
+
+    if (!stream) {
+      throw new Error("Unknown research stream requested.");
+    }
+
+    const conflicting = await db.topic.findFirst({
+      where: {
+        researchStreamId,
+        slug,
+        id: { not: id }
+      },
+      select: { id: true }
+    });
+
+    if (conflicting) {
+      throw new Error(`Topic slug "${slug}" already exists in this research stream.`);
+    }
+
+    await db.topic.update({
+      where: { id },
+      data: {
+        researchStreamId,
+        name,
+        slug,
+        description,
+        enabled,
+        enabledChannelsJson: enabledChannels,
+        keywordsJson: keywords,
+        exclusionsJson: exclusions,
+        sourcePreferencesJson: sourcePreferences,
+        defaultAssetMode,
+        defaultCopyFrameworkId,
+        defaultStyleProfileId
+      }
+    });
+
+    revalidatePath("/");
+    revalidatePath("/topics");
+    return { status: "success", message: "Topic saved." };
+  } catch (error) {
+    return toActionErrorState(error);
+  }
 }
 
 export async function createCopyFramework(formData: FormData) {
@@ -838,4 +873,11 @@ function slugify(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function toActionErrorState(error: unknown): ActionState {
+  return {
+    status: "error",
+    message: error instanceof Error ? error.message : "Something went wrong while saving."
+  };
 }
