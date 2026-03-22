@@ -141,6 +141,10 @@ export default async function SourcesPage({ searchParams }: PageProps) {
                 name="configJson"
               />
             </label>
+            <label className="fieldLabel fieldLabelWide">
+              Change reason
+              <input className="fieldInput" name="changeReason" placeholder="Why this source config exists" type="text" />
+            </label>
             <button className="jobButton" type="submit">
               Create source config
             </button>
@@ -276,6 +280,16 @@ export default async function SourcesPage({ searchParams }: PageProps) {
                               name="configJson"
                             />
                           </label>
+                          <label className="fieldLabel fieldLabelWide">
+                            Change reason
+                            <input
+                              className="fieldInput"
+                              defaultValue={source.versions[0]?.changeReason ?? ""}
+                              name="changeReason"
+                              placeholder="What changed and why"
+                              type="text"
+                            />
+                          </label>
                           <button className="jobButton jobButtonSecondary" type="submit">
                             Save source config
                           </button>
@@ -293,6 +307,24 @@ export default async function SourcesPage({ searchParams }: PageProps) {
                           <p className="rowBody">
                             <strong>Latest run errors:</strong> {formatUnknownList(latestRun?.errorsJson) || "None"}
                           </p>
+                        </div>
+                        <div className="evidenceSection">
+                          <p className="rowBody">
+                            <strong>Recent config versions:</strong>
+                          </p>
+                          {source.versions.length === 0 ? (
+                            <p className="rowMeta">No config versions recorded yet.</p>
+                          ) : (
+                            <div className="stack">
+                              {source.versions.map((version) => (
+                                <div className="evidenceCard" key={version.id}>
+                                  <p className="rowTitle">v{version.versionNumber}</p>
+                                  <p className="rowMeta">{formatDate(version.createdAt)}</p>
+                                  <p className="rowBody">{version.changeReason ?? "No change reason captured."}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="draftSidebar">
@@ -379,6 +411,10 @@ async function getSources() {
   return db.sourceConfig.findMany({
     orderBy: [{ sourceType: "asc" }, { createdAt: "asc" }],
     include: {
+      versions: {
+        orderBy: { versionNumber: "desc" },
+        take: 3
+      },
       sourceRuns: {
         orderBy: { startedAt: "desc" },
         take: 1

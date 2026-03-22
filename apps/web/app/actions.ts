@@ -42,6 +42,7 @@ export async function createSourceConfig(formData: FormData) {
   const topicIds = readStringList(formData, "topicIds");
   const nicheModes = parseCommaSeparatedString(readOptionalString(formData, "nicheModes"));
   const configJson = parseConfigJson(readRequiredString(formData, "configJson"));
+  const changeReason = readOptionalString(formData, "changeReason") ?? "Initial source config creation";
 
   if (!sourceTypes.includes(sourceType as (typeof sourceTypes)[number])) {
     throw new Error(`Unsupported source type: ${sourceType}`);
@@ -49,15 +50,33 @@ export async function createSourceConfig(formData: FormData) {
 
   await validateSourceRelations({ researchStreamIds, topicIds });
 
-  await db.sourceConfig.create({
-    data: {
-      sourceType,
-      enabled,
-      researchStreamIdsJson: researchStreamIds,
-      topicIdsJson: topicIds,
-      nicheModes,
-      configJson
-    }
+  await db.$transaction(async (tx) => {
+    const sourceConfig = await tx.sourceConfig.create({
+      data: {
+        sourceType,
+        enabled,
+        researchStreamIdsJson: researchStreamIds,
+        topicIdsJson: topicIds,
+        nicheModes,
+        configJson
+      }
+    });
+
+    await tx.sourceConfigVersion.create({
+      data: {
+        sourceConfigId: sourceConfig.id,
+        versionNumber: 1,
+        configJson: {
+          sourceType,
+          enabled,
+          researchStreamIds,
+          topicIds,
+          nicheModes,
+          configJson
+        },
+        changeReason
+      }
+    });
   });
 
   revalidatePath("/");
@@ -72,6 +91,7 @@ export async function updateSourceConfig(formData: FormData) {
   const topicIds = readStringList(formData, "topicIds");
   const nicheModes = parseCommaSeparatedString(readOptionalString(formData, "nicheModes"));
   const configJson = parseConfigJson(readRequiredString(formData, "configJson"));
+  const changeReason = readOptionalString(formData, "changeReason") ?? "Updated source config from dashboard";
 
   if (!sourceTypes.includes(sourceType as (typeof sourceTypes)[number])) {
     throw new Error(`Unsupported source type: ${sourceType}`);
@@ -79,16 +99,40 @@ export async function updateSourceConfig(formData: FormData) {
 
   await validateSourceRelations({ researchStreamIds, topicIds });
 
-  await db.sourceConfig.update({
-    where: { id },
-    data: {
-      sourceType,
-      enabled,
-      researchStreamIdsJson: researchStreamIds,
-      topicIdsJson: topicIds,
-      nicheModes,
-      configJson
-    }
+  await db.$transaction(async (tx) => {
+    const latestVersion = await tx.sourceConfigVersion.findFirst({
+      where: { sourceConfigId: id },
+      orderBy: { versionNumber: "desc" },
+      select: { versionNumber: true }
+    });
+
+    await tx.sourceConfig.update({
+      where: { id },
+      data: {
+        sourceType,
+        enabled,
+        researchStreamIdsJson: researchStreamIds,
+        topicIdsJson: topicIds,
+        nicheModes,
+        configJson
+      }
+    });
+
+    await tx.sourceConfigVersion.create({
+      data: {
+        sourceConfigId: id,
+        versionNumber: (latestVersion?.versionNumber ?? 0) + 1,
+        configJson: {
+          sourceType,
+          enabled,
+          researchStreamIds,
+          topicIds,
+          nicheModes,
+          configJson
+        },
+        changeReason
+      }
+    });
   });
 
   revalidatePath("/");
