@@ -25,6 +25,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <Link className="sidebarLink" href="/sources">
                 Sources
               </Link>
+              <Link className="sidebarLink" href="/recipients">
+                Recipients
+              </Link>
               <Link className="sidebarLink" href="/ideas">
                 Ideas
               </Link>

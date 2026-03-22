@@ -15,6 +15,7 @@ export async function runPipelineJob(formData: FormData) {
 
   await workerJobs[jobName as JobName]();
   revalidatePath("/");
+  revalidatePath("/recipients");
   revalidatePath("/sources");
   revalidatePath("/ideas");
   revalidatePath("/social-drafts");
@@ -429,6 +430,107 @@ export async function updateStyleProfile(formData: FormData) {
   });
 
   revalidatePath("/");
+}
+
+export async function createDigestRecipient(formData: FormData) {
+  const researchStreamId = readRequiredString(formData, "researchStreamId");
+  const email = readRequiredString(formData, "email").toLowerCase();
+  const enabled = readBoolean(formData, "enabled", true);
+  const isOwnerDefault = readBoolean(formData, "isOwnerDefault", false);
+
+  const stream = await db.researchStream.findUnique({
+    where: { id: researchStreamId },
+    select: { id: true }
+  });
+
+  if (!stream) {
+    throw new Error("Unknown research stream requested.");
+  }
+
+  const existing = await db.digestRecipient.findFirst({
+    where: {
+      researchStreamId,
+      email
+    },
+    select: { id: true }
+  });
+
+  if (existing) {
+    throw new Error(`Recipient "${email}" already exists for this research stream.`);
+  }
+
+  await db.$transaction(async (tx) => {
+    if (isOwnerDefault) {
+      await tx.digestRecipient.updateMany({
+        where: { researchStreamId },
+        data: { isOwnerDefault: false }
+      });
+    }
+
+    await tx.digestRecipient.create({
+      data: {
+        researchStreamId,
+        email,
+        enabled,
+        isOwnerDefault
+      }
+    });
+  });
+
+  revalidatePath("/");
+  revalidatePath("/recipients");
+}
+
+export async function updateDigestRecipient(formData: FormData) {
+  const id = readRequiredString(formData, "id");
+  const researchStreamId = readRequiredString(formData, "researchStreamId");
+  const email = readRequiredString(formData, "email").toLowerCase();
+  const enabled = readBoolean(formData, "enabled", false);
+  const isOwnerDefault = readBoolean(formData, "isOwnerDefault", false);
+
+  const stream = await db.researchStream.findUnique({
+    where: { id: researchStreamId },
+    select: { id: true }
+  });
+
+  if (!stream) {
+    throw new Error("Unknown research stream requested.");
+  }
+
+  const conflicting = await db.digestRecipient.findFirst({
+    where: {
+      researchStreamId,
+      email,
+      id: { not: id }
+    },
+    select: { id: true }
+  });
+
+  if (conflicting) {
+    throw new Error(`Recipient "${email}" already exists for this research stream.`);
+  }
+
+  await db.$transaction(async (tx) => {
+    if (isOwnerDefault) {
+      await tx.digestRecipient.updateMany({
+        where: { researchStreamId },
+        data: { isOwnerDefault: false }
+      });
+    }
+
+    await tx.digestRecipient.update({
+      where: { id },
+      data: {
+        researchStreamId,
+        email,
+        enabled,
+        isOwnerDefault
+      }
+    });
+  });
+
+  revalidatePath("/");
+  revalidatePath("/recipients");
 }
 
 function readRequiredString(formData: FormData, key: string) {

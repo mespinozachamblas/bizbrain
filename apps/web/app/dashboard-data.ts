@@ -37,7 +37,9 @@ export type DashboardData = {
   }>;
   digestRecipients: Array<{
     id: string;
+    updatedAt: Date;
     researchStream: {
+      id: string;
       slug: string;
       name: string;
     };
@@ -197,6 +199,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         include: {
           researchStream: {
             select: {
+              id: true,
               slug: true,
               name: true
             }

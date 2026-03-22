@@ -126,31 +126,6 @@ export default async function HomePage() {
           )}
         </article>
 
-        <article className="card">
-          <div className="cardHeader">
-            <h2>Digest recipients</h2>
-            <span className="badge">Email</span>
-          </div>
-          {dashboard.digestRecipients.length === 0 ? (
-            <EmptyState message="No digest recipients configured yet." />
-          ) : (
-            <div className="stack">
-              {dashboard.digestRecipients.map((recipient) => (
-                <div className="listRow" key={recipient.id}>
-                  <div>
-                    <p className="rowTitle">{recipient.email}</p>
-                    <p className="rowMeta">
-                      {recipient.researchStream.name} · {recipient.isOwnerDefault ? "Owner default" : "Additional recipient"}
-                    </p>
-                  </div>
-                  <span className={`status status-${recipient.enabled ? "enabled" : "disabled"}`}>
-                    {recipient.enabled ? "enabled" : "disabled"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </article>
       </section>
     </main>
   );
