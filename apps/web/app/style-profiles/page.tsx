@@ -1,3 +1,4 @@
+import { ServerActionForm } from "../action-forms";
 import { createStyleProfile, updateStyleProfile } from "../actions";
 import { formatListInput, getDashboardData } from "../dashboard-data";
 import { EmptyState } from "../dashboard-ui";
@@ -21,7 +22,7 @@ export default async function StyleProfilesPage() {
             <h2>Create style profile</h2>
             <span className="badge">Voice</span>
           </div>
-          <form action={createStyleProfile} className="adminForm">
+          <ServerActionForm action={createStyleProfile} className="adminForm">
             <label className="fieldLabel">
               Name
               <input className="fieldInput" name="name" placeholder="Founder educator" required type="text" />
@@ -53,7 +54,7 @@ export default async function StyleProfilesPage() {
             <button className="jobButton" type="submit">
               Create style
             </button>
-          </form>
+          </ServerActionForm>
         </article>
 
         <article className="card cardTall">
@@ -76,7 +77,7 @@ export default async function StyleProfilesPage() {
                     </div>
                     <span className="status status-skipped">Edit</span>
                   </summary>
-                  <form action={updateStyleProfile} className="adminForm adminFormCompact">
+                  <ServerActionForm action={updateStyleProfile} className="adminForm adminFormCompact">
                     <input name="id" type="hidden" value={profile.id} />
                     <label className="fieldLabel">
                       Name
@@ -109,7 +110,7 @@ export default async function StyleProfilesPage() {
                     <button className="jobButton jobButtonSecondary" type="submit">
                       Save style
                     </button>
-                  </form>
+                  </ServerActionForm>
                 </details>
               ))}
             </div>

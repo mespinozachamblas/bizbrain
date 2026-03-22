@@ -1,3 +1,4 @@
+import { ServerActionForm } from "../action-forms";
 import { createCopyFramework, updateCopyFramework } from "../actions";
 import { formatListInput, getDashboardData } from "../dashboard-data";
 import { EmptyState } from "../dashboard-ui";
@@ -21,7 +22,7 @@ export default async function FrameworksPage() {
             <h2>Create copy framework</h2>
             <span className="badge">Messaging</span>
           </div>
-          <form action={createCopyFramework} className="adminForm">
+          <ServerActionForm action={createCopyFramework} className="adminForm">
             <label className="fieldLabel">
               Name
               <input className="fieldInput" name="name" placeholder="AIDA" required type="text" />
@@ -45,7 +46,7 @@ export default async function FrameworksPage() {
             <button className="jobButton" type="submit">
               Create framework
             </button>
-          </form>
+          </ServerActionForm>
         </article>
 
         <article className="card cardTall">
@@ -68,7 +69,7 @@ export default async function FrameworksPage() {
                     </div>
                     <span className="status status-skipped">Edit</span>
                   </summary>
-                  <form action={updateCopyFramework} className="adminForm adminFormCompact">
+                  <ServerActionForm action={updateCopyFramework} className="adminForm adminFormCompact">
                     <input name="id" type="hidden" value={framework.id} />
                     <label className="fieldLabel">
                       Name
@@ -93,7 +94,7 @@ export default async function FrameworksPage() {
                     <button className="jobButton jobButtonSecondary" type="submit">
                       Save framework
                     </button>
-                  </form>
+                  </ServerActionForm>
                 </details>
               ))}
             </div>

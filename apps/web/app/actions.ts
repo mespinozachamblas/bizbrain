@@ -427,160 +427,184 @@ export async function updateTopic(_: ActionState, formData: FormData): Promise<A
   }
 }
 
-export async function createCopyFramework(formData: FormData) {
-  const name = readRequiredString(formData, "name");
-  const slugInput = readOptionalString(formData, "slug");
-  const description = readOptionalString(formData, "description");
-  const enabled = readBoolean(formData, "enabled", true);
-  const structure = parseList(formData.get("structure"));
-  const slug = slugify(slugInput ?? name);
+export async function createCopyFramework(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const name = readRequiredString(formData, "name");
+    const slugInput = readOptionalString(formData, "slug");
+    const description = readOptionalString(formData, "description");
+    const enabled = readBoolean(formData, "enabled", true);
+    const structure = parseList(formData.get("structure"));
+    const slug = slugify(slugInput ?? name);
 
-  if (!slug) {
-    throw new Error("Copy framework slug is required.");
-  }
-
-  const existing = await db.copyFramework.findUnique({
-    where: { slug },
-    select: { id: true }
-  });
-
-  if (existing) {
-    throw new Error(`Copy framework slug "${slug}" already exists.`);
-  }
-
-  await db.copyFramework.create({
-    data: {
-      id: `framework-${slug}`,
-      name,
-      slug,
-      description,
-      enabled,
-      structureJson: structure
+    if (!slug) {
+      throw new Error("Copy framework slug is required.");
     }
-  });
 
-  revalidatePath("/");
+    const existing = await db.copyFramework.findUnique({
+      where: { slug },
+      select: { id: true }
+    });
+
+    if (existing) {
+      throw new Error(`Copy framework slug "${slug}" already exists.`);
+    }
+
+    await db.copyFramework.create({
+      data: {
+        id: `framework-${slug}`,
+        name,
+        slug,
+        description,
+        enabled,
+        structureJson: structure
+      }
+    });
+
+    revalidatePath("/");
+    revalidatePath("/frameworks");
+    return { status: "success", message: "Copy framework created." };
+  } catch (error) {
+    return toActionErrorState(error);
+  }
 }
 
-export async function updateCopyFramework(formData: FormData) {
-  const id = readRequiredString(formData, "id");
-  const name = readRequiredString(formData, "name");
-  const slugInput = readRequiredString(formData, "slug");
-  const description = readOptionalString(formData, "description");
-  const enabled = readBoolean(formData, "enabled", false);
-  const structure = parseList(formData.get("structure"));
-  const slug = slugify(slugInput);
+export async function updateCopyFramework(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const id = readRequiredString(formData, "id");
+    const name = readRequiredString(formData, "name");
+    const slugInput = readRequiredString(formData, "slug");
+    const description = readOptionalString(formData, "description");
+    const enabled = readBoolean(formData, "enabled", false);
+    const structure = parseList(formData.get("structure"));
+    const slug = slugify(slugInput);
 
-  if (!slug) {
-    throw new Error("Copy framework slug is required.");
-  }
-
-  const conflicting = await db.copyFramework.findFirst({
-    where: {
-      slug,
-      id: { not: id }
-    },
-    select: { id: true }
-  });
-
-  if (conflicting) {
-    throw new Error(`Copy framework slug "${slug}" already exists.`);
-  }
-
-  await db.copyFramework.update({
-    where: { id },
-    data: {
-      name,
-      slug,
-      description,
-      enabled,
-      structureJson: structure
+    if (!slug) {
+      throw new Error("Copy framework slug is required.");
     }
-  });
 
-  revalidatePath("/");
+    const conflicting = await db.copyFramework.findFirst({
+      where: {
+        slug,
+        id: { not: id }
+      },
+      select: { id: true }
+    });
+
+    if (conflicting) {
+      throw new Error(`Copy framework slug "${slug}" already exists.`);
+    }
+
+    await db.copyFramework.update({
+      where: { id },
+      data: {
+        name,
+        slug,
+        description,
+        enabled,
+        structureJson: structure
+      }
+    });
+
+    revalidatePath("/");
+    revalidatePath("/frameworks");
+    return { status: "success", message: "Copy framework saved." };
+  } catch (error) {
+    return toActionErrorState(error);
+  }
 }
 
-export async function createStyleProfile(formData: FormData) {
-  const name = readRequiredString(formData, "name");
-  const slugInput = readOptionalString(formData, "slug");
-  const description = readOptionalString(formData, "description");
-  const inspirationSummary = readOptionalString(formData, "inspirationSummary");
-  const enabled = readBoolean(formData, "enabled", true);
-  const styleTraits = parseList(formData.get("styleTraits"));
-  const guardrails = parseList(formData.get("guardrails"));
-  const slug = slugify(slugInput ?? name);
+export async function createStyleProfile(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const name = readRequiredString(formData, "name");
+    const slugInput = readOptionalString(formData, "slug");
+    const description = readOptionalString(formData, "description");
+    const inspirationSummary = readOptionalString(formData, "inspirationSummary");
+    const enabled = readBoolean(formData, "enabled", true);
+    const styleTraits = parseList(formData.get("styleTraits"));
+    const guardrails = parseList(formData.get("guardrails"));
+    const slug = slugify(slugInput ?? name);
 
-  if (!slug) {
-    throw new Error("Style profile slug is required.");
-  }
-
-  const existing = await db.styleProfile.findUnique({
-    where: { slug },
-    select: { id: true }
-  });
-
-  if (existing) {
-    throw new Error(`Style profile slug "${slug}" already exists.`);
-  }
-
-  await db.styleProfile.create({
-    data: {
-      id: `style-${slug}`,
-      name,
-      slug,
-      description,
-      inspirationSummary,
-      enabled,
-      styleTraitsJson: styleTraits,
-      guardrailsJson: guardrails
+    if (!slug) {
+      throw new Error("Style profile slug is required.");
     }
-  });
 
-  revalidatePath("/");
+    const existing = await db.styleProfile.findUnique({
+      where: { slug },
+      select: { id: true }
+    });
+
+    if (existing) {
+      throw new Error(`Style profile slug "${slug}" already exists.`);
+    }
+
+    await db.styleProfile.create({
+      data: {
+        id: `style-${slug}`,
+        name,
+        slug,
+        description,
+        inspirationSummary,
+        enabled,
+        styleTraitsJson: styleTraits,
+        guardrailsJson: guardrails
+      }
+    });
+
+    revalidatePath("/");
+    revalidatePath("/style-profiles");
+    return { status: "success", message: "Style profile created." };
+  } catch (error) {
+    return toActionErrorState(error);
+  }
 }
 
-export async function updateStyleProfile(formData: FormData) {
-  const id = readRequiredString(formData, "id");
-  const name = readRequiredString(formData, "name");
-  const slugInput = readRequiredString(formData, "slug");
-  const description = readOptionalString(formData, "description");
-  const inspirationSummary = readOptionalString(formData, "inspirationSummary");
-  const enabled = readBoolean(formData, "enabled", false);
-  const styleTraits = parseList(formData.get("styleTraits"));
-  const guardrails = parseList(formData.get("guardrails"));
-  const slug = slugify(slugInput);
+export async function updateStyleProfile(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const id = readRequiredString(formData, "id");
+    const name = readRequiredString(formData, "name");
+    const slugInput = readRequiredString(formData, "slug");
+    const description = readOptionalString(formData, "description");
+    const inspirationSummary = readOptionalString(formData, "inspirationSummary");
+    const enabled = readBoolean(formData, "enabled", false);
+    const styleTraits = parseList(formData.get("styleTraits"));
+    const guardrails = parseList(formData.get("guardrails"));
+    const slug = slugify(slugInput);
 
-  if (!slug) {
-    throw new Error("Style profile slug is required.");
-  }
-
-  const conflicting = await db.styleProfile.findFirst({
-    where: {
-      slug,
-      id: { not: id }
-    },
-    select: { id: true }
-  });
-
-  if (conflicting) {
-    throw new Error(`Style profile slug "${slug}" already exists.`);
-  }
-
-  await db.styleProfile.update({
-    where: { id },
-    data: {
-      name,
-      slug,
-      description,
-      inspirationSummary,
-      enabled,
-      styleTraitsJson: styleTraits,
-      guardrailsJson: guardrails
+    if (!slug) {
+      throw new Error("Style profile slug is required.");
     }
-  });
 
-  revalidatePath("/");
+    const conflicting = await db.styleProfile.findFirst({
+      where: {
+        slug,
+        id: { not: id }
+      },
+      select: { id: true }
+    });
+
+    if (conflicting) {
+      throw new Error(`Style profile slug "${slug}" already exists.`);
+    }
+
+    await db.styleProfile.update({
+      where: { id },
+      data: {
+        name,
+        slug,
+        description,
+        inspirationSummary,
+        enabled,
+        styleTraitsJson: styleTraits,
+        guardrailsJson: guardrails
+      }
+    });
+
+    revalidatePath("/");
+    revalidatePath("/style-profiles");
+    return { status: "success", message: "Style profile saved." };
+  } catch (error) {
+    return toActionErrorState(error);
+  }
 }
 
 export async function regenerateContentDraft(formData: FormData) {
@@ -593,105 +617,115 @@ export async function regenerateContentDraft(formData: FormData) {
   revalidatePath("/social-drafts");
 }
 
-export async function createDigestRecipient(formData: FormData) {
-  const researchStreamId = readRequiredString(formData, "researchStreamId");
-  const email = readRequiredString(formData, "email").toLowerCase();
-  const enabled = readBoolean(formData, "enabled", true);
-  const isOwnerDefault = readBoolean(formData, "isOwnerDefault", false);
+export async function createDigestRecipient(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const researchStreamId = readRequiredString(formData, "researchStreamId");
+    const email = readRequiredString(formData, "email").toLowerCase();
+    const enabled = readBoolean(formData, "enabled", true);
+    const isOwnerDefault = readBoolean(formData, "isOwnerDefault", false);
 
-  const stream = await db.researchStream.findUnique({
-    where: { id: researchStreamId },
-    select: { id: true }
-  });
+    const stream = await db.researchStream.findUnique({
+      where: { id: researchStreamId },
+      select: { id: true }
+    });
 
-  if (!stream) {
-    throw new Error("Unknown research stream requested.");
-  }
-
-  const existing = await db.digestRecipient.findFirst({
-    where: {
-      researchStreamId,
-      email
-    },
-    select: { id: true }
-  });
-
-  if (existing) {
-    throw new Error(`Recipient "${email}" already exists for this research stream.`);
-  }
-
-  await db.$transaction(async (tx) => {
-    if (isOwnerDefault) {
-      await tx.digestRecipient.updateMany({
-        where: { researchStreamId },
-        data: { isOwnerDefault: false }
-      });
+    if (!stream) {
+      throw new Error("Unknown research stream requested.");
     }
 
-    await tx.digestRecipient.create({
-      data: {
+    const existing = await db.digestRecipient.findFirst({
+      where: {
         researchStreamId,
-        email,
-        enabled,
-        isOwnerDefault
-      }
+        email
+      },
+      select: { id: true }
     });
-  });
 
-  revalidatePath("/");
-  revalidatePath("/recipients");
+    if (existing) {
+      throw new Error(`Recipient "${email}" already exists for this research stream.`);
+    }
+
+    await db.$transaction(async (tx) => {
+      if (isOwnerDefault) {
+        await tx.digestRecipient.updateMany({
+          where: { researchStreamId },
+          data: { isOwnerDefault: false }
+        });
+      }
+
+      await tx.digestRecipient.create({
+        data: {
+          researchStreamId,
+          email,
+          enabled,
+          isOwnerDefault
+        }
+      });
+    });
+
+    revalidatePath("/");
+    revalidatePath("/recipients");
+    return { status: "success", message: "Recipient created." };
+  } catch (error) {
+    return toActionErrorState(error);
+  }
 }
 
-export async function updateDigestRecipient(formData: FormData) {
-  const id = readRequiredString(formData, "id");
-  const researchStreamId = readRequiredString(formData, "researchStreamId");
-  const email = readRequiredString(formData, "email").toLowerCase();
-  const enabled = readBoolean(formData, "enabled", false);
-  const isOwnerDefault = readBoolean(formData, "isOwnerDefault", false);
+export async function updateDigestRecipient(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const id = readRequiredString(formData, "id");
+    const researchStreamId = readRequiredString(formData, "researchStreamId");
+    const email = readRequiredString(formData, "email").toLowerCase();
+    const enabled = readBoolean(formData, "enabled", false);
+    const isOwnerDefault = readBoolean(formData, "isOwnerDefault", false);
 
-  const stream = await db.researchStream.findUnique({
-    where: { id: researchStreamId },
-    select: { id: true }
-  });
+    const stream = await db.researchStream.findUnique({
+      where: { id: researchStreamId },
+      select: { id: true }
+    });
 
-  if (!stream) {
-    throw new Error("Unknown research stream requested.");
-  }
-
-  const conflicting = await db.digestRecipient.findFirst({
-    where: {
-      researchStreamId,
-      email,
-      id: { not: id }
-    },
-    select: { id: true }
-  });
-
-  if (conflicting) {
-    throw new Error(`Recipient "${email}" already exists for this research stream.`);
-  }
-
-  await db.$transaction(async (tx) => {
-    if (isOwnerDefault) {
-      await tx.digestRecipient.updateMany({
-        where: { researchStreamId },
-        data: { isOwnerDefault: false }
-      });
+    if (!stream) {
+      throw new Error("Unknown research stream requested.");
     }
 
-    await tx.digestRecipient.update({
-      where: { id },
-      data: {
+    const conflicting = await db.digestRecipient.findFirst({
+      where: {
         researchStreamId,
         email,
-        enabled,
-        isOwnerDefault
-      }
+        id: { not: id }
+      },
+      select: { id: true }
     });
-  });
 
-  revalidatePath("/");
-  revalidatePath("/recipients");
+    if (conflicting) {
+      throw new Error(`Recipient "${email}" already exists for this research stream.`);
+    }
+
+    await db.$transaction(async (tx) => {
+      if (isOwnerDefault) {
+        await tx.digestRecipient.updateMany({
+          where: { researchStreamId },
+          data: { isOwnerDefault: false }
+        });
+      }
+
+      await tx.digestRecipient.update({
+        where: { id },
+        data: {
+          researchStreamId,
+          email,
+          enabled,
+          isOwnerDefault
+        }
+      });
+    });
+
+    revalidatePath("/");
+    revalidatePath("/recipients");
+    return { status: "success", message: "Recipient saved." };
+  } catch (error) {
+    return toActionErrorState(error);
+  }
 }
 
 function readRequiredString(formData: FormData, key: string) {

@@ -1,3 +1,4 @@
+import { ServerActionForm } from "../action-forms";
 import { createDigestRecipient, updateDigestRecipient } from "../actions";
 import { formatDate, getDashboardData } from "../dashboard-data";
 import { EmptyState } from "../dashboard-ui";
@@ -24,7 +25,7 @@ export default async function RecipientsPage() {
             <h2>Create recipient</h2>
             <span className="badge">Email</span>
           </div>
-          <form action={createDigestRecipient} className="adminForm">
+          <ServerActionForm action={createDigestRecipient} className="adminForm">
             <label className="fieldLabel">
               Research stream
               <select className="fieldInput" defaultValue="" name="researchStreamId" required>
@@ -53,7 +54,7 @@ export default async function RecipientsPage() {
             <button className="jobButton" type="submit">
               Create recipient
             </button>
-          </form>
+          </ServerActionForm>
         </article>
 
         <article className="card cardTall">
@@ -91,7 +92,7 @@ export default async function RecipientsPage() {
                               {recipient.enabled ? "enabled" : "disabled"}
                             </span>
                           </summary>
-                          <form action={updateDigestRecipient} className="adminForm adminFormCompact">
+                          <ServerActionForm action={updateDigestRecipient} className="adminForm adminFormCompact">
                             <input name="id" type="hidden" value={recipient.id} />
                             <label className="fieldLabel">
                               Research stream
@@ -118,7 +119,7 @@ export default async function RecipientsPage() {
                             <button className="jobButton jobButtonSecondary" type="submit">
                               Save recipient
                             </button>
-                          </form>
+                          </ServerActionForm>
                         </details>
                       ))
                     )}
