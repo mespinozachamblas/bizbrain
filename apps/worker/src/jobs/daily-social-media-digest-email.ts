@@ -439,14 +439,36 @@ function formatSupportingStatLine(
     topicName: string;
   }
 ) {
+  const sourceClass = inferSupportingStatSourceClass(stat);
+
   return [
     stat.claim,
     `Topic: ${stat.topicName}`,
     `Draft: ${stat.draftTitle}`,
+    `Source class: ${sourceClass}`,
     `Source: ${stat.sourceName} (${stat.sourceUrl})`,
     `Freshness: ${ensureSentence(stat.freshnessNote)}`,
     `Confidence: ${ensureSentence(stat.confidenceNote)}`
   ].join(" | ");
+}
+
+function inferSupportingStatSourceClass(stat: SupportingStat) {
+  const sourceName = stat.sourceName.toLowerCase();
+  const sourceUrl = stat.sourceUrl.toLowerCase();
+
+  if (sourceName.includes("google trends") || sourceUrl.includes("trends.google.com")) {
+    return "Google Trends";
+  }
+
+  if (sourceName.includes("product hunt") || sourceUrl.includes("producthunt.com")) {
+    return "Product Hunt";
+  }
+
+  if (sourceName.includes("bizbrain") || sourceUrl.includes("app.bizbrain.local")) {
+    return "Cluster Evidence";
+  }
+
+  return "External Evidence";
 }
 
 function scoreSupportingStat(
