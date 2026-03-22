@@ -54,9 +54,9 @@ const jobDefinitions: Record<
     output: "LinkedIn/X research email stream.",
     scheduleOwner: "Railway cron service",
     railwayService: "cron-daily-social-media-digest-email",
-    cronUtc: null,
-    localTime: "Not scheduled yet",
-    rolloutState: "pending"
+    cronUtc: "50 06 * * * (recommended)",
+    localTime: "12:50 AM America/Edmonton (recommended)",
+    rolloutState: "needs-schedule"
   },
   "weekly-maintenance": {
     role: "Maintenance job",
@@ -193,7 +193,9 @@ export default async function JobsPage() {
                   <p className="rowMeta">
                     {definition?.rolloutState === "live"
                       ? "This job has a dedicated Railway service and schedule."
-                      : "The job exists in code and in the app, but the dedicated Railway cron service has not been created yet."}
+                      : definition?.rolloutState === "needs-schedule"
+                        ? "The dedicated Railway service exists and is deployed. The remaining step is to add the cron expression in Railway service settings."
+                        : "The job exists in code and in the app, but the dedicated Railway cron service has not been created yet."}
                   </p>
                 </div>
               );
