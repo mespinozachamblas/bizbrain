@@ -569,10 +569,10 @@ function buildFallbackSocialDraft(input: {
 
 async function buildSupportingStatsResearch(
   idea: Pick<IdeaWithCluster, "clusterId" | "title" | "category" | "problemSummary" | "sourceAttributionJson">,
-  topic: Pick<TopicRecord, "name" | "slug" | "sourcePreferencesJson">,
+  topic: Pick<TopicRecord, "name" | "slug" | "keywordsJson" | "sourcePreferencesJson">,
   channel: (typeof researchStreamChannels)[number]
 ) {
-  const [cluster, membershipStats] = await Promise.all([
+  const [cluster, membershipStats, externalStats] = await Promise.all([
     db.trendCluster.findUnique({
       where: { id: idea.clusterId },
       select: {
@@ -593,6 +593,11 @@ async function buildSupportingStatsResearch(
           }
         }
       }
+    }),
+    fetchExternalSupportingStats({
+      idea,
+      topic,
+      channel
     })
   ]);
 
@@ -679,7 +684,7 @@ async function buildSupportingStatsResearch(
     });
   }
 
-  return stats.slice(0, 3);
+  return [...externalStats, ...stats].slice(0, 5);
 }
 
 function renderPreferredStatSourceHint(preferredStatSources: string[]) {
@@ -693,6 +698,274 @@ function renderPreferredStatSourceHint(preferredStatSources: string[]) {
 
   return ` Prefer validating with ${statsHints.join(", ")} when stronger external numbers are available.`;
 }
+
+async function fetchExternalSupportingStats(input: {
+  idea: Pick<IdeaWithCluster, "title" | "category" | "problemSummary">;
+  topic: Pick<TopicRecord, "name" | "slug" | "keywordsJson" | "sourcePreferencesJson">;
+  channel: (typeof researchStreamChannels)[number];
+}) {
+  const preferredStatSources = Array.isArray(input.topic.sourcePreferencesJson)
+    ? input.topic.sourcePreferencesJson.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.toLowerCase())
+    : [];
+  const stats: Array<{
+    claim: string;
+    plainLanguageAngle: string;
+    sourceName: string;
+    sourceUrl: string;
+    sourceDate: string | null;
+    freshnessNote: string;
+    confidenceNote: string;
+    recommendedUsage: string;
+  }> = [];
+
+  if (preferredStatSources.includes("google-trends")) {
+    try {
+      const googleTrendStats = await fetchGoogleTrendsSupportingStats(input);
+      stats.push(...googleTrendStats);
+    } catch {
+      // Keep external statistics enrichment non-blocking.
+    }
+  }
+
+  return stats.slice(0, 2);
+}
+
+async function fetchGoogleTrendsSupportingStats(input: {
+  idea: Pick<IdeaWithCluster, "title" | "category" | "problemSummary">;
+  topic: Pick<TopicRecord, "name" | "slug" | "keywordsJson" | "sourcePreferencesJson">;
+  channel: (typeof researchStreamChannels)[number];
+}) {
+  const geo = (process.env.SOCIAL_STATS_TRENDS_GEO ?? "US").toUpperCase();
+  const response = await fetchWithTimeout(`https://trends.google.com/trending/rss?geo=${encodeURIComponent(geo)}`, {
+    headers: {
+      Accept: "application/rss+xml, application/xml;q=0.9, text/xml;q=0.8"
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Google Trends RSS fetch failed for geo=${geo} with ${response.status}.`);
+  }
+
+  const xml = await response.text();
+  const trendMatches = parseGoogleTrendMatches(xml, geo, buildStatResearchTerms(input.topic.keywordsJson, input.idea));
+
+  if (trendMatches.length === 0) {
+    return [];
+  }
+
+  const topMatch = trendMatches[0];
+  const mostRecentDate = trendMatches
+    .map((match) => match.sourceDate)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .reverse()[0] ?? null;
+  const stats: Array<{
+    claim: string;
+    plainLanguageAngle: string;
+    sourceName: string;
+    sourceUrl: string;
+    sourceDate: string | null;
+    freshnessNote: string;
+    confidenceNote: string;
+    recommendedUsage: string;
+  }> = [
+    {
+      claim:
+        trendMatches.length === 1
+          ? `Google Trends surfaced 1 currently trending query relevant to ${input.topic.name}.`
+          : `Google Trends surfaced ${trendMatches.length} currently trending queries relevant to ${input.topic.name}.`,
+      plainLanguageAngle:
+        input.channel === "linkedin"
+          ? "Use this to show the topic is colliding with live search interest, not just discussion chatter."
+          : "Use this as a quick proof that the theme is showing up in live search behavior too.",
+      sourceName: "Google Trends",
+      sourceUrl: topMatch.sourceUrl,
+      sourceDate: mostRecentDate,
+      freshnessNote: mostRecentDate
+        ? `The latest matching Google Trends item in this pass was dated ${mostRecentDate}.`
+        : "Google Trends dates were not available on the matching items.",
+      confidenceNote: trendMatches.length >= 2 ? "Moderate confidence from multiple matching trending queries." : "Early external signal from a single matching trending query.",
+      recommendedUsage: `Use this as external momentum validation for ${input.topic.slug}, then connect it back to the operator pain or workflow opportunity.`
+    }
+  ];
+
+  if (topMatch.approxTraffic) {
+    stats.push({
+      claim: `The strongest matching Google Trends item reported approximate traffic of ${topMatch.approxTraffic}.`,
+      plainLanguageAngle:
+        input.channel === "linkedin"
+          ? "Use this as a punchy quantitative anchor, but keep the claim tied to search attention rather than market size."
+          : "Use this as a short wow-factor stat without overstating what search volume means commercially.",
+      sourceName: "Google Trends",
+      sourceUrl: topMatch.sourceUrl,
+      sourceDate: topMatch.sourceDate,
+      freshnessNote: "Approximate traffic comes from the Google Trends trending feed and reflects search attention, not customer count or revenue.",
+      confidenceNote: "Use with caution; this is a platform-reported approximate traffic label, not a precise benchmark.",
+      recommendedUsage: `Use this as a supporting statistic for ${input.topic.name} when you want a stronger external number in the hook or infographic.`
+    });
+  }
+
+  return stats;
+}
+
+function buildStatResearchTerms(
+  topicKeywordsJson: unknown,
+  idea: Pick<IdeaWithCluster, "title" | "category" | "problemSummary">
+) {
+  const topicKeywords = Array.isArray(topicKeywordsJson)
+    ? topicKeywordsJson.filter((entry): entry is string => typeof entry === "string")
+    : [];
+  const ideaTerms = `${idea.title} ${idea.category} ${idea.problemSummary ?? ""}`
+    .toLowerCase()
+    .split(/[^a-z0-9]+/i)
+    .filter((term) => term.length >= 4)
+    .filter((term) => !STAT_RESEARCH_STOP_WORDS.has(term));
+
+  return [...new Set([...topicKeywords.map((entry) => entry.toLowerCase()), ...ideaTerms])].slice(0, 12);
+}
+
+function parseGoogleTrendMatches(xml: string, geo: string, keywords: string[]) {
+  if (keywords.length === 0) {
+    return [];
+  }
+
+  const items = extractXmlTagBlocks(xml, "item");
+  const matches: Array<{
+    title: string;
+    sourceUrl: string;
+    sourceDate: string | null;
+    approxTraffic: string | null;
+    matchScore: number;
+  }> = [];
+
+  for (const item of items) {
+    const title = decodeXmlEntities(extractXmlTagText(item, "title") ?? "").trim();
+
+    if (!title) {
+      continue;
+    }
+
+    const pubDate = extractXmlTagText(item, "pubDate");
+    const articleTitles = extractXmlTagBlocks(item, "ht:news_item")
+      .map((newsItem) => decodeXmlEntities(extractXmlTagText(newsItem, "ht:news_item_title") ?? "").trim())
+      .filter(Boolean);
+    const approxTraffic = decodeXmlEntities(extractXmlTagText(item, "ht:approx_traffic") ?? "").trim() || null;
+    const filterCorpus = [title, ...articleTitles].join(" ").toLowerCase();
+    const matchedKeywords = keywords.filter((keyword) => keywordMatchesHaystack(keyword, filterCorpus));
+
+    if (matchedKeywords.length === 0) {
+      continue;
+    }
+
+    const articleUrls = extractXmlTagBlocks(item, "ht:news_item")
+      .map((newsItem) => decodeXmlEntities(extractXmlTagText(newsItem, "ht:news_item_url") ?? "").trim())
+      .filter(Boolean);
+
+    matches.push({
+      title,
+      sourceUrl:
+        articleUrls[0] || `https://trends.google.com/trends/explore?geo=${encodeURIComponent(geo)}&q=${encodeURIComponent(title)}`,
+      sourceDate: pubDate ? new Date(pubDate).toISOString().slice(0, 10) : null,
+      approxTraffic,
+      matchScore: matchedKeywords.length
+    });
+  }
+
+  return matches.sort((left, right) => {
+    const trafficDelta = parseApproximateTraffic(right.approxTraffic) - parseApproximateTraffic(left.approxTraffic);
+
+    if (trafficDelta !== 0) {
+      return trafficDelta;
+    }
+
+    return right.matchScore - left.matchScore;
+  });
+}
+
+function keywordMatchesHaystack(keyword: string, haystack: string) {
+  const escapedKeyword = escapeRegExp(keyword.trim().toLowerCase());
+
+  if (!escapedKeyword) {
+    return false;
+  }
+
+  const pattern = escapedKeyword.includes("\\ ")
+    ? new RegExp(`(^|[^a-z0-9])${escapedKeyword}([^a-z0-9]|$)`, "i")
+    : new RegExp(`\\b${escapedKeyword}\\b`, "i");
+
+  return pattern.test(haystack);
+}
+
+function fetchWithTimeout(url: string, init: RequestInit) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
+  return fetch(url, {
+    ...init,
+    signal: controller.signal
+  }).finally(() => clearTimeout(timeout));
+}
+
+function extractXmlTagBlocks(xml: string, tagName: string) {
+  const matches = xml.matchAll(new RegExp(`<${escapeRegExp(tagName)}\\b[^>]*>([\\s\\S]*?)<\\/${escapeRegExp(tagName)}>`, "gi"));
+  return [...matches].map((match) => match[1]);
+}
+
+function extractXmlTagText(xml: string, tagName: string) {
+  const match = xml.match(new RegExp(`<${escapeRegExp(tagName)}\\b[^>]*>([\\s\\S]*?)<\\/${escapeRegExp(tagName)}>`, "i"));
+  return match?.[1] ?? null;
+}
+
+function decodeXmlEntities(value: string) {
+  return value
+    .replaceAll("&amp;", "&")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#39;", "'");
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function parseApproximateTraffic(value: string | null) {
+  if (!value) {
+    return 0;
+  }
+
+  const normalized = value.replaceAll(",", "").trim().toUpperCase();
+  const match = normalized.match(/(\d+(?:\.\d+)?)([KMB])?\+?/);
+
+  if (!match) {
+    return 0;
+  }
+
+  const base = Number(match[1]);
+  const multiplier =
+    match[2] === "B" ? 1_000_000_000 : match[2] === "M" ? 1_000_000 : match[2] === "K" ? 1_000 : 1;
+
+  return base * multiplier;
+}
+
+const STAT_RESEARCH_STOP_WORDS = new Set([
+  "about",
+  "behind",
+  "business",
+  "current",
+  "their",
+  "there",
+  "these",
+  "this",
+  "with",
+  "from",
+  "that",
+  "where",
+  "would",
+  "into",
+  "operator",
+  "operators"
+]);
 
 function buildFallbackSupportingStats(input: {
   channel: (typeof researchStreamChannels)[number];
