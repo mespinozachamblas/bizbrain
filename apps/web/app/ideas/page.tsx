@@ -24,6 +24,7 @@ export default async function IdeasPage({ searchParams }: PageProps) {
   const status = readSearchParam(resolvedSearchParams, "status");
   const streamId = readSearchParam(resolvedSearchParams, "streamId");
   const topicId = readSearchParam(resolvedSearchParams, "topicId");
+  const reviewMode = readSearchParam(resolvedSearchParams, "reviewMode");
 
   const filteredIdeas = ideas.filter((idea) => {
     const matchesQuery =
@@ -56,8 +57,15 @@ export default async function IdeasPage({ searchParams }: PageProps) {
     const matchesStatus = !status || idea.status === status;
     const matchesStream = !streamId || idea.researchStreamId === streamId;
     const matchesTopic = !topicId || idea.primaryTopicId === topicId;
+    const matchesReviewMode =
+      !reviewMode ||
+      (reviewMode === "ready-only"
+        ? idea.status === "promising" && (idea.qualityScore ?? 0) >= 7
+        : reviewMode === "needs-review"
+          ? idea.status === "new" || idea.status === "revisit" || (idea.qualityScore ?? 0) < 7
+          : true);
 
-    return matchesQuery && matchesCategory && matchesStatus && matchesStream && matchesTopic;
+    return matchesQuery && matchesCategory && matchesStatus && matchesStream && matchesTopic && matchesReviewMode;
   });
 
   const categories = [...new Set(ideas.map((idea) => idea.category).filter(Boolean))].sort((left, right) =>
@@ -73,6 +81,10 @@ export default async function IdeasPage({ searchParams }: PageProps) {
         <p className="lede">
           Review business opportunities here instead of inside the operations page. Filter by stream, topic, category, and
           status, then triage ideas into `promising`, `revisit`, or `ignore`.
+        </p>
+        <p className="helperText">
+          `Ready only` shows ideas already marked `promising` with stronger quality scores. `Needs review` shows ideas that are
+          still new, revisited, or lower-confidence.
         </p>
       </section>
 
@@ -151,6 +163,14 @@ export default async function IdeasPage({ searchParams }: PageProps) {
                 <option value="promising">promising</option>
                 <option value="revisit">revisit</option>
                 <option value="ignore">ignore</option>
+              </select>
+            </label>
+            <label className="fieldLabel">
+              Review mode
+              <select className="fieldInput" defaultValue={reviewMode} name="reviewMode">
+                <option value="">All ideas</option>
+                <option value="ready-only">Ready only</option>
+                <option value="needs-review">Needs review</option>
               </select>
             </label>
             <button className="jobButton jobButtonSecondary" type="submit">
