@@ -1,5 +1,5 @@
 import { db } from "@bizbrain/db";
-import { regenerateContentDraft, runPipelineJob, updateContentDraftStatus } from "../actions";
+import { regenerateContentDraft, runPipelineJob, updateContentDraftAssetStatus, updateContentDraftStatus } from "../actions";
 import { formatDate, formatListInput, formatSourceAttribution, getDashboardData, readSearchParam } from "../dashboard-data";
 import { EmptyState } from "../dashboard-ui";
 
@@ -17,6 +17,7 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
   const channel = readSearchParam(resolvedSearchParams, "channel");
   const topicId = readSearchParam(resolvedSearchParams, "topicId");
   const status = readSearchParam(resolvedSearchParams, "status");
+  const assetStatus = readSearchParam(resolvedSearchParams, "assetStatus");
 
   const filteredDrafts = drafts.filter((draft) => {
     const matchesQuery =
@@ -40,8 +41,9 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
     const matchesChannel = !channel || draft.targetChannel === channel;
     const matchesTopic = !topicId || draft.topicId === topicId;
     const matchesStatus = !status || draft.status === status;
+    const matchesAssetStatus = !assetStatus || (draft.assetStatus ?? "draft") === assetStatus;
 
-    return matchesQuery && matchesChannel && matchesTopic && matchesStatus;
+    return matchesQuery && matchesChannel && matchesTopic && matchesStatus && matchesAssetStatus;
   });
 
   const socialTopics = dashboard.topics.filter((topic) => topic.researchStream.slug === "social-media-research");
@@ -114,6 +116,17 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                 <option value="publish-later">publish-later</option>
               </select>
             </label>
+            <label className="fieldLabel">
+              Asset review
+              <select className="fieldInput" defaultValue={assetStatus} name="assetStatus">
+                <option value="">All asset states</option>
+                <option value="draft">draft</option>
+                <option value="review-required">review-required</option>
+                <option value="approved">approved</option>
+                <option value="reference-only">reference-only</option>
+                <option value="rejected">rejected</option>
+              </select>
+            </label>
             <button className="jobButton jobButtonSecondary" type="submit">
               Filter drafts
             </button>
@@ -129,6 +142,7 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
             <div className="stack">
               {filteredDrafts.map((draft) => {
                 const fitPreview = buildDraftTopicFitPreview(draft);
+                const mediaCandidates = readMediaCandidates(draft.assetCandidatesJson);
 
                 return (
                   <details className="adminDisclosure" key={draft.id}>
@@ -183,10 +197,65 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                       </div>
                       <div className="draftSidebar">
                         <div className="stackCompact">
-                          <p className="rowMeta"><strong>Visual brief:</strong> {readObjectField(draft.visualBriefJson, "concept") ?? "No visual brief yet."}</p>
-                          <p className="rowMeta"><strong>Infographic format:</strong> {draft.infographicFormat ?? "Not set"}</p>
-                          <p className="rowMeta"><strong>Infographic panels:</strong> {formatListInput(draft.infographicPanelsJson) || "No panel outline yet."}</p>
-                          <p className="rowMeta"><strong>Asset mode:</strong> {draft.assetMode ?? "none"}</p>
+                        <p className="rowMeta"><strong>Visual brief:</strong> {readObjectField(draft.visualBriefJson, "concept") ?? "No visual brief yet."}</p>
+                        <p className="rowMeta"><strong>Infographic format:</strong> {draft.infographicFormat ?? "Not set"}</p>
+                        <p className="rowMeta"><strong>Infographic panels:</strong> {formatListInput(draft.infographicPanelsJson) || "No panel outline yet."}</p>
+                        <p className="rowMeta"><strong>Asset mode:</strong> {draft.assetMode ?? "none"}</p>
+                        <p className="rowMeta"><strong>Asset review:</strong> {draft.assetStatus ?? "draft"}</p>
+                        </div>
+                        <div className="evidenceSection">
+                          <p className="rowBody">
+                            <strong>Media policy:</strong>
+                          </p>
+                          <div className="evidenceCard">
+                            <p className="rowMeta">
+                              Preferred sources: {formatListInput(readObjectArrayField(draft.mediaPolicyJson, "preferredSourceClasses")) || "none"}
+                            </p>
+                            <p className="rowMeta">
+                              Direct-use exclusions: {formatListInput(readObjectArrayField(draft.mediaPolicyJson, "prohibitedDirectUseSources")) || "none"}
+                            </p>
+                            <p className="rowBody">
+                              {formatListInput(readObjectArrayField(draft.mediaPolicyJson, "publishingNotes")) || "No publishing notes yet."}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="evidenceSection">
+                          <p className="rowBody">
+                            <strong>Media candidates:</strong>
+                          </p>
+                          {mediaCandidates.length === 0 ? (
+                            <p className="rowMeta">No media candidates yet.</p>
+                          ) : (
+                            <div className="stack">
+                              {mediaCandidates.map((candidate, index) => (
+                                <div className="evidenceCard" key={`${draft.id}-candidate-${index}`}>
+                                  <p className="rowTitle">{candidate.label}</p>
+                                  <p className="rowMeta">
+                                    {candidate.sourceType} · {candidate.usageStatus}
+                                    {candidate.originDomain ? ` · ${candidate.originDomain}` : ""}
+                                  </p>
+                                  <p className="rowBody">
+                                    <strong>License:</strong> {candidate.licenseLabel ?? "Verify on origin site"}
+                                  </p>
+                                  <p className="rowBody">
+                                    <strong>Attribution:</strong> {candidate.attributionText ?? "No attribution guidance stored."}
+                                  </p>
+                                  <p className="rowBody">
+                                    <strong>Rights notes:</strong> {candidate.rightsNotes.join(" ") || "No rights notes."}
+                                  </p>
+                                  <p className="rowMeta">
+                                    {candidate.originUrl ? (
+                                      <>
+                                        <strong>Origin:</strong> <a href={candidate.originUrl} rel="noreferrer" target="_blank">{candidate.originUrl}</a>
+                                      </>
+                                    ) : (
+                                      "No origin URL stored."
+                                    )}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <div className="evidenceSection">
                           <p className="rowBody">
@@ -205,26 +274,41 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                         </div>
                         <div className="jobButtons">
                           <form action={regenerateContentDraft}>
-                          <input name="id" type="hidden" value={draft.id} />
-                          <button className="jobButton" type="submit">
-                            Regenerate
-                          </button>
-                        </form>
-                        {[
-                          ["promising", "Promising"],
-                          ["revisit", "Revisit"],
-                          ["ignore", "Ignore"],
-                          ["publish-later", "Publish Later"],
-                          ["draft", "Reset"]
-                        ].map(([nextStatus, label]) => (
-                          <form action={updateContentDraftStatus} key={nextStatus}>
                             <input name="id" type="hidden" value={draft.id} />
-                            <input name="status" type="hidden" value={nextStatus} />
-                            <button className="jobButton jobButtonSecondary" type="submit">
-                              {label}
+                            <button className="jobButton" type="submit">
+                              Regenerate
                             </button>
                           </form>
-                        ))}
+                          {[
+                            ["promising", "Promising"],
+                            ["revisit", "Revisit"],
+                            ["ignore", "Ignore"],
+                            ["publish-later", "Publish Later"],
+                            ["draft", "Reset"]
+                          ].map(([nextStatus, label]) => (
+                            <form action={updateContentDraftStatus} key={nextStatus}>
+                              <input name="id" type="hidden" value={draft.id} />
+                              <input name="status" type="hidden" value={nextStatus} />
+                              <button className="jobButton jobButtonSecondary" type="submit">
+                                {label}
+                              </button>
+                            </form>
+                          ))}
+                          {[
+                            ["review-required", "Needs Review"],
+                            ["approved", "Approve Media"],
+                            ["reference-only", "Reference Only"],
+                            ["rejected", "Reject Media"],
+                            ["draft", "Reset Media"]
+                          ].map(([nextAssetStatus, label]) => (
+                            <form action={updateContentDraftAssetStatus} key={nextAssetStatus}>
+                              <input name="id" type="hidden" value={draft.id} />
+                              <input name="assetStatus" type="hidden" value={nextAssetStatus} />
+                              <button className="jobButton jobButtonSecondary" type="submit">
+                                {label}
+                              </button>
+                            </form>
+                          ))}
                         </div>
                       </div>
                     </div>
@@ -273,6 +357,36 @@ function readObjectField(value: unknown, key: string) {
 
   const candidate = (value as Record<string, unknown>)[key];
   return typeof candidate === "string" ? candidate : null;
+}
+
+function readObjectArrayField(value: unknown, key: string) {
+  if (!value || typeof value !== "object" || !(key in value)) {
+    return [];
+  }
+
+  const candidate = (value as Record<string, unknown>)[key];
+  return Array.isArray(candidate) ? candidate.filter((entry): entry is string => typeof entry === "string") : [];
+}
+
+function readMediaCandidates(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+    .map((entry) => ({
+      label: typeof entry.label === "string" ? entry.label : "Untitled candidate",
+      sourceType: typeof entry.sourceType === "string" ? entry.sourceType : "unknown",
+      originUrl: typeof entry.originUrl === "string" ? entry.originUrl : null,
+      originDomain: typeof entry.originDomain === "string" ? entry.originDomain : null,
+      licenseLabel: typeof entry.licenseLabel === "string" ? entry.licenseLabel : null,
+      attributionText: typeof entry.attributionText === "string" ? entry.attributionText : null,
+      usageStatus: typeof entry.usageStatus === "string" ? entry.usageStatus : "review-required",
+      rightsNotes: Array.isArray(entry.rightsNotes)
+        ? entry.rightsNotes.filter((note): note is string => typeof note === "string")
+        : []
+    }));
 }
 
 function normalizeDraftStatus(status: string) {

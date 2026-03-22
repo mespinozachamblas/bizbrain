@@ -18,6 +18,14 @@ export const researchStreamIds = {
   socialMedia: "stream-social-media-research"
 } as const;
 export const researchStreamChannels = ["linkedin", "x"] as const;
+export const mediaCandidateSourceTypes = [
+  "first-party",
+  "licensed-stock",
+  "open-license",
+  "ai-generated",
+  "discovery-reference"
+] as const;
+export const mediaCandidateUsageStatuses = ["publishable", "review-required", "reference-only"] as const;
 
 export const digestSectionSchema = z.object({
   sectionTitle: z.string(),
@@ -104,6 +112,28 @@ export const socialDraftSchema = z.object({
     format: z.string(),
     panels: z.array(z.string()).min(3).max(6)
   }),
+  mediaCandidates: z.array(
+    z.object({
+      label: z.string(),
+      sourceType: z.enum(mediaCandidateSourceTypes),
+      originUrl: z.string().url().nullable().optional(),
+      originDomain: z.string().nullable().optional(),
+      candidateUrl: z.string().url().nullable().optional(),
+      licenseLabel: z.string().nullable().optional(),
+      licenseUrl: z.string().url().nullable().optional(),
+      attributionText: z.string().nullable().optional(),
+      usageStatus: z.enum(mediaCandidateUsageStatuses),
+      requiresHumanReview: z.boolean(),
+      referenceOnly: z.boolean(),
+      rightsNotes: z.array(z.string()).max(5)
+    })
+  ).max(6),
+  mediaPolicy: z.object({
+    preferredSourceClasses: z.array(z.string()).min(1).max(6),
+    prohibitedDirectUseSources: z.array(z.string()).max(6),
+    humanReviewRequired: z.boolean(),
+    publishingNotes: z.array(z.string()).min(1).max(6)
+  }),
   qualityScore: z.number().min(0).max(10)
 });
 
@@ -119,6 +149,8 @@ export type JobStatus = (typeof jobStatuses)[number];
 export type SourceType = (typeof sourceTypes)[number];
 export type SourceMode = (typeof sourceModes)[number];
 export type ResearchStreamSlug = (typeof researchStreamSlugs)[number];
+export type MediaCandidateSourceType = (typeof mediaCandidateSourceTypes)[number];
+export type MediaCandidateUsageStatus = (typeof mediaCandidateUsageStatuses)[number];
 export type DigestSection = z.infer<typeof digestSectionSchema>;
 export type SourceSignal = z.infer<typeof sourceSignalSchema>;
 export type SourceAdapterConfig = z.infer<typeof sourceAdapterConfigSchema>;

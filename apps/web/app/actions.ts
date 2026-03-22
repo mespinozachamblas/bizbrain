@@ -169,6 +169,24 @@ export async function updateContentDraftStatus(formData: FormData) {
   revalidatePath("/social-drafts");
 }
 
+export async function updateContentDraftAssetStatus(formData: FormData) {
+  const id = readRequiredString(formData, "id");
+  const assetStatus = readRequiredString(formData, "assetStatus");
+  const allowedStatuses = new Set(["draft", "review-required", "approved", "reference-only", "rejected"]);
+
+  if (!allowedStatuses.has(assetStatus)) {
+    throw new Error(`Unsupported content draft asset status: ${assetStatus}`);
+  }
+
+  await db.contentDraft.update({
+    where: { id },
+    data: { assetStatus }
+  });
+
+  revalidatePath("/");
+  revalidatePath("/social-drafts");
+}
+
 export async function updateIdeaStatus(formData: FormData) {
   const id = readRequiredString(formData, "id");
   const status = readRequiredString(formData, "status");
@@ -670,19 +688,43 @@ export async function forceSendSocialDigestReviewCopy(_: ActionState, _formData:
         replyTo
       });
 
-      await db.emailDelivery.create({
-        data: {
+      const existingDelivery = await db.emailDelivery.findFirst({
+        where: {
           digestId: digest.id,
-          recipientId: recipient.id,
-          recipientEmail: recipient.email,
-          provider: "resend",
-          deliveryKey: `force:${Date.now()}:${recipient.email.toLowerCase()}:${Math.random().toString(36).slice(2, 8)}`,
-          providerMessageId: result.id ?? null,
-          sendStatus: result.error ? "failed" : "sent",
-          errorText: result.error ?? null,
-          attemptedAt: new Date()
+          recipientId: recipient.id
+        },
+        select: {
+          deliveryKey: true
         }
       });
+
+      if (existingDelivery) {
+        await db.emailDelivery.update({
+          where: { deliveryKey: existingDelivery.deliveryKey },
+          data: {
+            recipientEmail: recipient.email,
+            provider: "resend",
+            providerMessageId: result.id ?? null,
+            sendStatus: result.error ? "failed" : "sent",
+            errorText: result.error ?? null,
+            attemptedAt: new Date()
+          }
+        });
+      } else {
+        await db.emailDelivery.create({
+          data: {
+            digestId: digest.id,
+            recipientId: recipient.id,
+            recipientEmail: recipient.email,
+            provider: "resend",
+            deliveryKey: `force:${Date.now()}:${recipient.email.toLowerCase()}:${Math.random().toString(36).slice(2, 8)}`,
+            providerMessageId: result.id ?? null,
+            sendStatus: result.error ? "failed" : "sent",
+            errorText: result.error ?? null,
+            attemptedAt: new Date()
+          }
+        });
+      }
 
       if (result.error) {
         failures.push(`${recipient.email}: ${result.error}`);

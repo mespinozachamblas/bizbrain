@@ -170,7 +170,13 @@ export async function syncSocialContentDrafts() {
             infographicFormat: generated.infographicBrief.format,
             infographicPanelsJson: generated.infographicBrief.panels,
             assetMode,
-            assetStatus: "draft",
+            assetStatus: generated.mediaCandidates.some((candidate) => candidate.usageStatus === "reference-only")
+              ? "review-required"
+              : generated.mediaCandidates.length > 0
+                ? "review-required"
+                : "draft",
+            assetCandidatesJson: generated.mediaCandidates,
+            mediaPolicyJson: generated.mediaPolicy,
             qualityScore: generated.qualityScore,
             sourceAttributionJson: idea.sourceAttributionJson ?? undefined,
             status: "draft"
@@ -277,7 +283,13 @@ export async function regenerateSocialDraftById(draftId: string) {
       infographicFormat: generated.infographicBrief.format,
       infographicPanelsJson: generated.infographicBrief.panels,
       assetMode,
-      assetStatus: "draft",
+      assetStatus: generated.mediaCandidates.some((candidate) => candidate.usageStatus === "reference-only")
+        ? "review-required"
+        : generated.mediaCandidates.length > 0
+          ? "review-required"
+          : "draft",
+      assetCandidatesJson: generated.mediaCandidates,
+      mediaPolicyJson: generated.mediaPolicy,
       qualityScore: generated.qualityScore,
       sourceAttributionJson: draft.sourceIdea.sourceAttributionJson ?? undefined,
       status: "draft"
@@ -517,8 +529,128 @@ function buildFallbackSocialDraft(input: {
         `Business model: ${input.idea.monetizationAngle ?? "Revenue model to test."}`
       ]
     },
+    mediaCandidates: buildFallbackMediaCandidates(input),
+    mediaPolicy: buildFallbackMediaPolicy(input.assetMode),
     qualityScore: Math.min(9.2, Math.max(6.4, input.idea.qualityScore ?? 7))
   });
+}
+
+function buildFallbackMediaCandidates(input: {
+  channel: (typeof researchStreamChannels)[number];
+  idea: IdeaWithCluster;
+  topic: TopicRecord;
+  frameworkName: string;
+  styleName: string;
+  assetMode: string;
+}) {
+  if (input.assetMode === "none") {
+    return [];
+  }
+
+  const concept = `${input.topic.name}: ${input.idea.title}`;
+  const candidates = [];
+
+  if (input.assetMode === "stock") {
+    candidates.push(
+      {
+        label: `${concept} using licensed stock photo search`,
+        sourceType: "licensed-stock" as const,
+        originUrl: "https://www.pexels.com/",
+        originDomain: "pexels.com",
+        candidateUrl: null,
+        licenseLabel: "Pexels License",
+        licenseUrl: "https://www.pexels.com/license/",
+        attributionText: null,
+        usageStatus: "review-required" as const,
+        requiresHumanReview: true,
+        referenceOnly: false,
+        rightsNotes: ["Confirm the specific asset license and whether identifiable people, logos, or property releases affect use."]
+      },
+      {
+        label: `${concept} using open-license search`,
+        sourceType: "open-license" as const,
+        originUrl: "https://openverse.org/",
+        originDomain: "openverse.org",
+        candidateUrl: null,
+        licenseLabel: "Openverse / source-specific open license",
+        licenseUrl: null,
+        attributionText: "Check the original asset page for attribution requirements.",
+        usageStatus: "review-required" as const,
+        requiresHumanReview: true,
+        referenceOnly: false,
+        rightsNotes: ["Verify the underlying asset license and attribution terms on the original source page before publication."]
+      }
+    );
+  }
+
+  if (input.assetMode === "ai-generated") {
+    candidates.push({
+      label: `${concept} as a first-party AI-generated visual`,
+      sourceType: "ai-generated" as const,
+      originUrl: null,
+      originDomain: "first-party",
+      candidateUrl: null,
+      licenseLabel: "First-party generated asset",
+      licenseUrl: null,
+      attributionText: null,
+      usageStatus: "review-required" as const,
+      requiresHumanReview: true,
+      referenceOnly: false,
+      rightsNotes: [
+        "Review for trademark, likeness, and implied-endorsement issues before posting.",
+        `Use ${input.styleName} traits and ${input.frameworkName} framing without copying protected branding or living-artist style.`
+      ]
+    });
+  }
+
+  candidates.push(
+    {
+      label: `${concept} inspiration board from Google Images`,
+      sourceType: "discovery-reference" as const,
+      originUrl: "https://images.google.com/",
+      originDomain: "google.com",
+      candidateUrl: null,
+      licenseLabel: null,
+      licenseUrl: null,
+      attributionText: null,
+      usageStatus: "reference-only" as const,
+      requiresHumanReview: true,
+      referenceOnly: true,
+      rightsNotes: ["Use only for inspiration or origin discovery. Do not publish a Google Images result directly without verifying rights from the original source page."]
+    },
+    {
+      label: `${concept} inspiration board from Pinterest`,
+      sourceType: "discovery-reference" as const,
+      originUrl: "https://www.pinterest.com/",
+      originDomain: "pinterest.com",
+      candidateUrl: null,
+      licenseLabel: null,
+      licenseUrl: null,
+      attributionText: null,
+      usageStatus: "reference-only" as const,
+      requiresHumanReview: true,
+      referenceOnly: true,
+      rightsNotes: ["Treat Pins as references only unless the original asset owner and license are independently verified."]
+    }
+  );
+
+  return candidates;
+}
+
+function buildFallbackMediaPolicy(assetMode: string) {
+  return {
+    preferredSourceClasses:
+      assetMode === "ai-generated"
+        ? ["first-party", "ai-generated", "licensed-stock", "open-license"]
+        : ["first-party", "licensed-stock", "open-license", "ai-generated"],
+    prohibitedDirectUseSources: ["google-images", "pinterest"],
+    humanReviewRequired: true,
+    publishingNotes: [
+      "Do not publish third-party discovery-source imagery without verifying the original asset rights.",
+      "Keep attribution and release checks with the final selected asset.",
+      "Escalate trademarks, logos, celebrity likenesses, and identifiable people for manual review."
+    ]
+  };
 }
 
 const socialDraftJsonSchema = {
@@ -565,6 +697,71 @@ const socialDraftJsonSchema = {
       },
       required: ["summary", "format", "panels"]
     },
+    mediaCandidates: {
+      type: "array",
+      maxItems: 6,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          label: { type: "string" },
+          sourceType: { type: "string", enum: ["first-party", "licensed-stock", "open-license", "ai-generated", "discovery-reference"] },
+          originUrl: { type: ["string", "null"], format: "uri" },
+          originDomain: { type: ["string", "null"] },
+          candidateUrl: { type: ["string", "null"], format: "uri" },
+          licenseLabel: { type: ["string", "null"] },
+          licenseUrl: { type: ["string", "null"], format: "uri" },
+          attributionText: { type: ["string", "null"] },
+          usageStatus: { type: "string", enum: ["publishable", "review-required", "reference-only"] },
+          requiresHumanReview: { type: "boolean" },
+          referenceOnly: { type: "boolean" },
+          rightsNotes: {
+            type: "array",
+            items: { type: "string" },
+            maxItems: 5
+          }
+        },
+        required: [
+          "label",
+          "sourceType",
+          "originUrl",
+          "originDomain",
+          "candidateUrl",
+          "licenseLabel",
+          "licenseUrl",
+          "attributionText",
+          "usageStatus",
+          "requiresHumanReview",
+          "referenceOnly",
+          "rightsNotes"
+        ]
+      }
+    },
+    mediaPolicy: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        preferredSourceClasses: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 1,
+          maxItems: 6
+        },
+        prohibitedDirectUseSources: {
+          type: "array",
+          items: { type: "string" },
+          maxItems: 6
+        },
+        humanReviewRequired: { type: "boolean" },
+        publishingNotes: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 1,
+          maxItems: 6
+        }
+      },
+      required: ["preferredSourceClasses", "prohibitedDirectUseSources", "humanReviewRequired", "publishingNotes"]
+    },
     qualityScore: { type: "number", minimum: 0, maximum: 10 }
   },
   required: [
@@ -578,6 +775,8 @@ const socialDraftJsonSchema = {
     "draftMarkdown",
     "visualBrief",
     "infographicBrief",
+    "mediaCandidates",
+    "mediaPolicy",
     "qualityScore"
   ]
 } as const;

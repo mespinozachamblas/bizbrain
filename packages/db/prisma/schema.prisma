@@ -314,6 +314,7 @@ model ContentDraft {
   assetMode          String?         @map("asset_mode")
   assetStatus        String?         @map("asset_status")
   assetCandidatesJson Json?          @map("asset_candidates_json")
+  mediaPolicyJson    Json?           @map("media_policy_json")
   qualityScore       Float?          @map("quality_score")
   sourceAttributionJson Json?        @map("source_attribution_json")
   status             String

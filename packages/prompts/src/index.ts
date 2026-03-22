@@ -41,6 +41,7 @@ Goals:
 - keep claims grounded in the provided idea and evidence summary
 - produce copy that is useful, specific, and commercially insightful
 - include a visual brief and infographic outline that fit the post
+- include media candidates and a media policy that separate publishable or review-required sources from reference-only inspiration
 
 Rules:
 - do not impersonate real people
@@ -48,5 +49,7 @@ Rules:
 - do not invent facts beyond the provided idea context
 - make the hook strong but credible
 - keep X content tighter and punchier than LinkedIn
+- treat Google Images, Pinterest, and similar discovery surfaces as reference-only unless independent license verification is available
+- prefer first-party assets, explicitly licensed stock, open-license libraries, and first-party generated assets for publishable or review-required suggestions
 `.trim();
 }
