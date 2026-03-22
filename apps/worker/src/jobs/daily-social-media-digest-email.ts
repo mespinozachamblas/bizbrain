@@ -294,7 +294,8 @@ function buildSocialDigestSections(input: SocialDigestInputs) {
   const linkedinDrafts = rankedDrafts.filter((draft) => draft.targetChannel === "linkedin").slice(0, 3);
   const xDrafts = rankedDrafts.filter((draft) => draft.targetChannel === "x").slice(0, 3);
   const infographicDrafts = rankedDrafts.filter((draft) => hasInfographicPanels(draft.infographicPanelsJson)).slice(0, 3);
-  const topStats = collectTopSupportingStats(rankedDrafts).slice(0, 4);
+  const topStats = collectTopSupportingStats(rankedDrafts).slice(0, 6);
+  const groupedStatSections = buildSupportingStatSections(topStats);
   const healthAlerts = [
     ...input.failedJobs.map((job) => `Job ${job.jobName} failed at ${job.startedAt.toISOString()}.`),
     ...input.failedSourceChecks.map(
@@ -336,18 +337,16 @@ function buildSocialDigestSections(input: SocialDigestInputs) {
           ? "These concepts already have panel-ready structures for carousels or infographic-style posts."
           : "Infographic concepts will show up once draft generation creates visual and panel outlines."
     },
-    {
-      sectionTitle: "Wow Factor Statistics",
-      items:
-        topStats.length > 0
-          ? topStats.map((stat) => formatSupportingStatLine(stat))
-          : ["No reviewable supporting statistics are available yet."],
-      alerts: [],
-      plainLanguageSummary:
-        topStats.length > 0
-          ? "These statistics are intended to give your social posts and infographics a stronger proof point, with source links and caveats."
-          : "Supporting statistics will show up here once the social generator captures reviewable quantitative claims."
-    },
+    ...(groupedStatSections.length > 0
+      ? groupedStatSections
+      : [
+          {
+            sectionTitle: "Wow Factor Statistics",
+            items: ["No reviewable supporting statistics are available yet."],
+            alerts: [],
+            plainLanguageSummary: "Supporting statistics will show up here once the social generator captures reviewable quantitative claims."
+          }
+        ]),
     {
       sectionTitle: "Pipeline Health Notes",
       items:
@@ -420,6 +419,7 @@ function collectTopSupportingStats(drafts: Array<SocialDigestDraft & { freshness
     .flatMap((draft) =>
       readSupportingStats(draft.supportingStatsJson).map((stat) => ({
         ...stat,
+        sourceClass: inferSupportingStatSourceClass(stat),
         draftTitle: draft.title,
         topicName: draft.topic?.name ?? "Unassigned",
         draftQualityScore: draft.qualityScore ?? 0,
@@ -435,21 +435,69 @@ function collectTopSupportingStats(drafts: Array<SocialDigestDraft & { freshness
 
 function formatSupportingStatLine(
   stat: SupportingStat & {
+    sourceClass: string;
     draftTitle: string;
     topicName: string;
   }
 ) {
-  const sourceClass = inferSupportingStatSourceClass(stat);
-
   return [
     stat.claim,
     `Topic: ${stat.topicName}`,
     `Draft: ${stat.draftTitle}`,
-    `Source class: ${sourceClass}`,
+    `Source class: ${stat.sourceClass}`,
     `Source: ${stat.sourceName} (${stat.sourceUrl})`,
     `Freshness: ${ensureSentence(stat.freshnessNote)}`,
     `Confidence: ${ensureSentence(stat.confidenceNote)}`
   ].join(" | ");
+}
+
+function buildSupportingStatSections(
+  stats: Array<
+    SupportingStat & {
+      sourceClass: string;
+      draftTitle: string;
+      topicName: string;
+      draftQualityScore: number;
+      statScore: number;
+    }
+  >
+) {
+  const sectionOrder = ["Google Trends", "Product Hunt", "Cluster Evidence", "External Evidence"] as const;
+  const sectionMeta: Record<(typeof sectionOrder)[number], { title: string; summary: string }> = {
+    "Google Trends": {
+      title: "Momentum Statistics",
+      summary: "These statistics show live search-attention or trend momentum signals relevant to the current social topics."
+    },
+    "Product Hunt": {
+      title: "Marketplace Statistics",
+      summary: "These statistics show visible launch and engagement activity from product-marketplace signals."
+    },
+    "Cluster Evidence": {
+      title: "Internal Evidence Statistics",
+      summary: "These statistics come from BizBrain's clustered source evidence and are useful as internal proof points when external data is limited."
+    },
+    "External Evidence": {
+      title: "Additional External Statistics",
+      summary: "These statistics come from external evidence sources that do not fit the primary momentum or marketplace buckets."
+    }
+  };
+
+  return sectionOrder
+    .map((sourceClass) => {
+      const grouped = stats.filter((stat) => stat.sourceClass === sourceClass).slice(0, 2);
+
+      if (grouped.length === 0) {
+        return null;
+      }
+
+      return {
+        sectionTitle: sectionMeta[sourceClass].title,
+        items: grouped.map((stat) => formatSupportingStatLine(stat)),
+        alerts: [],
+        plainLanguageSummary: sectionMeta[sourceClass].summary
+      };
+    })
+    .filter((section): section is NonNullable<typeof section> => Boolean(section));
 }
 
 function inferSupportingStatSourceClass(stat: SupportingStat) {
