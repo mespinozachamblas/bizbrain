@@ -416,13 +416,21 @@ function readSupportingStats(value: unknown): SupportingStat[] {
 }
 
 function collectTopSupportingStats(drafts: Array<SocialDigestDraft & { freshnessTag?: string | null }>) {
-  return drafts.flatMap((draft) =>
-    readSupportingStats(draft.supportingStatsJson).map((stat) => ({
-      ...stat,
-      draftTitle: draft.title,
-      topicName: draft.topic?.name ?? "Unassigned"
-    }))
-  );
+  return drafts
+    .flatMap((draft) =>
+      readSupportingStats(draft.supportingStatsJson).map((stat) => ({
+        ...stat,
+        draftTitle: draft.title,
+        topicName: draft.topic?.name ?? "Unassigned",
+        draftQualityScore: draft.qualityScore ?? 0,
+        statScore: scoreSupportingStat(stat, draft)
+      }))
+    )
+    .sort((left, right) => right.statScore - left.statScore || right.draftQualityScore - left.draftQualityScore)
+    .filter((stat, index, all) => {
+      const normalizedClaim = normalizeComparableText(stat.claim);
+      return all.findIndex((candidate) => normalizeComparableText(candidate.claim) === normalizedClaim) === index;
+    });
 }
 
 function formatSupportingStatLine(
@@ -439,6 +447,47 @@ function formatSupportingStatLine(
     `Freshness: ${ensureSentence(stat.freshnessNote)}`,
     `Confidence: ${ensureSentence(stat.confidenceNote)}`
   ].join(" | ");
+}
+
+function scoreSupportingStat(
+  stat: SupportingStat,
+  draft: SocialDigestDraft & { freshnessTag?: string | null }
+) {
+  let score = draft.qualityScore ?? 0;
+  const sourceUrl = stat.sourceUrl.toLowerCase();
+  const freshnessText = `${stat.freshnessNote} ${stat.sourceDate ?? ""}`.toLowerCase();
+  const confidenceText = stat.confidenceNote.toLowerCase();
+  const claimText = stat.claim.toLowerCase();
+
+  if (!sourceUrl.includes("app.bizbrain.local")) {
+    score += 3;
+  }
+
+  if (confidenceText.includes("higher confidence")) {
+    score += 3;
+  } else if (confidenceText.includes("moderate confidence")) {
+    score += 2;
+  } else if (confidenceText.includes("low-to-moderate")) {
+    score += 1;
+  }
+
+  if (freshnessText.includes("latest") || freshnessText.includes("current") || freshnessText.includes("snapshot")) {
+    score += 1;
+  }
+
+  if (/\d/.test(claimText)) {
+    score += 2;
+  }
+
+  if (draft.freshnessTag) {
+    score += draft.freshnessTag.includes("New") ? 2 : 1;
+  }
+
+  return score;
+}
+
+function normalizeComparableText(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function toStringArray(value: unknown) {
