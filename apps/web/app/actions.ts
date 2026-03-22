@@ -187,6 +187,49 @@ export async function updateContentDraftAssetStatus(formData: FormData) {
   revalidatePath("/social-drafts");
 }
 
+export async function updateContentDraftMediaCandidateStatus(formData: FormData) {
+  const id = readRequiredString(formData, "id");
+  const candidateIndex = Number(readRequiredString(formData, "candidateIndex"));
+  const reviewStatus = readRequiredString(formData, "reviewStatus");
+  const allowedStatuses = new Set(["pending", "approved", "use-with-caution", "rejected", "reference-only"]);
+
+  if (!Number.isInteger(candidateIndex) || candidateIndex < 0) {
+    throw new Error("Invalid media candidate index.");
+  }
+
+  if (!allowedStatuses.has(reviewStatus)) {
+    throw new Error(`Unsupported media candidate review status: ${reviewStatus}`);
+  }
+
+  const draft = await db.contentDraft.findUnique({
+    where: { id },
+    select: { assetCandidatesJson: true }
+  });
+
+  if (!draft || !Array.isArray(draft.assetCandidatesJson) || !draft.assetCandidatesJson[candidateIndex] || typeof draft.assetCandidatesJson[candidateIndex] !== "object") {
+    throw new Error("Media candidate not found.");
+  }
+
+  const assetCandidates = draft.assetCandidatesJson.map((entry, index) => {
+    if (index !== candidateIndex || !entry || typeof entry !== "object") {
+      return entry;
+    }
+
+    return {
+      ...entry,
+      reviewStatus
+    };
+  });
+
+  await db.contentDraft.update({
+    where: { id },
+    data: { assetCandidatesJson: assetCandidates }
+  });
+
+  revalidatePath("/");
+  revalidatePath("/social-drafts");
+}
+
 export async function updateContentDraftStatStatus(formData: FormData) {
   const id = readRequiredString(formData, "id");
   const statIndex = Number(readRequiredString(formData, "statIndex"));

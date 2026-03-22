@@ -1168,6 +1168,7 @@ function buildFallbackMediaCandidates(input: {
         licenseUrl: "https://www.pexels.com/license/",
         attributionText: null,
         usageStatus: "review-required" as const,
+        reviewStatus: "pending" as const,
         requiresHumanReview: true,
         referenceOnly: false,
         rightsNotes: ["Confirm the specific asset license and whether identifiable people, logos, or property releases affect use."]
@@ -1182,6 +1183,7 @@ function buildFallbackMediaCandidates(input: {
         licenseUrl: null,
         attributionText: "Check the original asset page for attribution requirements.",
         usageStatus: "review-required" as const,
+        reviewStatus: "pending" as const,
         requiresHumanReview: true,
         referenceOnly: false,
         rightsNotes: ["Verify the underlying asset license and attribution terms on the original source page before publication."]
@@ -1200,6 +1202,7 @@ function buildFallbackMediaCandidates(input: {
       licenseUrl: null,
       attributionText: null,
       usageStatus: "review-required" as const,
+      reviewStatus: "pending" as const,
       requiresHumanReview: true,
       referenceOnly: false,
       rightsNotes: [
@@ -1220,6 +1223,7 @@ function buildFallbackMediaCandidates(input: {
       licenseUrl: null,
       attributionText: null,
       usageStatus: "reference-only" as const,
+      reviewStatus: "reference-only" as const,
       requiresHumanReview: true,
       referenceOnly: true,
       rightsNotes: ["Use only for inspiration or origin discovery. Do not publish a Google Images result directly without verifying rights from the original source page."]
@@ -1234,6 +1238,7 @@ function buildFallbackMediaCandidates(input: {
       licenseUrl: null,
       attributionText: null,
       usageStatus: "reference-only" as const,
+      reviewStatus: "reference-only" as const,
       requiresHumanReview: true,
       referenceOnly: true,
       rightsNotes: ["Treat Pins as references only unless the original asset owner and license are independently verified."]
@@ -1319,6 +1324,7 @@ const socialDraftJsonSchema = {
           licenseUrl: { type: ["string", "null"], format: "uri" },
           attributionText: { type: ["string", "null"] },
           usageStatus: { type: "string", enum: ["publishable", "review-required", "reference-only"] },
+          reviewStatus: { type: "string", enum: ["pending", "approved", "use-with-caution", "rejected", "reference-only"] },
           requiresHumanReview: { type: "boolean" },
           referenceOnly: { type: "boolean" },
           rightsNotes: {
@@ -1337,6 +1343,7 @@ const socialDraftJsonSchema = {
           "licenseUrl",
           "attributionText",
           "usageStatus",
+          "reviewStatus",
           "requiresHumanReview",
           "referenceOnly",
           "rightsNotes"

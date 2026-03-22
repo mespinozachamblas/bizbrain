@@ -1,5 +1,5 @@
 import { db } from "@bizbrain/db";
-import { regenerateContentDraft, runPipelineJob, updateContentDraftAssetStatus, updateContentDraftStatStatus, updateContentDraftStatus } from "../actions";
+import { regenerateContentDraft, runPipelineJob, updateContentDraftAssetStatus, updateContentDraftMediaCandidateStatus, updateContentDraftStatStatus, updateContentDraftStatus } from "../actions";
 import { formatDate, formatListInput, formatSourceAttribution, getDashboardData, readSearchParam } from "../dashboard-data";
 import { EmptyState } from "../dashboard-ui";
 
@@ -297,6 +297,7 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                                   <p className="rowTitle">{candidate.label}</p>
                                   <p className="rowMeta">
                                     {candidate.sourceType} · {candidate.usageStatus}
+                                    {` · review ${candidate.reviewStatus}`}
                                     {candidate.originDomain ? ` · ${candidate.originDomain}` : ""}
                                   </p>
                                   <p className="rowBody">
@@ -317,6 +318,24 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                                       "No origin URL stored."
                                     )}
                                   </p>
+                                  <div className="jobButtons">
+                                    {[
+                                      ["approved", "Approve"],
+                                      ["use-with-caution", "Use With Caution"],
+                                      ["rejected", "Reject"],
+                                      ["reference-only", "Reference Only"],
+                                      ["pending", "Reset"]
+                                    ].map(([reviewStatus, label]) => (
+                                      <form action={updateContentDraftMediaCandidateStatus} key={`${draft.id}-candidate-${index}-${reviewStatus}`}>
+                                        <input name="id" type="hidden" value={draft.id} />
+                                        <input name="candidateIndex" type="hidden" value={String(index)} />
+                                        <input name="reviewStatus" type="hidden" value={reviewStatus} />
+                                        <button className="jobButton jobButtonSecondary" type="submit">
+                                          {label}
+                                        </button>
+                                      </form>
+                                    ))}
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -448,6 +467,12 @@ function readMediaCandidates(value: unknown) {
       licenseLabel: typeof entry.licenseLabel === "string" ? entry.licenseLabel : null,
       attributionText: typeof entry.attributionText === "string" ? entry.attributionText : null,
       usageStatus: typeof entry.usageStatus === "string" ? entry.usageStatus : "review-required",
+      reviewStatus:
+        typeof entry.reviewStatus === "string" && ["pending", "approved", "use-with-caution", "rejected", "reference-only"].includes(entry.reviewStatus)
+          ? entry.reviewStatus
+          : typeof entry.usageStatus === "string" && entry.usageStatus === "reference-only"
+            ? "reference-only"
+            : "pending",
       rightsNotes: Array.isArray(entry.rightsNotes)
         ? entry.rightsNotes.filter((note): note is string => typeof note === "string")
         : []

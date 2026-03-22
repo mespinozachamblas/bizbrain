@@ -26,6 +26,7 @@ export const mediaCandidateSourceTypes = [
   "discovery-reference"
 ] as const;
 export const mediaCandidateUsageStatuses = ["publishable", "review-required", "reference-only"] as const;
+export const mediaCandidateReviewStatuses = ["pending", "approved", "use-with-caution", "rejected", "reference-only"] as const;
 export const supportingStatReviewStatuses = ["pending", "approved", "use-with-caution", "rejected"] as const;
 
 export const supportingStatSchema = z.object({
@@ -136,6 +137,7 @@ export const socialDraftSchema = z.object({
       licenseUrl: z.string().url().nullable().optional(),
       attributionText: z.string().nullable().optional(),
       usageStatus: z.enum(mediaCandidateUsageStatuses),
+      reviewStatus: z.enum(mediaCandidateReviewStatuses),
       requiresHumanReview: z.boolean(),
       referenceOnly: z.boolean(),
       rightsNotes: z.array(z.string()).max(5)
@@ -165,6 +167,7 @@ export type SourceMode = (typeof sourceModes)[number];
 export type ResearchStreamSlug = (typeof researchStreamSlugs)[number];
 export type MediaCandidateSourceType = (typeof mediaCandidateSourceTypes)[number];
 export type MediaCandidateUsageStatus = (typeof mediaCandidateUsageStatuses)[number];
+export type MediaCandidateReviewStatus = (typeof mediaCandidateReviewStatuses)[number];
 export type SupportingStatReviewStatus = (typeof supportingStatReviewStatuses)[number];
 export type DigestSection = z.infer<typeof digestSectionSchema>;
 export type SupportingStat = z.infer<typeof supportingStatSchema>;

@@ -297,6 +297,7 @@ function buildSocialDigestSections(input: SocialDigestInputs) {
   const infographicDrafts = rankedDrafts.filter((draft) => hasInfographicPanels(draft.infographicPanelsJson)).slice(0, 3);
   const topStats = collectTopSupportingStats(rankedDrafts).slice(0, 6);
   const groupedStatSections = buildSupportingStatSections(topStats);
+  const reviewedMedia = collectReviewedMediaCandidates(rankedDrafts).slice(0, 4);
   const healthAlerts = [
     ...input.failedJobs.map((job) => `Job ${job.jobName} failed at ${job.startedAt.toISOString()}.`),
     ...input.failedSourceChecks.map(
@@ -348,6 +349,18 @@ function buildSocialDigestSections(input: SocialDigestInputs) {
             plainLanguageSummary: "Supporting statistics will show up here once the social generator captures reviewable quantitative claims."
           }
         ]),
+    {
+      sectionTitle: "Reviewed Media Suggestions",
+      items:
+        reviewedMedia.length > 0
+          ? reviewedMedia.map((candidate) => formatMediaCandidateLine(candidate))
+          : ["No approved or review-safe media suggestions are available yet."],
+      alerts: [],
+      plainLanguageSummary:
+        reviewedMedia.length > 0
+          ? "These media suggestions are the highest-ranked reviewed candidates attached to the current social drafts."
+          : "Media suggestions will appear here after you review candidate assets on the Social Drafts screen."
+    },
     {
       sectionTitle: "Pipeline Health Notes",
       items:
@@ -567,6 +580,104 @@ function scoreSupportingStat(
   }
 
   return score;
+}
+
+type ReviewedMediaCandidate = {
+  label: string;
+  sourceType: string;
+  usageStatus: string;
+  reviewStatus: string;
+  originUrl: string | null;
+  originDomain: string | null;
+  licenseLabel: string | null;
+  draftTitle: string;
+  topicName: string;
+  draftQualityScore: number;
+  mediaScore: number;
+};
+
+function collectReviewedMediaCandidates(drafts: Array<SocialDigestDraft & { freshnessTag?: string | null }>) {
+  return drafts
+    .flatMap((draft) =>
+      readMediaCandidates(draft.assetCandidatesJson)
+        .filter((candidate) => candidate.reviewStatus === "approved" || candidate.reviewStatus === "use-with-caution")
+        .map((candidate) => ({
+          ...candidate,
+          draftTitle: draft.title,
+          topicName: draft.topic?.name ?? "Unassigned",
+          draftQualityScore: draft.qualityScore ?? 0,
+          mediaScore: scoreMediaCandidate(candidate, draft)
+        }))
+    )
+    .sort((left, right) => right.mediaScore - left.mediaScore || right.draftQualityScore - left.draftQualityScore)
+    .filter((candidate, index, all) => {
+      const normalizedLabel = normalizeComparableText(candidate.label);
+      return all.findIndex((other) => normalizeComparableText(other.label) === normalizedLabel) === index;
+    });
+}
+
+function readMediaCandidates(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+    .map((entry) => ({
+      label: typeof entry.label === "string" ? entry.label : "Untitled candidate",
+      sourceType: typeof entry.sourceType === "string" ? entry.sourceType : "unknown",
+      usageStatus: typeof entry.usageStatus === "string" ? entry.usageStatus : "review-required",
+      reviewStatus:
+        typeof entry.reviewStatus === "string" && ["pending", "approved", "use-with-caution", "rejected", "reference-only"].includes(entry.reviewStatus)
+          ? entry.reviewStatus
+          : typeof entry.usageStatus === "string" && entry.usageStatus === "reference-only"
+            ? "reference-only"
+            : "pending",
+      originUrl: typeof entry.originUrl === "string" ? entry.originUrl : null,
+      originDomain: typeof entry.originDomain === "string" ? entry.originDomain : null,
+      licenseLabel: typeof entry.licenseLabel === "string" ? entry.licenseLabel : null
+    }));
+}
+
+function scoreMediaCandidate(
+  candidate: ReturnType<typeof readMediaCandidates>[number],
+  draft: SocialDigestDraft & { freshnessTag?: string | null }
+) {
+  let score = draft.qualityScore ?? 0;
+
+  if (candidate.reviewStatus === "approved") {
+    score += 4;
+  } else if (candidate.reviewStatus === "use-with-caution") {
+    score += 1;
+  }
+
+  if (candidate.sourceType === "first-party" || candidate.sourceType === "ai-generated") {
+    score += 2;
+  }
+
+  if (candidate.usageStatus === "publishable") {
+    score += 2;
+  } else if (candidate.usageStatus === "review-required") {
+    score += 1;
+  }
+
+  if (draft.freshnessTag) {
+    score += draft.freshnessTag.includes("New") ? 2 : 1;
+  }
+
+  return score;
+}
+
+function formatMediaCandidateLine(candidate: ReviewedMediaCandidate) {
+  return [
+    candidate.label,
+    `Topic: ${candidate.topicName}`,
+    `Draft: ${candidate.draftTitle}`,
+    `Review: ${candidate.reviewStatus}`,
+    `Source type: ${candidate.sourceType}`,
+    `License: ${candidate.licenseLabel ?? "Verify on origin site"}`,
+    `Origin: ${candidate.originUrl ?? candidate.originDomain ?? "No origin URL stored"}`
+  ].join(" | ");
 }
 
 function normalizeComparableText(value: string) {
