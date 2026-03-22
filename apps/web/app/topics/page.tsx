@@ -22,7 +22,10 @@ export default async function TopicsPage({ searchParams }: PageProps) {
       <section className="hero heroCompact">
         <p className="eyebrow">BizBrain</p>
         <h1>Topics</h1>
-        <p className="lede">Topics steer source matching, social outputs, and future draft generation within each research stream.</p>
+        <p className="lede">
+          Topics steer source matching and output selection within each research stream. For social-media topics, content
+          channels like LinkedIn and X control draft generation.
+        </p>
       </section>
 
       <section className="dashboardGrid dashboardGridTwoCol">
@@ -51,8 +54,8 @@ export default async function TopicsPage({ searchParams }: PageProps) {
               <input className="fieldInput" name="slug" placeholder="mortgage-underwriting-friction" type="text" />
             </label>
             <label className="fieldLabel">
-              Channels
-              <input className="fieldInput" defaultValue="email" name="enabledChannels" placeholder="email, linkedin, x" type="text" />
+              Content channels
+              <input className="fieldInput" defaultValue="email" name="enabledChannels" placeholder="linkedin, x" type="text" />
             </label>
             <label className="fieldLabel fieldLabelWide">
               Description
@@ -173,7 +176,7 @@ export default async function TopicsPage({ searchParams }: PageProps) {
                       <input className="fieldInput" defaultValue={topic.slug} name="slug" required type="text" />
                     </label>
                     <label className="fieldLabel">
-                      Channels
+                      Content channels
                       <input className="fieldInput" defaultValue={formatListInput(topic.enabledChannelsJson)} name="enabledChannels" type="text" />
                     </label>
                     <label className="fieldLabel fieldLabelWide">

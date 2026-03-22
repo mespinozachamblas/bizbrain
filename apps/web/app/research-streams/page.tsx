@@ -45,7 +45,7 @@ export default async function ResearchStreamsPage({ searchParams }: PageProps) {
               <textarea className="fieldTextarea" name="description" placeholder="Research-backed drafts for social channels." rows={3} />
             </label>
             <label className="fieldLabel">
-              Channels
+              Delivery / output channels
               <input className="fieldInput" defaultValue="email" name="enabledChannels" placeholder="email, linkedin, x" type="text" />
             </label>
             <label className="fieldLabel">
@@ -121,7 +121,7 @@ export default async function ResearchStreamsPage({ searchParams }: PageProps) {
                       <textarea className="fieldTextarea" defaultValue={stream.description ?? ""} name="description" rows={2} />
                     </label>
                     <label className="fieldLabel">
-                      Channels
+                      Delivery / output channels
                       <input className="fieldInput" defaultValue={formatChannelInput(stream.enabledChannelsJson)} name="enabledChannels" type="text" />
                     </label>
                     <label className="fieldLabel">
