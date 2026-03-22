@@ -15,6 +15,7 @@ export async function runPipelineJob(formData: FormData) {
 
   await workerJobs[jobName as JobName]();
   revalidatePath("/");
+  revalidatePath("/sources");
   revalidatePath("/ideas");
   revalidatePath("/social-drafts");
 }
@@ -28,6 +29,7 @@ export async function runSourceCheck(formData: FormData) {
 
   await runSourceHealthCheck(sourceConfigId);
   revalidatePath("/");
+  revalidatePath("/sources");
 }
 
 export async function updateContentDraftStatus(formData: FormData) {

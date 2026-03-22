@@ -1,7 +1,7 @@
 import { jobNames } from "@bizbrain/core";
 
-import { runPipelineJob, runSourceCheck } from "./actions";
-import { getDashboardData, formatDate, formatSourceAttribution, normalizeStatus } from "./dashboard-data";
+import { runPipelineJob } from "./actions";
+import { getDashboardData, formatDate, formatSourceAttribution } from "./dashboard-data";
 import { EmptyState, StatCard } from "./dashboard-ui";
 
 export const dynamic = "force-dynamic";
@@ -50,27 +50,6 @@ export default async function HomePage() {
         </article>
 
         <article className="card controlCard">
-          <div className="cardHeader">
-            <h2>Test source health</h2>
-            <span className="badge">Checks</span>
-          </div>
-          {dashboard.sourceConfigs.length === 0 ? (
-            <EmptyState message="No source configs available to test yet." />
-          ) : (
-            <div className="jobButtons">
-              {dashboard.sourceConfigs.map((sourceConfig) => (
-                <form action={runSourceCheck} key={sourceConfig.id}>
-                  <input name="sourceConfigId" type="hidden" value={sourceConfig.id} />
-                  <button className="jobButton jobButtonSecondary" type="submit">
-                    Test {sourceConfig.sourceType}
-                  </button>
-                </form>
-              ))}
-            </div>
-          )}
-        </article>
-
-        <article className="card cardTall">
           <div className="cardHeader">
             <h2>Recent job runs</h2>
             <span className="badge">Pipeline</span>
@@ -141,31 +120,6 @@ export default async function HomePage() {
                     <p className="rowBody">{draft.hook ?? draft.thesis ?? "Draft body pending."}</p>
                     <p className="rowMeta">Updated {formatDate(draft.updatedAt)}</p>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </article>
-
-        <article className="card">
-          <div className="cardHeader">
-            <h2>Recent source health</h2>
-            <span className="badge">Checks</span>
-          </div>
-          {dashboard.recentHealthChecks.length === 0 ? (
-            <EmptyState message="Health checks will appear once source validation is wired." />
-          ) : (
-            <div className="stack">
-              {dashboard.recentHealthChecks.map((check) => (
-                <div className="listRow listRowBlock" key={check.id}>
-                  <div>
-                    <p className="rowTitle">
-                      {check.sourceConfig.sourceType} · {check.checkType}
-                    </p>
-                    <p className="rowMeta">{formatDate(check.checkedAt)}</p>
-                    <p className="rowBody">{check.responseSummary ?? "No response summary captured."}</p>
-                  </div>
-                  <span className={`status status-${normalizeStatus(check.checkStatus)}`}>{check.checkStatus}</span>
                 </div>
               ))}
             </div>
