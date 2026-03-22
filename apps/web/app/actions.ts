@@ -41,7 +41,7 @@ export async function createSourceConfig(formData: FormData) {
   const researchStreamIds = readStringList(formData, "researchStreamIds");
   const topicIds = readStringList(formData, "topicIds");
   const nicheModes = parseCommaSeparatedString(readOptionalString(formData, "nicheModes"));
-  const configJson = parseConfigJson(readRequiredString(formData, "configJson"));
+  const configJson = buildSourceConfigFromFormData(formData, sourceType);
   const changeReason = readOptionalString(formData, "changeReason") ?? "Initial source config creation";
 
   if (!sourceTypes.includes(sourceType as (typeof sourceTypes)[number])) {
@@ -90,7 +90,7 @@ export async function updateSourceConfig(formData: FormData) {
   const researchStreamIds = readStringList(formData, "researchStreamIds");
   const topicIds = readStringList(formData, "topicIds");
   const nicheModes = parseCommaSeparatedString(readOptionalString(formData, "nicheModes"));
-  const configJson = parseConfigJson(readRequiredString(formData, "configJson"));
+  const configJson = buildSourceConfigFromFormData(formData, sourceType);
   const changeReason = readOptionalString(formData, "changeReason") ?? "Updated source config from dashboard";
 
   if (!sourceTypes.includes(sourceType as (typeof sourceTypes)[number])) {
@@ -738,6 +738,72 @@ function parseConfigJson(value: string) {
   }
 
   return sourceAdapterConfigSchema.parse(parsed);
+}
+
+function buildSourceConfigFromFormData(formData: FormData, sourceType: string) {
+  const advancedConfigJson = readOptionalString(formData, "configJson");
+
+  if (advancedConfigJson) {
+    return parseConfigJson(advancedConfigJson);
+  }
+
+  const mode = readOptionalString(formData, "mode");
+  const sampleSize = readOptionalNumber(formData, "sampleSize");
+  const keywords = parseCommaSeparatedString(readOptionalString(formData, "keywords"));
+  const exclusions = parseCommaSeparatedString(readOptionalString(formData, "exclusions"));
+
+  const config: Record<string, unknown> = {
+    ...(mode ? { mode } : {}),
+    ...(sampleSize !== null ? { sampleSize } : {}),
+    ...(keywords.length > 0 ? { keywords } : {}),
+    ...(exclusions.length > 0 ? { exclusions } : {})
+  };
+
+  if (sourceType === "reddit") {
+    const subredditList = parseCommaSeparatedString(readOptionalString(formData, "subredditList"));
+    if (subredditList.length > 0) {
+      config.subredditList = subredditList;
+    }
+  }
+
+  if (sourceType === "google-trends") {
+    const geo = readOptionalString(formData, "geo");
+    if (geo) {
+      config.geo = geo;
+    }
+  }
+
+  if (sourceType === "hacker-news") {
+    const storyTypes = parseCommaSeparatedString(readOptionalString(formData, "storyTypes"));
+    if (storyTypes.length > 0) {
+      config.storyTypes = storyTypes;
+    }
+  }
+
+  if (sourceType === "product-hunt") {
+    const productTopics = parseCommaSeparatedString(readOptionalString(formData, "productTopics"));
+    if (productTopics.length > 0) {
+      config.productTopics = productTopics;
+    }
+  }
+
+  return sourceAdapterConfigSchema.parse(config);
+}
+
+function readOptionalNumber(formData: FormData, key: string) {
+  const value = readOptionalString(formData, key);
+
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${key} must be a valid number.`);
+  }
+
+  return parsed;
 }
 
 async function validateSourceRelations(input: { researchStreamIds: string[]; topicIds: string[] }) {

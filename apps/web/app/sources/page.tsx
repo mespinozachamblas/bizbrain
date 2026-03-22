@@ -1,5 +1,5 @@
 import { db } from "@bizbrain/db";
-import { sourceTypes } from "@bizbrain/core";
+import { sourceTypes, type SourceType } from "@bizbrain/core";
 import { createSourceConfig, runPipelineJob, runSourceCheck, updateSourceConfig } from "../actions";
 import {
   formatDate,
@@ -113,6 +113,7 @@ export default async function SourcesPage({ searchParams }: PageProps) {
               Niche modes
               <input className="fieldInput" name="nicheModes" placeholder="pain, trends, validation" type="text" />
             </label>
+            {renderSourceSpecificFields("reddit", {})}
             <label className="fieldLabel fieldLabelWide">
               Linked research streams
               <select className="fieldInput" multiple name="researchStreamIds" size={Math.min(6, Math.max(2, dashboard.researchStreams.length))}>
@@ -133,14 +134,18 @@ export default async function SourcesPage({ searchParams }: PageProps) {
                 ))}
               </select>
             </label>
-            <label className="fieldLabel fieldLabelWide">
-              Config JSON
-              <textarea
-                className="fieldTextarea"
-                defaultValue={JSON.stringify({ mode: "sample", sampleSize: 5 }, null, 2)}
-                name="configJson"
-              />
-            </label>
+            <details className="adminDisclosure">
+              <summary className="adminDisclosureSummary">
+                <div>
+                  <p className="rowTitle">Advanced JSON override</p>
+                  <p className="rowMeta">Leave blank to use the friendly fields above.</p>
+                </div>
+              </summary>
+              <label className="fieldLabel fieldLabelWide">
+                Config JSON
+                <textarea className="fieldTextarea" name="configJson" placeholder='{"mode":"sample","sampleSize":5}' />
+              </label>
+            </details>
             <label className="fieldLabel fieldLabelWide">
               Change reason
               <input className="fieldInput" name="changeReason" placeholder="Why this source config exists" type="text" />
@@ -196,6 +201,7 @@ export default async function SourcesPage({ searchParams }: PageProps) {
                 const selectedStreamIds = mapSelectedIds(source.researchStreamIdsJson);
                 const selectedTopicIds = mapSelectedIds(source.topicIdsJson);
                 const mode = readObjectField(source.configJson, "mode") ?? "unknown";
+                const normalizedSourceType = normalizeSourceType(source.sourceType);
 
                 return (
                   <details className="adminDisclosure" key={source.id}>
@@ -240,6 +246,7 @@ export default async function SourcesPage({ searchParams }: PageProps) {
                               type="text"
                             />
                           </label>
+                          {renderSourceSpecificFields(normalizedSourceType, source.configJson)}
                           <label className="fieldLabel fieldLabelWide">
                             Linked research streams
                             <select
@@ -272,14 +279,18 @@ export default async function SourcesPage({ searchParams }: PageProps) {
                               ))}
                             </select>
                           </label>
-                          <label className="fieldLabel fieldLabelWide">
-                            Config JSON
-                            <textarea
-                              className="fieldTextarea"
-                              defaultValue={JSON.stringify(source.configJson, null, 2)}
-                              name="configJson"
-                            />
-                          </label>
+                          <details className="adminDisclosure fieldLabelWide">
+                            <summary className="adminDisclosureSummary">
+                              <div>
+                                <p className="rowTitle">Advanced JSON override</p>
+                                <p className="rowMeta">Leave blank to use the friendly fields above.</p>
+                              </div>
+                            </summary>
+                            <label className="fieldLabel fieldLabelWide">
+                              Config JSON
+                              <textarea className="fieldTextarea" defaultValue="" name="configJson" placeholder={JSON.stringify(source.configJson, null, 2)} />
+                            </label>
+                          </details>
                           <label className="fieldLabel fieldLabelWide">
                             Change reason
                             <input
@@ -455,6 +466,110 @@ function readObjectField(value: unknown, key: string) {
 }
 
 function formatUnknownList(value: unknown) {
+  if (!Array.isArray(value)) {
+    return "";
+  }
+
+  return value.filter((entry): entry is string => typeof entry === "string").join(", ");
+}
+
+function normalizeSourceType(value: string): SourceType {
+  return sourceTypes.includes(value as SourceType) ? (value as SourceType) : "reddit";
+}
+
+function renderSourceSpecificFields(sourceType: SourceType, configJson: unknown) {
+  const config = isObject(configJson) ? configJson : {};
+  const commonProps = {
+    mode: readStringConfig(config, "mode") ?? "sample",
+    sampleSize: readNumberConfig(config, "sampleSize") ?? 5,
+    keywords: readArrayConfig(config, "keywords"),
+    exclusions: readArrayConfig(config, "exclusions")
+  };
+
+  return (
+    <>
+      <label className="fieldLabel">
+        Mode
+        <select className="fieldInput" defaultValue={commonProps.mode} name="mode">
+          <option value="sample">sample</option>
+          <option value="live">live</option>
+        </select>
+      </label>
+      <label className="fieldLabel">
+        Sample size
+        <input className="fieldInput" defaultValue={String(commonProps.sampleSize)} min="1" name="sampleSize" type="number" />
+      </label>
+      <label className="fieldLabel fieldLabelWide">
+        Keywords
+        <input className="fieldInput" defaultValue={commonProps.keywords} name="keywords" placeholder="automation, landlord, fintech" type="text" />
+      </label>
+      <label className="fieldLabel fieldLabelWide">
+        Exclusions
+        <input className="fieldInput" defaultValue={commonProps.exclusions} name="exclusions" placeholder="job post, promo" type="text" />
+      </label>
+      {sourceType === "reddit" ? (
+        <label className="fieldLabel fieldLabelWide">
+          Subreddits
+          <input
+            className="fieldInput"
+            defaultValue={readArrayConfig(config, "subredditList")}
+            name="subredditList"
+            placeholder="landlord, realestateinvesting, smallbusiness"
+            type="text"
+          />
+        </label>
+      ) : null}
+      {sourceType === "google-trends" ? (
+        <label className="fieldLabel">
+          Geo
+          <input className="fieldInput" defaultValue={readStringConfig(config, "geo") ?? "US"} name="geo" placeholder="US" type="text" />
+        </label>
+      ) : null}
+      {sourceType === "hacker-news" ? (
+        <label className="fieldLabel fieldLabelWide">
+          Story types
+          <input
+            className="fieldInput"
+            defaultValue={readArrayConfig(config, "storyTypes")}
+            name="storyTypes"
+            placeholder="askstories, showstories, topstories"
+            type="text"
+          />
+        </label>
+      ) : null}
+      {sourceType === "product-hunt" ? (
+        <label className="fieldLabel fieldLabelWide">
+          Product topics
+          <input
+            className="fieldInput"
+            defaultValue={readArrayConfig(config, "productTopics")}
+            name="productTopics"
+            placeholder="automation, workflows, landlord"
+            type="text"
+          />
+        </label>
+      ) : null}
+    </>
+  );
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readStringConfig(config: Record<string, unknown>, key: string) {
+  const value = config[key];
+  return typeof value === "string" ? value : null;
+}
+
+function readNumberConfig(config: Record<string, unknown>, key: string) {
+  const value = config[key];
+  return typeof value === "number" ? value : null;
+}
+
+function readArrayConfig(config: Record<string, unknown>, key: string) {
+  const value = config[key];
+
   if (!Array.isArray(value)) {
     return "";
   }
