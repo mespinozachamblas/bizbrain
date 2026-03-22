@@ -296,7 +296,7 @@ function buildSocialDigestSections(input: SocialDigestInputs) {
   const xDrafts = rankedDrafts.filter((draft) => draft.targetChannel === "x").slice(0, 3);
   const infographicDrafts = rankedDrafts.filter((draft) => hasInfographicPanels(draft.infographicPanelsJson)).slice(0, 3);
   const topStats = collectTopSupportingStats(rankedDrafts).slice(0, 6);
-  const groupedStatSections = buildSupportingStatSections(topStats);
+  const groupedSignalEvidenceSections = buildSignalEvidenceSections(collectSignalEvidenceStats(rankedDrafts).slice(0, 8));
   const reviewedMedia = collectReviewedMediaCandidates(rankedDrafts).slice(0, 4);
   const healthAlerts = [
     ...input.failedJobs.map((job) => `Job ${job.jobName} failed at ${job.startedAt.toISOString()}.`),
@@ -339,14 +339,34 @@ function buildSocialDigestSections(input: SocialDigestInputs) {
           ? "These concepts already have panel-ready structures for carousels or infographic-style posts."
           : "Infographic concepts will show up once draft generation creates visual and panel outlines."
     },
-    ...(groupedStatSections.length > 0
-      ? groupedStatSections
+    ...(topStats.length > 0
+      ? [
+          {
+            sectionTitle: "Wow Factor Statistics",
+            items: topStats.map((stat) => formatSupportingStatLine(stat)),
+            alerts: [],
+            plainLanguageSummary:
+              "These are the strongest publishable external statistics currently attached to the social drafts. Use them for hooks, emphasis, and infographic callouts after review."
+          }
+        ]
       : [
           {
             sectionTitle: "Wow Factor Statistics",
-            items: ["No reviewable supporting statistics are available yet."],
+            items: ["No publishable external insight statistics are available yet."],
             alerts: [],
-            plainLanguageSummary: "Supporting statistics will show up here once the social generator captures reviewable quantitative claims."
+            plainLanguageSummary:
+              "Wow-factor statistics will appear here once the social generator captures externally sourced, reviewable quantitative claims relevant to the post topic."
+          }
+        ]),
+    ...(groupedSignalEvidenceSections.length > 0
+      ? groupedSignalEvidenceSections
+      : [
+          {
+            sectionTitle: "Signal Evidence",
+            items: ["No signal-evidence statistics are available yet."],
+            alerts: [],
+            plainLanguageSummary:
+              "Signal evidence includes platform, marketplace, and cluster-validation proof points that help explain why a topic is showing up, but are not the main publishable wow-factor claims."
           }
         ]),
     {
@@ -452,6 +472,26 @@ function collectTopSupportingStats(drafts: Array<SocialDigestDraft & { freshness
     });
 }
 
+function collectSignalEvidenceStats(drafts: Array<SocialDigestDraft & { freshnessTag?: string | null }>) {
+  return drafts
+    .flatMap((draft) =>
+      readSupportingStats((draft as { signalEvidenceStatsJson?: unknown }).signalEvidenceStatsJson).map((stat) => ({
+        ...stat,
+        sourceClass: inferSupportingStatSourceClass(stat),
+        draftTitle: draft.title,
+        topicName: draft.topic?.name ?? "Unassigned",
+        draftQualityScore: draft.qualityScore ?? 0,
+        statScore: scoreSupportingStat(stat, draft)
+      }))
+    )
+    .filter((stat) => stat.reviewStatus !== "rejected")
+    .sort((left, right) => right.statScore - left.statScore || right.draftQualityScore - left.draftQualityScore)
+    .filter((stat, index, all) => {
+      const normalizedClaim = normalizeComparableText(stat.claim);
+      return all.findIndex((candidate) => normalizeComparableText(candidate.claim) === normalizedClaim) === index;
+    });
+}
+
 function formatSupportingStatLine(
   stat: SupportingStat & {
     sourceClass: string;
@@ -471,7 +511,7 @@ function formatSupportingStatLine(
   ].join(" | ");
 }
 
-function buildSupportingStatSections(
+function buildSignalEvidenceSections(
   stats: Array<
     SupportingStat & {
       sourceClass: string;
@@ -486,11 +526,11 @@ function buildSupportingStatSections(
   const sectionMeta: Record<(typeof sectionOrder)[number], { title: string; summary: string }> = {
     "Google Trends": {
       title: "Momentum Statistics",
-      summary: "These statistics show live search-attention or trend momentum signals relevant to the current social topics."
+      summary: "These are signal-evidence statistics showing live search-attention or trend momentum relevant to the current social topics."
     },
     "Product Hunt": {
       title: "Marketplace Statistics",
-      summary: "These statistics show visible launch and engagement activity from product-marketplace signals."
+      summary: "These are signal-evidence statistics showing visible launch and engagement activity from product-marketplace signals."
     },
     "Cluster Evidence": {
       title: "Internal Evidence Statistics",

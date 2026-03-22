@@ -20,7 +20,7 @@ The product must:
 - support configurable topics that can be added, removed, enabled, or disabled without code changes
 - support separate research streams such as opportunity research and social media research
 - support configurable copywriting frameworks and marketer-style profiles for social media research
-- support configurable wow-factor statistics research for social posts and infographics
+- support configurable publishable wow-factor statistics research for social posts and infographics
 - maintain a searchable idea database
 - email a digest of the best results every day to one or more configured recipients per research stream
 - expose enough context and guardrails for Cursor/Codex agents to contribute safely
@@ -119,8 +119,9 @@ The MVP is successful if it:
 - As a user, I want to choose a marketer-style profile so content can lean more direct-response, educational, contrarian, or category-creation oriented.
 - As a user, I want optional stock-image or AI-image guidance for social posts without forcing media generation every time.
 - As a user, I want optional infographic concepts and outlines for LinkedIn so the system can turn research into visual educational content.
-- As a user, I want the system to surface striking statistics or quantitative claims relevant to my topics so posts and infographics feel more credible and attention-grabbing.
+- As a user, I want the system to surface striking externally sourced statistics or quantitative claims relevant to my topics so posts and infographics feel more credible and attention-grabbing.
 - As a user, I want those statistics to include citations and confidence notes so I can decide whether they are safe to publish.
+- As a user, I want internal platform or signal-validation metrics kept separate from publishable wow-factor statistics so I do not confuse research evidence with post-ready claims.
 - As a user, I want the system to distinguish between reference-only imagery and publishable assets so I do not accidentally reuse content without rights.
 - As a user, I want media candidates to keep license, provenance, and attribution notes so I can review legal risk before publishing.
 - As a user, I want evidence linked to each idea so I can verify why it surfaced.
@@ -186,7 +187,7 @@ The system must email one or more configured recipients a daily summary with str
 - supporting evidence snippets
 - draft LinkedIn post directions or outlines
 - draft X post or thread directions or outlines
-- optional wow-factor statistics with citation links and plain-language framing
+- optional publishable wow-factor statistics with citation links and plain-language framing
 - optional visual brief for stock or AI-generated media
 - optional infographic brief or outline for LinkedIn carousel or single-image educational posts
 - optional media candidate summaries that clearly label `publishable` versus `reference-only`
@@ -199,7 +200,7 @@ The system must email one or more configured recipients a daily summary with str
 - noisy sources can create junk clusters
 - duplicate clusters can lower trust
 - LLM output can overstate certainty
-- weak or uncited statistics can make social content look impressive but unreliable
+- weak, uncited, or internally derived statistics can make social content look impressive but unreliable if they are presented as publishable claims
 - topic configuration can become too broad and dilute relevance
 - overly rigid style profiles can make social media drafts feel synthetic or repetitive
 - reference imagery from search/discovery platforms can be mistaken for reusable assets unless provenance and rights checks are explicit

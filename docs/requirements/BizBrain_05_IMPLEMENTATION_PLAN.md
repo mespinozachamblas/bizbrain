@@ -64,7 +64,8 @@
 - add configurable copy frameworks such as AIDA, PAS, BAB, and educational authority-led structures
 - add configurable marketer-style profiles and trait bundles
 - add visual brief generation for stock and AI-generated asset modes
-- add stream-aware statistics research and citation capture for social drafts and infographic concepts
+- add stream-aware external insight statistics research and citation capture for social drafts and infographic concepts
+- keep signal evidence statistics in a separate review path so internal proof does not masquerade as publishable wow-factor content
 - add infographic brief and panel-outline generation for LinkedIn educational posts
 - add media candidate provenance schema and review workflow
 - add media-source policy with approved, review-required, and reference-only source classes
@@ -108,7 +109,8 @@
 - top results are visible in app
 - daily digest email sends successfully through Resend to each configured recipient
 - social media research digest sends successfully through Resend to each configured recipient
-- social drafts can include reviewable statistics with source URLs and confidence/freshness notes
+- social drafts can include reviewable external insight statistics with source URLs and confidence/freshness notes
+- social drafts can also include separate signal-evidence statistics for internal review, trend validation, and operator-facing context
 - social media media candidates are clearly labeled publishable, review-required, or reference-only with provenance retained
 - job-run logs explain what happened each day
 - source health and source-level failures are visible in the app

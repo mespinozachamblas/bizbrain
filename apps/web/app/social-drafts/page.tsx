@@ -160,6 +160,8 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
             <div className="stack">
               {filteredDrafts.map((draft) => {
                 const fitPreview = buildDraftTopicFitPreview(draft);
+                const supportingStats = readSupportingStats(draft.supportingStatsJson);
+                const signalEvidenceStats = readSupportingStats((draft as { signalEvidenceStatsJson?: unknown }).signalEvidenceStatsJson);
                 const mediaCandidates = readMediaCandidates(draft.assetCandidatesJson);
 
                 return (
@@ -217,10 +219,12 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                         <div className="stackCompact">
                         <p className="rowMeta"><strong>Visual brief:</strong> {readObjectField(draft.visualBriefJson, "concept") ?? "No visual brief yet."}</p>
                         <p className="rowMeta">
-                          <strong>Supporting stats:</strong> {readSupportingStats(draft.supportingStatsJson).length}
-                          {readSupportingStats(draft.supportingStatsJson).length > 0
-                            ? ` · ${summarizeStatSourceClasses(readSupportingStats(draft.supportingStatsJson))}`
-                            : ""}
+                          <strong>External insight stats:</strong> {supportingStats.length}
+                          {supportingStats.length > 0 ? ` · ${summarizeStatSourceClasses(supportingStats)}` : ""}
+                        </p>
+                        <p className="rowMeta">
+                          <strong>Signal evidence:</strong> {signalEvidenceStats.length}
+                          {signalEvidenceStats.length > 0 ? ` · ${summarizeStatSourceClasses(signalEvidenceStats)}` : ""}
                         </p>
                         <p className="rowMeta"><strong>Infographic format:</strong> {draft.infographicFormat ?? "Not set"}</p>
                         <p className="rowMeta"><strong>Infographic panels:</strong> {formatListInput(draft.infographicPanelsJson) || "No panel outline yet."}</p>
@@ -229,13 +233,13 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                         </div>
                         <div className="evidenceSection">
                           <p className="rowBody">
-                            <strong>Supporting statistics:</strong>
+                            <strong>External insight statistics:</strong>
                           </p>
-                          {readSupportingStats(draft.supportingStatsJson).length === 0 ? (
-                            <p className="rowMeta">No reviewable statistics attached yet.</p>
+                          {supportingStats.length === 0 ? (
+                            <p className="rowMeta">No publishable external insight statistics are attached yet.</p>
                           ) : (
                             <div className="stack">
-                              {readSupportingStats(draft.supportingStatsJson).map((stat, index) => (
+                              {supportingStats.map((stat, index) => (
                                 <div className="evidenceCard" key={`${draft.id}-stat-${index}`}>
                                   <p className="rowMeta">
                                     <span className="badge">{stat.sourceClassLabel}</span>
@@ -281,6 +285,46 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                                       </form>
                                     ))}
                                   </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="evidenceSection">
+                          <p className="rowBody">
+                            <strong>Signal evidence:</strong>
+                          </p>
+                          {signalEvidenceStats.length === 0 ? (
+                            <p className="rowMeta">No signal-evidence stats are attached yet.</p>
+                          ) : (
+                            <div className="stack">
+                              {signalEvidenceStats.map((stat, index) => (
+                                <div className="evidenceCard" key={`${draft.id}-signal-stat-${index}`}>
+                                  <p className="rowMeta">
+                                    <span className="badge">{stat.sourceClassLabel}</span>
+                                  </p>
+                                  <p className="rowTitle">{stat.claim}</p>
+                                  <p className="rowBody">
+                                    <strong>Angle:</strong> {stat.plainLanguageAngle}
+                                  </p>
+                                  <p className="rowBody">
+                                    <strong>Usage:</strong> {stat.recommendedUsage}
+                                  </p>
+                                  <p className="rowMeta">
+                                    {stat.sourceName} · {stat.sourceDate ?? "date not stored"}
+                                  </p>
+                                  <p className="rowBody">
+                                    <strong>Freshness:</strong> {stat.freshnessNote}
+                                  </p>
+                                  <p className="rowBody">
+                                    <strong>Confidence:</strong> {stat.confidenceNote}
+                                  </p>
+                                  <p className="rowMeta">
+                                    <strong>Source:</strong>{" "}
+                                    <a href={stat.sourceUrl} rel="noreferrer" target="_blank">
+                                      {stat.sourceUrl}
+                                    </a>
+                                  </p>
                                 </div>
                               ))}
                             </div>

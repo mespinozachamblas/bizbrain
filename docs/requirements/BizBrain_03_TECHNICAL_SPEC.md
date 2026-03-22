@@ -179,7 +179,8 @@ All model output used by the pipeline must be schema-validated.
 - idea generation JSON
 - digest section JSON
 - social media research draft JSON
-- statistics research JSON
+- external insight statistics JSON
+- signal evidence statistics JSON
 - visual brief JSON
 - infographic brief JSON
 - copy framework and style profile metadata JSON

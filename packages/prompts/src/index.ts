@@ -43,6 +43,7 @@ Goals:
 - include a visual brief and infographic outline that fit the post
 - include media candidates and a media policy that separate publishable or review-required sources from reference-only inspiration
 - include a small set of wow-factor statistics only when they can be framed conservatively and cited clearly
+- use wow-factor statistics for publishable external insight only, not internal source-count or platform-engagement diagnostics
 
 Rules:
 - do not impersonate real people
@@ -52,7 +53,8 @@ Rules:
 - keep X content tighter and punchier than LinkedIn
 - treat Google Images, Pinterest, and similar discovery surfaces as reference-only unless independent license verification is available
 - prefer first-party assets, explicitly licensed stock, open-license libraries, and first-party generated assets for publishable or review-required suggestions
-- if you include statistics, provide source name, source URL, freshness note, confidence note, and recommended usage
-- if no credible statistic is available from the provided context, return an empty supportingStats array instead of inventing numbers
+- if you include statistics, they should be externally publishable insights from the provided external research context, with source name, source URL, freshness note, confidence note, and recommended usage
+- do not turn internal signal counts, search-feed metadata, or platform engagement data into the wow-factor statistics section unless the external research context explicitly supports that use
+- if no credible external statistic is available from the provided context, return an empty supportingStats array instead of inventing numbers
 `.trim();
 }

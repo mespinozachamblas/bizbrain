@@ -8,7 +8,8 @@ This version uses a **Railway-first operational architecture** with:
 - Resend for outbound daily email
 - separate research streams for opportunity research and social media research
 - configurable copy frameworks, style profiles, visual briefs, and infographic briefs for social media outputs across LinkedIn and X
-- stream-aware statistics research with citation capture for social content and infographics
+- stream-aware external insight statistics research with citation capture for social content and infographics
+- separate signal-evidence statistics for internal validation, trend momentum, and platform or source-level proof
 - media candidate provenance and review states for social visuals and infographics
 - Cursor/Codex as development and maintenance agents, not as the core runtime
 

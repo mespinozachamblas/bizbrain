@@ -32,7 +32,8 @@ Each social media research digest must include:
 - LinkedIn-ready and X-ready hooks or post angles
 - recommended copy framework and style profile
 - supporting evidence snippets or links
-- optional wow-factor statistics with source links and confidence or freshness notes
+- optional publishable wow-factor statistics with source links and confidence or freshness notes
+- optional separate signal-evidence sections that make clear the numbers are internal validation or platform/trend proof, not the main publishable claim set
 - target audience context
 - optional visual brief summary for stock or AI-generated assets
 - optional media candidate summary with publishability labels and provenance notes

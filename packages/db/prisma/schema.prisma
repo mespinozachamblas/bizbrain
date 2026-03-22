@@ -309,6 +309,7 @@ model ContentDraft {
   draftHtml          String?         @map("draft_html")
   visualBriefJson    Json?           @map("visual_brief_json")
   supportingStatsJson Json?          @map("supporting_stats_json")
+  signalEvidenceStatsJson Json?      @map("signal_evidence_stats_json")
   infographicBriefJson Json?         @map("infographic_brief_json")
   infographicFormat  String?         @map("infographic_format")
   infographicPanelsJson Json?        @map("infographic_panels_json")

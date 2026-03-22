@@ -496,6 +496,8 @@ Updates:
 - `draftXThreadOutline[]`
 - `visualBrief`
 - `supportingStats[]`
+  Publishable external insight statistics only.
+  These must not be populated with internal source counts, cluster counts, or platform engagement metrics unless they have been independently validated for public-facing use.
 - `mediaCandidates[]`
 - `mediaPolicy`
 - `infographicBrief`
@@ -538,3 +540,7 @@ Updates:
 - digest send key: `digest:{date}:{researchStream}:{recipient}`
 - job lock key: `job:{jobName}:{logicalDate}`
 - ingestion dedupe key: `source:{sourceType}:{sourceRecordId}`
+- `supportingStatsJson`
+  Publishable external insight statistics intended for post hooks, emphasis, or infographic callouts.
+- `signalEvidenceStatsJson`
+  Internal validation metrics such as cluster evidence, marketplace traction snapshots, or trend momentum data.

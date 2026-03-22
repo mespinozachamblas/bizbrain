@@ -54,6 +54,9 @@ type SocialDraftContext = {
   warnings: string[];
 };
 
+type ContentDraftCreateData = Parameters<typeof db.contentDraft.create>[0]["data"];
+type ContentDraftUpdateData = Parameters<typeof db.contentDraft.update>[0]["data"];
+
 export async function syncSocialContentDrafts() {
   const socialStream = await db.researchStream.findUnique({
     where: { id: researchStreamIds.socialMedia },
@@ -119,7 +122,8 @@ export async function syncSocialContentDrafts() {
           const framework = topic.defaultCopyFramework ?? socialStream.defaultCopyFramework ?? null;
           const styleProfile = topic.defaultStyleProfile ?? socialStream.defaultStyleProfile ?? null;
           const assetMode = topic.defaultAssetMode ?? socialStream.defaultAssetMode ?? "none";
-          const statsResearch = await buildSupportingStatsResearch(idea, topic, channel);
+          const signalEvidenceStats = await buildSignalEvidenceStatsResearch(idea, topic, channel);
+          const externalInsightStats = await buildExternalInsightStatsResearch({ idea, topic, channel });
           const fallbackDraft = buildFallbackSocialDraft({
             channel,
             idea,
@@ -127,7 +131,7 @@ export async function syncSocialContentDrafts() {
             frameworkName: framework?.name ?? "custom",
             styleName: styleProfile?.name ?? "founder educator",
             assetMode,
-            statsResearch
+            externalInsightStats
           });
           let generated = fallbackDraft;
 
@@ -139,7 +143,7 @@ export async function syncSocialContentDrafts() {
               framework,
               styleProfile,
               assetMode,
-              statsResearch
+              externalInsightStats
             })) ?? fallbackDraft;
           } catch (error) {
             result.warnings.push(`${topic.slug}/${channel}: ${error instanceof Error ? error.message : String(error)}`);
@@ -155,7 +159,7 @@ export async function syncSocialContentDrafts() {
             select: { id: true }
           });
 
-          const data = {
+          const createData: ContentDraftCreateData = {
             researchStreamId: socialStream.id,
             topicId: topic.id,
             sourceIdeaId: idea.id,
@@ -172,6 +176,37 @@ export async function syncSocialContentDrafts() {
             draftMarkdown: generated.draftMarkdown,
             visualBriefJson: generated.visualBrief,
             supportingStatsJson: generated.supportingStats,
+            signalEvidenceStatsJson: signalEvidenceStats,
+            infographicBriefJson: generated.infographicBrief,
+            infographicFormat: generated.infographicBrief.format,
+            infographicPanelsJson: generated.infographicBrief.panels,
+            assetMode,
+            assetStatus: generated.mediaCandidates.some((candidate) => candidate.usageStatus === "reference-only")
+              ? "review-required"
+              : generated.mediaCandidates.length > 0
+                ? "review-required"
+                : "draft",
+            assetCandidatesJson: generated.mediaCandidates,
+            mediaPolicyJson: generated.mediaPolicy,
+            qualityScore: generated.qualityScore,
+            sourceAttributionJson: idea.sourceAttributionJson ?? undefined,
+            status: "draft"
+          };
+
+          const updateData: ContentDraftUpdateData = {
+            copyFrameworkId: framework?.id ?? null,
+            styleProfileId: styleProfile?.id ?? null,
+            title: generated.title,
+            targetAudience: generated.targetAudience,
+            hook: generated.hook,
+            thesis: generated.thesis,
+            supportingPointsJson: generated.supportingPoints,
+            counterpoint: generated.counterpoint,
+            cta: generated.cta,
+            draftMarkdown: generated.draftMarkdown,
+            visualBriefJson: generated.visualBrief,
+            supportingStatsJson: generated.supportingStats,
+            signalEvidenceStatsJson: signalEvidenceStats,
             infographicBriefJson: generated.infographicBrief,
             infographicFormat: generated.infographicBrief.format,
             infographicPanelsJson: generated.infographicBrief.panels,
@@ -191,11 +226,11 @@ export async function syncSocialContentDrafts() {
           if (existingDraft) {
             await db.contentDraft.update({
               where: { id: existingDraft.id },
-              data
+              data: updateData
             });
           } else {
             await db.contentDraft.create({
-              data
+              data: createData
             });
           }
 
@@ -245,7 +280,16 @@ export async function regenerateSocialDraftById(draftId: string) {
   const framework = draft.topic.defaultCopyFramework ?? draft.researchStream.defaultCopyFramework ?? null;
   const styleProfile = draft.topic.defaultStyleProfile ?? draft.researchStream.defaultStyleProfile ?? null;
   const assetMode = draft.topic.defaultAssetMode ?? draft.researchStream.defaultAssetMode ?? "none";
-  const statsResearch = await buildSupportingStatsResearch(draft.sourceIdea, draft.topic, draft.targetChannel as (typeof researchStreamChannels)[number]);
+  const signalEvidenceStats = await buildSignalEvidenceStatsResearch(
+    draft.sourceIdea,
+    draft.topic,
+    draft.targetChannel as (typeof researchStreamChannels)[number]
+  );
+  const externalInsightStats = await buildExternalInsightStatsResearch({
+    idea: draft.sourceIdea,
+    topic: draft.topic,
+    channel: draft.targetChannel as (typeof researchStreamChannels)[number]
+  });
   const fallbackDraft = buildFallbackSocialDraft({
     channel: draft.targetChannel as (typeof researchStreamChannels)[number],
     idea: draft.sourceIdea,
@@ -253,7 +297,7 @@ export async function regenerateSocialDraftById(draftId: string) {
     frameworkName: framework?.name ?? "custom",
     styleName: styleProfile?.name ?? "founder educator",
     assetMode,
-    statsResearch
+    externalInsightStats
   });
 
   let generated = fallbackDraft;
@@ -268,7 +312,7 @@ export async function regenerateSocialDraftById(draftId: string) {
         framework,
         styleProfile,
         assetMode,
-        statsResearch
+        externalInsightStats
       })) ?? fallbackDraft;
   } catch (error) {
     warnings.push(error instanceof Error ? error.message : String(error));
@@ -289,6 +333,7 @@ export async function regenerateSocialDraftById(draftId: string) {
       draftMarkdown: generated.draftMarkdown,
       visualBriefJson: generated.visualBrief,
       supportingStatsJson: generated.supportingStats,
+      signalEvidenceStatsJson: signalEvidenceStats,
       infographicBriefJson: generated.infographicBrief,
       infographicFormat: generated.infographicBrief.format,
       infographicPanelsJson: generated.infographicBrief.panels,
@@ -377,7 +422,7 @@ async function generateSocialDraft(input: {
   framework: { name: string; description: string | null; structureJson: unknown } | null;
   styleProfile: { name: string; description: string | null; inspirationSummary: string | null; styleTraitsJson: unknown; guardrailsJson: unknown } | null;
   assetMode: string;
-  statsResearch: SupportingStat[];
+  externalInsightStats: SupportingStat[];
 }) {
   if (!process.env.OPENAI_API_KEY) {
     return null;
@@ -429,7 +474,7 @@ async function generateSocialDraft(input: {
                   `MONETIZATION: ${input.idea.monetizationAngle ?? "(none)"}`,
                   `EVIDENCE: ${input.idea.evidenceSummary ?? "(none)"}`,
                   `SOURCE_ATTRIBUTION: ${JSON.stringify(input.idea.sourceAttributionJson ?? [])}`,
-                  `SUPPORTING_STATS_RESEARCH: ${JSON.stringify(input.statsResearch)}`
+                  `EXTERNAL_INSIGHT_STATS_RESEARCH: ${JSON.stringify(input.externalInsightStats)}`
                 ].join("\n")
               }
             ]
@@ -492,7 +537,7 @@ function buildFallbackSocialDraft(input: {
   frameworkName: string;
   styleName: string;
   assetMode: string;
-  statsResearch: SupportingStat[];
+  externalInsightStats: SupportingStat[];
 }): SocialDraft {
   const audience = input.channel === "linkedin" ? "Founders and operators on LinkedIn" : "Operators and builders on X";
   const hook =
@@ -544,17 +589,17 @@ function buildFallbackSocialDraft(input: {
     },
     mediaCandidates: buildFallbackMediaCandidates(input),
     mediaPolicy: buildFallbackMediaPolicy(input.assetMode),
-    supportingStats: input.statsResearch.length > 0 ? input.statsResearch : buildFallbackSupportingStats(input),
+    supportingStats: input.externalInsightStats,
     qualityScore: Math.min(9.2, Math.max(6.4, input.idea.qualityScore ?? 7))
   });
 }
 
-async function buildSupportingStatsResearch(
+async function buildSignalEvidenceStatsResearch(
   idea: Pick<IdeaWithCluster, "clusterId" | "title" | "category" | "problemSummary" | "sourceAttributionJson">,
   topic: Pick<TopicRecord, "name" | "slug" | "keywordsJson" | "sourcePreferencesJson">,
   channel: (typeof researchStreamChannels)[number]
 ) {
-  const [cluster, membershipStats, externalStats] = await Promise.all([
+  const [cluster, membershipStats] = await Promise.all([
     db.trendCluster.findUnique({
       where: { id: idea.clusterId },
       select: {
@@ -575,11 +620,6 @@ async function buildSupportingStatsResearch(
           }
         }
       }
-    }),
-    fetchExternalSupportingStats({
-      idea,
-      topic,
-      channel
     })
   ]);
 
@@ -663,7 +703,14 @@ async function buildSupportingStatsResearch(
     });
   }
 
-  return [...externalStats, ...stats].slice(0, 5);
+  try {
+    const platformEvidenceStats = await fetchPlatformSignalEvidenceStats({ idea, topic, channel });
+    stats.push(...platformEvidenceStats);
+  } catch {
+    // Keep signal-evidence enrichment non-blocking.
+  }
+
+  return stats.slice(0, 5);
 }
 
 function renderPreferredStatSourceHint(preferredStatSources: string[]) {
@@ -678,7 +725,74 @@ function renderPreferredStatSourceHint(preferredStatSources: string[]) {
   return ` Prefer validating with ${statsHints.join(", ")} when stronger external numbers are available.`;
 }
 
-async function fetchExternalSupportingStats(input: {
+async function buildExternalInsightStatsResearch(input: {
+  idea: Pick<IdeaWithCluster, "title" | "category" | "problemSummary">;
+  topic: Pick<TopicRecord, "name" | "slug" | "keywordsJson" | "sourcePreferencesJson">;
+  channel: (typeof researchStreamChannels)[number];
+}) {
+  const preferredStatSources = Array.isArray(input.topic.sourcePreferencesJson)
+    ? input.topic.sourcePreferencesJson.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.toLowerCase())
+    : [];
+  const searchTerms = buildStatResearchTerms(input.topic.keywordsJson, input.idea);
+  const newsQueries = buildExternalInsightQueries({
+    topicName: input.topic.name,
+    ideaTitle: input.idea.title,
+    category: input.idea.category,
+    searchTerms
+  });
+  const stats: SupportingStat[] = [];
+
+  for (const query of newsQueries) {
+    try {
+      const response = await fetchWithTimeout(
+        `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`,
+        {
+          headers: {
+            Accept: "application/rss+xml, application/xml;q=0.9, text/xml;q=0.8"
+          }
+        }
+      );
+
+      if (!response.ok) {
+        continue;
+      }
+
+      const xml = await response.text();
+      const matches = parseExternalInsightMatches(xml, searchTerms).filter(
+        (match) => !stats.some((stat) => normalizeComparableStatClaim(stat.claim) === normalizeComparableStatClaim(match.claim))
+      );
+
+      stats.push(
+        ...matches.map((match) => ({
+          claim: match.claim,
+          plainLanguageAngle:
+            input.channel === "linkedin"
+              ? `Use this to anchor the post in outside evidence about ${input.topic.name}, then translate the number into an operator implication.`
+              : `Use this as a sharp external fact that makes the ${input.topic.name} angle feel timely and concrete.`,
+          sourceName: match.sourceName,
+          sourceUrl: match.sourceUrl,
+          sourceDate: match.sourceDate,
+          freshnessNote: match.sourceDate
+            ? `This statistic was cited in a source dated ${match.sourceDate}. Verify the underlying article before publishing.`
+            : "Publication date was not parsed from the feed item. Verify freshness before publishing.",
+          confidenceNote: buildExternalInsightConfidenceNote(match.sourceUrl, preferredStatSources),
+          recommendedUsage: `Use this as a publishable hook or infographic callout for ${input.topic.name}. Verify the original article or report before publication.${renderPreferredStatSourceHint(preferredStatSources)}`,
+          reviewStatus: "pending" as const
+        }))
+      );
+    } catch {
+      // Keep external insight research non-blocking.
+    }
+
+    if (stats.length >= 5) {
+      break;
+    }
+  }
+
+  return stats.slice(0, 5);
+}
+
+async function fetchPlatformSignalEvidenceStats(input: {
   idea: Pick<IdeaWithCluster, "title" | "category" | "problemSummary">;
   topic: Pick<TopicRecord, "name" | "slug" | "keywordsJson" | "sourcePreferencesJson">;
   channel: (typeof researchStreamChannels)[number];
@@ -956,6 +1070,173 @@ function buildStatResearchTerms(
     .filter((term) => !STAT_RESEARCH_STOP_WORDS.has(term));
 
   return [...new Set([...topicKeywords.map((entry) => entry.toLowerCase()), ...ideaTerms])].slice(0, 12);
+}
+
+function buildExternalInsightQueries(input: {
+  topicName: string;
+  ideaTitle: string;
+  category: string;
+  searchTerms: string[];
+}) {
+  const querySeeds = [
+    [input.topicName, input.category].filter(Boolean).join(" "),
+    input.ideaTitle,
+    input.searchTerms.slice(0, 3).join(" ")
+  ]
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  return querySeeds.map((seed) => `${seed} (survey OR report OR study OR benchmark OR poll OR research OR data)`);
+}
+
+function parseExternalInsightMatches(xml: string, keywords: string[]) {
+  const items = extractXmlTagBlocks(xml, "item");
+  const matches: Array<{
+    claim: string;
+    sourceName: string;
+    sourceUrl: string;
+    sourceDate: string | null;
+    relevanceScore: number;
+  }> = [];
+
+  for (const item of items) {
+    const rawTitle = decodeXmlEntities(extractXmlTagText(item, "title") ?? "").trim();
+    const rawDescription = decodeXmlEntities(extractXmlTagText(item, "description") ?? "").trim();
+    const sourceUrl = decodeXmlEntities(extractXmlTagText(item, "link") ?? "").trim();
+
+    if (!rawTitle || !sourceUrl) {
+      continue;
+    }
+
+    const pubDate = extractXmlTagText(item, "pubDate");
+    const sourceDate = pubDate ? new Date(pubDate).toISOString().slice(0, 10) : null;
+    const sourceName = extractSourceNameFromNewsTitle(rawTitle, sourceUrl);
+    const titleWithoutSource = rawTitle.replace(/\s+-\s+[^-]+$/, "").trim();
+    const candidateText = [titleWithoutSource, stripHtml(rawDescription)].filter(Boolean).join(" ");
+    const matchedKeywords = keywords.filter((keyword) => keywordMatchesHaystack(keyword, candidateText.toLowerCase()));
+
+    if (matchedKeywords.length === 0) {
+      continue;
+    }
+
+    const claim = extractNumericClaim(candidateText);
+
+    if (!claim) {
+      continue;
+    }
+
+    matches.push({
+      claim,
+      sourceName,
+      sourceUrl,
+      sourceDate,
+      relevanceScore: matchedKeywords.length + scoreExternalSourceDomain(sourceUrl)
+    });
+  }
+
+  return matches
+    .sort((left, right) => right.relevanceScore - left.relevanceScore)
+    .filter((match, index, all) => {
+      const normalized = normalizeComparableStatClaim(match.claim);
+      return all.findIndex((candidate) => normalizeComparableStatClaim(candidate.claim) === normalized) === index;
+    })
+    .slice(0, 3);
+}
+
+function extractSourceNameFromNewsTitle(title: string, sourceUrl: string) {
+  const suffixMatch = title.match(/\s+-\s+([^-]+)$/);
+
+  if (suffixMatch?.[1]) {
+    return suffixMatch[1].trim();
+  }
+
+  try {
+    return new URL(sourceUrl).hostname.replace(/^www\./, "");
+  } catch {
+    return "External source";
+  }
+}
+
+function stripHtml(value: string) {
+  return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function extractNumericClaim(value: string) {
+  const sentences = value
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+
+  for (const sentence of sentences) {
+    if (/\d/.test(sentence) && sentence.length >= 24) {
+      return ensureTrailingPeriod(sentence);
+    }
+  }
+
+  const match = value.match(/[^.?!]*\d[^.?!]*[.?!]?/);
+  return match ? ensureTrailingPeriod(match[0].trim()) : null;
+}
+
+function ensureTrailingPeriod(value: string) {
+  return /[.!?]$/.test(value) ? value : `${value}.`;
+}
+
+function buildExternalInsightConfidenceNote(sourceUrl: string, preferredStatSources: string[]) {
+  const domainScore = scoreExternalSourceDomain(sourceUrl);
+
+  if (domainScore >= 3) {
+    return "Higher confidence because the source domain looks like a more established news, research, or benchmark publisher. Verify the underlying article before publishing.";
+  }
+
+  if (preferredStatSources.length > 0) {
+    return `Moderate confidence. Prefer validating against a stronger source class such as ${preferredStatSources.join(", ")} before publishing.`;
+  }
+
+  return "Moderate confidence. Verify the underlying article or report before using this as a public-facing hook.";
+}
+
+function scoreExternalSourceDomain(sourceUrl: string) {
+  const domain = safeHostname(sourceUrl);
+
+  if (!domain) {
+    return 0;
+  }
+
+  const strongerDomains = [
+    "forbes.com",
+    "mckinsey.com",
+    "gartner.com",
+    "statista.com",
+    "census.gov",
+    "bls.gov",
+    "worldbank.org",
+    "oecd.org",
+    "cnbc.com",
+    "reuters.com",
+    "bloomberg.com"
+  ];
+
+  if (strongerDomains.some((entry) => domain.endsWith(entry))) {
+    return 3;
+  }
+
+  if (domain.endsWith(".gov") || domain.endsWith(".edu") || domain.endsWith(".org")) {
+    return 2;
+  }
+
+  return 1;
+}
+
+function safeHostname(sourceUrl: string) {
+  try {
+    return new URL(sourceUrl).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
+function normalizeComparableStatClaim(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 function parseGoogleTrendMatches(xml: string, geo: string, keywords: string[]) {
