@@ -6,6 +6,10 @@ export type DashboardData = {
     rawSignals: number;
     clusters: number;
     ideas: number;
+    readyIdeas: number;
+    ideasNeedingReview: number;
+    readySocialDrafts: number;
+    socialDraftsNeedingReview: number;
   };
   recentJobRuns: Array<{
     id: string;
@@ -153,6 +157,9 @@ export async function getDashboardData(): Promise<DashboardData> {
       rawSignals,
       clusters,
       ideas,
+      readyIdeas,
+      ideasNeedingReview,
+      socialDraftSummaries,
       recentJobRuns,
       topClusters,
       latestIdeas,
@@ -170,6 +177,27 @@ export async function getDashboardData(): Promise<DashboardData> {
       db.rawSignal.count(),
       db.trendCluster.count(),
       db.idea.count(),
+      db.idea.count({
+        where: {
+          status: "promising",
+          qualityScore: { gte: 7 }
+        }
+      }),
+      db.idea.count({
+        where: {
+          OR: [{ status: "new" }, { status: "revisit" }, { qualityScore: { lt: 7 } }]
+        }
+      }),
+      db.contentDraft.findMany({
+        where: {
+          researchStreamId: "stream-social-media-research"
+        },
+        select: {
+          assetStatus: true,
+          supportingStatsJson: true,
+          assetCandidatesJson: true
+        }
+      }),
       db.jobRun.findMany({
         orderBy: { startedAt: "desc" },
         take: 6
@@ -333,12 +361,28 @@ export async function getDashboardData(): Promise<DashboardData> {
       })
     ]);
 
+    const readySocialDrafts = socialDraftSummaries.filter((draft) => {
+      const supportingStatuses = readReviewStatuses(draft.supportingStatsJson);
+      const mediaStatuses = readReviewStatuses(draft.assetCandidatesJson);
+      return supportingStatuses.includes("approved") || mediaStatuses.includes("approved");
+    }).length;
+
+    const socialDraftsNeedingReview = socialDraftSummaries.filter((draft) => {
+      const supportingStatuses = readReviewStatuses(draft.supportingStatsJson);
+      const mediaStatuses = readReviewStatuses(draft.assetCandidatesJson);
+      return draft.assetStatus === "review-required" || supportingStatuses.includes("pending") || mediaStatuses.includes("pending");
+    }).length;
+
     return {
       stats: {
         sourceConfigs: sourceConfigCount,
         rawSignals,
         clusters,
-        ideas
+        ideas,
+        readyIdeas,
+        ideasNeedingReview,
+        readySocialDrafts,
+        socialDraftsNeedingReview
       },
       recentJobRuns,
       topClusters,
@@ -363,12 +407,16 @@ export async function getDashboardData(): Promise<DashboardData> {
 
 export function emptyDashboardData(): DashboardData {
   return {
-    stats: {
-      sourceConfigs: 0,
-      rawSignals: 0,
-      clusters: 0,
-      ideas: 0
-    },
+      stats: {
+        sourceConfigs: 0,
+        rawSignals: 0,
+        clusters: 0,
+        ideas: 0,
+        readyIdeas: 0,
+        ideasNeedingReview: 0,
+        readySocialDrafts: 0,
+        socialDraftsNeedingReview: 0
+      },
     recentJobRuns: [],
     topClusters: [],
     latestIdeas: [],
@@ -382,6 +430,17 @@ export function emptyDashboardData(): DashboardData {
     recentSourceRuns: [],
     recentHealthChecks: []
   };
+}
+
+function readReviewStatuses(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+    .map((entry) => entry.reviewStatus)
+    .filter((entry): entry is string => typeof entry === "string");
 }
 
 export function formatSourceAttribution(value: unknown) {

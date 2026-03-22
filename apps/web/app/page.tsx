@@ -26,9 +26,38 @@ export default async function HomePage() {
         <StatCard label="Raw Signals" value={dashboard.stats.rawSignals} />
         <StatCard label="Clusters" value={dashboard.stats.clusters} />
         <StatCard label="Ideas" value={dashboard.stats.ideas} />
+        <StatCard label="Ready Ideas" value={dashboard.stats.readyIdeas} />
+        <StatCard label="Ideas Needing Review" value={dashboard.stats.ideasNeedingReview} />
+        <StatCard label="Ready Social Drafts" value={dashboard.stats.readySocialDrafts} />
+        <StatCard label="Social Drafts Needing Review" value={dashboard.stats.socialDraftsNeedingReview} />
       </section>
 
       <section className="dashboardGrid">
+        <article className="card controlCard">
+          <div className="cardHeader">
+            <h2>Review backlog</h2>
+            <span className="badge">Triage</span>
+          </div>
+          <div className="stackCompact">
+            <p className="rowMeta">
+              <strong>Ideas ready:</strong> {dashboard.stats.readyIdeas}
+            </p>
+            <p className="rowMeta">
+              <strong>Ideas needing review:</strong> {dashboard.stats.ideasNeedingReview}
+            </p>
+            <p className="rowMeta">
+              <strong>Social drafts ready:</strong> {dashboard.stats.readySocialDrafts}
+            </p>
+            <p className="rowMeta">
+              <strong>Social drafts needing review:</strong> {dashboard.stats.socialDraftsNeedingReview}
+            </p>
+          </div>
+          <p className="helperText">
+            Use the `Review mode` filters on `Ideas` and `Social Drafts` to jump straight into what is ready versus what still
+            needs triage.
+          </p>
+        </article>
+
         <article className="card controlCard">
           <div className="cardHeader">
             <h2>Run pipeline jobs</h2>
