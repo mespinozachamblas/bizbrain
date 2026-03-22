@@ -13,10 +13,10 @@ export default async function HomePage() {
     <main className="contentPage">
       <section className="hero">
         <p className="eyebrow">BizBrain</p>
-        <h1>Overview</h1>
+        <h1>Operations</h1>
         <p className="lede">
-          This is the operations view for the live BizBrain pipeline. Use the sidebar to move into dedicated admin
-          screens for streams, topics, frameworks, and style profiles.
+          This screen is for the shared pipeline jobs and operational checks. The business-idea digest and the social-media
+          digest both depend on these upstream jobs, while stream/topic configuration lives on the dedicated admin screens.
         </p>
       </section>
 
@@ -43,7 +43,10 @@ export default async function HomePage() {
               </form>
             ))}
           </div>
-          <p className="helperText">Use the pipeline buttons here, then review the outputs on the dedicated screens.</p>
+          <p className="helperText">
+            These are the shared operational jobs: ingest and enrich feed both research streams, while the two digest-email
+            jobs send the business-opportunity and social-media outputs separately.
+          </p>
         </article>
 
         <article className="card controlCard">

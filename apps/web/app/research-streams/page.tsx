@@ -19,7 +19,10 @@ export default async function ResearchStreamsPage({ searchParams }: PageProps) {
       <section className="hero heroCompact">
         <p className="eyebrow">BizBrain</p>
         <h1>Research Streams</h1>
-        <p className="lede">Create and maintain the top-level research lanes that drive topics, outputs, scheduling, and delivery.</p>
+        <p className="lede">
+          Research streams are configuration lanes, not separate cron jobs by themselves. They define what each digest is for,
+          which topics belong to it, and how outputs should be framed.
+        </p>
       </section>
 
       <section className="dashboardGrid dashboardGridTwoCol">
@@ -99,6 +102,7 @@ export default async function ResearchStreamsPage({ searchParams }: PageProps) {
                         {stream.slug} · {formatChannelInput(stream.enabledChannelsJson)} · {stream.scheduleCron ?? "No schedule"} ·{" "}
                         {stream.enabled ? "enabled" : "disabled"}
                       </p>
+                      <p className="rowMeta">{describeStreamRole(stream.slug)}</p>
                     </div>
                     <span className="status status-skipped">Edit</span>
                   </summary>
@@ -148,4 +152,16 @@ export default async function ResearchStreamsPage({ searchParams }: PageProps) {
       </section>
     </main>
   );
+}
+
+function describeStreamRole(slug: string) {
+  if (slug === "opportunity-research") {
+    return "Primary business-ideas stream. Its output is sent by `daily-digest-email`.";
+  }
+
+  if (slug === "social-media-research") {
+    return "Social content stream for LinkedIn/X drafts. Its output is sent by `daily-social-media-digest-email`.";
+  }
+
+  return "Configuration lane for future topic grouping, content generation, and digest routing.";
 }

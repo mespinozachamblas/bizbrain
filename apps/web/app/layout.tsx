@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             </div>
             <nav className="sidebarNav">
               <Link className="sidebarLink" href="/">
-                Overview
+                Operations
               </Link>
               <Link className="sidebarLink" href="/research-streams">
                 Research Streams
