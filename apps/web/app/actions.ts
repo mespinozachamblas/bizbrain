@@ -15,6 +15,7 @@ export async function runPipelineJob(formData: FormData) {
 
   await workerJobs[jobName as JobName]();
   revalidatePath("/");
+  revalidatePath("/social-drafts");
 }
 
 export async function runSourceCheck(formData: FormData) {
@@ -26,6 +27,24 @@ export async function runSourceCheck(formData: FormData) {
 
   await runSourceHealthCheck(sourceConfigId);
   revalidatePath("/");
+}
+
+export async function updateContentDraftStatus(formData: FormData) {
+  const id = readRequiredString(formData, "id");
+  const status = readRequiredString(formData, "status");
+  const allowedStatuses = new Set(["draft", "promising", "revisit", "ignore", "publish-later"]);
+
+  if (!allowedStatuses.has(status)) {
+    throw new Error(`Unsupported content draft status: ${status}`);
+  }
+
+  await db.contentDraft.update({
+    where: { id },
+    data: { status }
+  });
+
+  revalidatePath("/");
+  revalidatePath("/social-drafts");
 }
 
 export async function createResearchStream(formData: FormData) {

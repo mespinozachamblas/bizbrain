@@ -403,6 +403,10 @@ h1 {
   grid-template-columns: minmax(220px, 1fr) minmax(220px, 280px) auto;
 }
 
+.filterFormDrafts {
+  grid-template-columns: minmax(220px, 1.3fr) repeat(3, minmax(160px, 220px)) auto;
+}
+
 .adminDisclosure {
   border: 1px solid rgba(217, 208, 193, 0.7);
   border-radius: 16px;
@@ -427,6 +431,36 @@ h1 {
   margin-bottom: 14px;
 }
 
+.draftDetailGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(240px, 320px);
+  gap: 18px;
+}
+
+.draftPrimary,
+.draftSidebar {
+  min-width: 0;
+}
+
+.draftPreview {
+  margin: 14px 0 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fffefb;
+  color: var(--ink);
+  font: inherit;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.stackCompact {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
 @media (max-width: 640px) {
   body {
     padding: 28px 14px 48px;
@@ -449,6 +483,11 @@ h1 {
 
   .filterForm,
   .filterFormWide {
+    grid-template-columns: 1fr;
+  }
+
+  .filterFormDrafts,
+  .draftDetailGrid {
     grid-template-columns: 1fr;
   }
 }
