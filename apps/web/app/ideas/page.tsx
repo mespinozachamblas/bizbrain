@@ -1,5 +1,5 @@
 import { db } from "@bizbrain/db";
-import { runPipelineJob, updateIdeaStatus } from "../actions";
+import { regenerateIdea, runPipelineJob, updateIdeaStatus } from "../actions";
 import {
   formatDate,
   formatListInput,
@@ -220,6 +220,12 @@ export default async function IdeasPage({ searchParams }: PageProps) {
                         </p>
                       </div>
                       <div className="jobButtons">
+                        <form action={regenerateIdea}>
+                          <input name="id" type="hidden" value={idea.id} />
+                          <button className="jobButton" type="submit">
+                            Regenerate
+                          </button>
+                        </form>
                         {[
                           ["promising", "Promising"],
                           ["revisit", "Revisit"],

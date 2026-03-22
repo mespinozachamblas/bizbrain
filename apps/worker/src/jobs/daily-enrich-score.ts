@@ -4,6 +4,8 @@ import { buildSourceAttribution, inferFallbackQuality } from "./idea-quality";
 import { logJobBoundary, runJobWithTracking } from "./shared";
 import { syncSocialContentDrafts } from "./social-content";
 
+type RawSignalRecord = Awaited<ReturnType<typeof db.rawSignal.findMany>>[number];
+
 export async function runDailyEnrichScore() {
   await runJobWithTracking({
     jobName: "daily-enrich-score",
@@ -38,226 +40,9 @@ export async function runDailyEnrichScore() {
         return;
       }
 
-      let recordsWritten = 0;
-      const warnings: string[] = [];
-      const llmBatchSize = resolveEnrichmentBatchSize();
-      const llmBatchDelayMs = resolveEnrichmentBatchDelayMs();
-      const llmResults = new Map<string, Awaited<ReturnType<typeof enrichSignalBatchWithModel>> extends Map<string, infer TValue> ? TValue : never>();
-
-      if (process.env.OPENAI_API_KEY) {
-        const batches = chunkSignals(pendingSignals, llmBatchSize);
-
-        for (let index = 0; index < batches.length; index += 1) {
-          const batch = batches[index];
-
-          try {
-            const batchResults = await enrichSignalBatchWithModel(
-              batch.map((rawSignal) => ({
-                rawSignalId: rawSignal.id,
-                title: rawSignal.title,
-                body: rawSignal.body
-              }))
-            );
-
-            for (const [rawSignalId, enrichment] of batchResults.entries()) {
-              llmResults.set(rawSignalId, enrichment);
-            }
-          } catch (error) {
-            warnings.push(error instanceof Error ? error.message : String(error));
-          }
-
-          if (index < batches.length - 1 && llmBatchDelayMs > 0) {
-            await sleep(llmBatchDelayMs);
-          }
-        }
-      }
-
-      for (const rawSignal of pendingSignals) {
-        const fallbackEnrichment = enrichSignal({
-          title: rawSignal.title,
-          body: rawSignal.body
-        });
-        const llmEnrichment = llmResults.get(rawSignal.id) ?? null;
-        const enrichment = llmEnrichment ?? fallbackEnrichment;
-
-        const enrichedSignal = await db.enrichedSignal.upsert({
-          where: { rawSignalId: rawSignal.id },
-          update: {
-            normalizedText: enrichment.normalizedText,
-            keywordsJson: enrichment.keywords,
-            entitiesJson: enrichment.entities,
-            painPointsJson: enrichment.painPoints,
-            intentPhrasesJson: enrichment.intentPhrases,
-            categoryTagsJson: enrichment.categoryTags,
-            confidenceJson: enrichment.confidence
-          },
-          create: {
-            rawSignalId: rawSignal.id,
-            normalizedText: enrichment.normalizedText,
-            keywordsJson: enrichment.keywords,
-            entitiesJson: enrichment.entities,
-            painPointsJson: enrichment.painPoints,
-            intentPhrasesJson: enrichment.intentPhrases,
-            categoryTagsJson: enrichment.categoryTags,
-            confidenceJson: enrichment.confidence
-          }
-        });
-
-        const clusterSlug = buildClusterSlug(enrichment.primaryCategory, enrichment.clusterSeed);
-        const existingMembership = await db.clusterMembership.findFirst({
-          where: { rawSignalId: rawSignal.id }
-        });
-
-        const cluster = await db.trendCluster.upsert({
-          where: { slug: clusterSlug },
-          update: {
-            title: buildClusterTitle(enrichment.primaryCategory, enrichment.clusterSeed),
-            summary: enrichment.summary,
-            primaryCategory: enrichment.primaryCategory,
-            tagsJson: enrichment.categoryTags,
-            lastSeenAt: rawSignal.occurredAt ?? rawSignal.ingestedAt,
-            status: "open"
-          },
-          create: {
-            slug: clusterSlug,
-            title: buildClusterTitle(enrichment.primaryCategory, enrichment.clusterSeed),
-            summary: enrichment.summary,
-            primaryCategory: enrichment.primaryCategory,
-            tagsJson: enrichment.categoryTags,
-            firstSeenAt: rawSignal.occurredAt ?? rawSignal.ingestedAt,
-            lastSeenAt: rawSignal.occurredAt ?? rawSignal.ingestedAt,
-            status: "open"
-          }
-        });
-
-        if (!existingMembership) {
-          await db.clusterMembership.create({
-            data: {
-              clusterId: cluster.id,
-              rawSignalId: rawSignal.id,
-              enrichedSignalId: enrichedSignal.id,
-              membershipReason: `Grouped by deterministic category ${enrichment.primaryCategory} and seed ${enrichment.clusterSeed}.`,
-              similarityScore: 0.8
-            }
-          });
-        }
-
-        const clusterSignalCount = await db.clusterMembership.count({
-          where: { clusterId: cluster.id }
-        });
-
-        const clusterMemberships = await db.clusterMembership.findMany({
-          where: { clusterId: cluster.id },
-          include: {
-            rawSignal: {
-              select: {
-                sourceType: true,
-                title: true,
-                sourceUrl: true
-              }
-            }
-          }
-        });
-
-        const scoreFrequency = clusterSignalCount;
-        const scoreMomentum = Math.min(clusterSignalCount * 0.4, 5);
-        const scoreIntent = enrichment.intentPhrases.length > 0 ? 2 : 1;
-        const scoreWhitespace = 1.5;
-        const scoreFit = enrichment.categoryTags.length > 0 ? 2 : 1;
-        const scoreComplexity = /finance|fintech/.test(enrichment.primaryCategory) ? 3 : 1;
-        const scoreFeasibility = 3;
-        const scoreTotal =
-          scoreFrequency + scoreMomentum + scoreIntent + scoreWhitespace + scoreFit + scoreFeasibility - scoreComplexity;
-
-        await db.trendCluster.update({
-          where: { id: cluster.id },
-          data: {
-            signalCount: clusterSignalCount,
-            scoreTotal,
-            scoreFrequency,
-            scoreMomentum,
-            scoreIntent,
-            scoreWhitespace,
-            scoreFit,
-            scoreComplexity,
-            scoreFeasibility
-          }
-        });
-
-        const existingIdea = await db.idea.findFirst({
-          where: { clusterId: cluster.id }
-        });
-
-        const sourceAttribution = buildSourceAttribution(clusterMemberships);
-        const fallbackQuality = inferFallbackQuality({
-          category: enrichment.primaryCategory,
-          businessType: llmEnrichment?.idea.businessType ?? inferFallbackBusinessType(enrichment.primaryCategory, enrichment.clusterSeed),
-          targetCustomer: llmEnrichment?.idea.targetCustomer ?? "Founder / operator",
-          problemSummary: llmEnrichment?.idea.problemSummary ?? enrichment.summary,
-          solutionConcept:
-            llmEnrichment?.idea.solutionConcept ??
-            `Build a lightweight ${enrichment.primaryCategory} workflow tool around ${enrichment.clusterSeed}.`,
-          monetizationAngle:
-            llmEnrichment?.idea.monetizationAngle ?? "Subscription SaaS with premium workflow automation.",
-          signalCount: clusterSignalCount,
-          sourceAttribution
-        });
-
-        const ideaData = {
-          title: llmEnrichment?.idea.title ?? buildIdeaTitle(cluster.title),
-          category: enrichment.primaryCategory,
-          subcategory: enrichment.categoryTags[1] ?? null,
-          businessType:
-            llmEnrichment?.idea.businessType ?? inferFallbackBusinessType(enrichment.primaryCategory, enrichment.clusterSeed),
-          targetCustomer: llmEnrichment?.idea.targetCustomer ?? "Founder / operator",
-          problemSummary: llmEnrichment?.idea.problemSummary ?? enrichment.summary,
-          solutionConcept:
-            llmEnrichment?.idea.solutionConcept ??
-            `Build a lightweight ${enrichment.primaryCategory} workflow tool around ${enrichment.clusterSeed}.`,
-          monetizationAngle:
-            llmEnrichment?.idea.monetizationAngle ?? "Subscription SaaS with premium workflow automation.",
-          gtmJson: ["Founder communities", "Direct outreach", "Content-driven validation"],
-          validationQuestionsJson:
-            llmEnrichment?.idea.validationQuestions ?? [
-              `How often does the ${enrichment.clusterSeed} problem recur?`,
-              "Will operators pay for a narrower workflow-specific tool?"
-            ],
-          evidenceSummary: llmEnrichment?.idea.evidenceSummary ?? enrichment.summary,
-          riskNotes:
-            llmEnrichment?.idea.riskNotes ??
-            "Deterministic baseline only. Requires manual validation and later model-assisted refinement.",
-          qualityScore: llmEnrichment?.idea.qualityScore ?? fallbackQuality.qualityScore,
-          qualityReason: llmEnrichment?.idea.qualityReason ?? fallbackQuality.qualityReason,
-          sourceAttributionJson: sourceAttribution,
-          scoreSnapshot: {
-            scoreTotal,
-            scoreFrequency,
-            scoreMomentum,
-            scoreIntent,
-            scoreWhitespace,
-            scoreFit,
-            scoreComplexity,
-            scoreFeasibility
-          },
-          status: "new"
-        } as const;
-
-        if (!existingIdea) {
-          await db.idea.create({
-            data: {
-              clusterId: cluster.id,
-              ...ideaData
-            }
-          });
-        } else {
-          await db.idea.update({
-            where: { id: existingIdea.id },
-            data: ideaData
-          });
-        }
-
-        recordsWritten += existingIdea ? 3 : 4;
-      }
+      const enrichmentResult = await processRawSignals(pendingSignals);
+      let recordsWritten = enrichmentResult.recordsWritten;
+      const warnings: string[] = [...enrichmentResult.warnings];
 
       const socialDraftSync = await syncSocialContentDrafts();
       recordsWritten += socialDraftSync.recordsWritten;
@@ -275,6 +60,271 @@ export async function runDailyEnrichScore() {
       );
     }
   });
+}
+
+export async function regenerateIdeaById(ideaId: string) {
+  const idea = await db.idea.findUnique({
+    where: { id: ideaId },
+    select: {
+      id: true,
+      clusterId: true
+    }
+  });
+
+  if (!idea) {
+    throw new Error("Idea not found.");
+  }
+
+  const rawSignals = await db.rawSignal.findMany({
+    where: {
+      clusterMemberships: {
+        some: {
+          clusterId: idea.clusterId
+        }
+      }
+    },
+    orderBy: { ingestedAt: "asc" }
+  });
+
+  if (rawSignals.length === 0) {
+    throw new Error("No raw signals were found for this idea's cluster.");
+  }
+
+  const enrichmentResult = await processRawSignals(rawSignals);
+  const socialDraftResult = await syncSocialContentDrafts();
+
+  return {
+    recordsWritten: enrichmentResult.recordsWritten + socialDraftResult.recordsWritten,
+    warnings: [...enrichmentResult.warnings, ...socialDraftResult.warnings]
+  };
+}
+
+async function processRawSignals(rawSignals: RawSignalRecord[]) {
+  let recordsWritten = 0;
+  const warnings: string[] = [];
+  const llmBatchSize = resolveEnrichmentBatchSize();
+  const llmBatchDelayMs = resolveEnrichmentBatchDelayMs();
+  const llmResults = new Map<string, Awaited<ReturnType<typeof enrichSignalBatchWithModel>> extends Map<string, infer TValue> ? TValue : never>();
+
+  if (process.env.OPENAI_API_KEY) {
+    const batches = chunkSignals(rawSignals, llmBatchSize);
+
+    for (let index = 0; index < batches.length; index += 1) {
+      const batch = batches[index];
+
+      try {
+        const batchResults = await enrichSignalBatchWithModel(
+          batch.map((rawSignal) => ({
+            rawSignalId: rawSignal.id,
+            title: rawSignal.title,
+            body: rawSignal.body
+          }))
+        );
+
+        for (const [rawSignalId, enrichment] of batchResults.entries()) {
+          llmResults.set(rawSignalId, enrichment);
+        }
+      } catch (error) {
+        warnings.push(error instanceof Error ? error.message : String(error));
+      }
+
+      if (index < batches.length - 1 && llmBatchDelayMs > 0) {
+        await sleep(llmBatchDelayMs);
+      }
+    }
+  }
+
+  for (const rawSignal of rawSignals) {
+    const fallbackEnrichment = enrichSignal({
+      title: rawSignal.title,
+      body: rawSignal.body
+    });
+    const llmEnrichment = llmResults.get(rawSignal.id) ?? null;
+    const enrichment = llmEnrichment ?? fallbackEnrichment;
+
+    const enrichedSignal = await db.enrichedSignal.upsert({
+      where: { rawSignalId: rawSignal.id },
+      update: {
+        normalizedText: enrichment.normalizedText,
+        keywordsJson: enrichment.keywords,
+        entitiesJson: enrichment.entities,
+        painPointsJson: enrichment.painPoints,
+        intentPhrasesJson: enrichment.intentPhrases,
+        categoryTagsJson: enrichment.categoryTags,
+        confidenceJson: enrichment.confidence
+      },
+      create: {
+        rawSignalId: rawSignal.id,
+        normalizedText: enrichment.normalizedText,
+        keywordsJson: enrichment.keywords,
+        entitiesJson: enrichment.entities,
+        painPointsJson: enrichment.painPoints,
+        intentPhrasesJson: enrichment.intentPhrases,
+        categoryTagsJson: enrichment.categoryTags,
+        confidenceJson: enrichment.confidence
+      }
+    });
+
+    const clusterSlug = buildClusterSlug(enrichment.primaryCategory, enrichment.clusterSeed);
+    const existingMembership = await db.clusterMembership.findFirst({
+      where: { rawSignalId: rawSignal.id }
+    });
+
+    const cluster = await db.trendCluster.upsert({
+      where: { slug: clusterSlug },
+      update: {
+        title: buildClusterTitle(enrichment.primaryCategory, enrichment.clusterSeed),
+        summary: enrichment.summary,
+        primaryCategory: enrichment.primaryCategory,
+        tagsJson: enrichment.categoryTags,
+        lastSeenAt: rawSignal.occurredAt ?? rawSignal.ingestedAt,
+        status: "open"
+      },
+      create: {
+        slug: clusterSlug,
+        title: buildClusterTitle(enrichment.primaryCategory, enrichment.clusterSeed),
+        summary: enrichment.summary,
+        primaryCategory: enrichment.primaryCategory,
+        tagsJson: enrichment.categoryTags,
+        firstSeenAt: rawSignal.occurredAt ?? rawSignal.ingestedAt,
+        lastSeenAt: rawSignal.occurredAt ?? rawSignal.ingestedAt,
+        status: "open"
+      }
+    });
+
+    if (!existingMembership) {
+      await db.clusterMembership.create({
+        data: {
+          clusterId: cluster.id,
+          rawSignalId: rawSignal.id,
+          enrichedSignalId: enrichedSignal.id,
+          membershipReason: `Grouped by deterministic category ${enrichment.primaryCategory} and seed ${enrichment.clusterSeed}.`,
+          similarityScore: 0.8
+        }
+      });
+    }
+
+    const clusterSignalCount = await db.clusterMembership.count({
+      where: { clusterId: cluster.id }
+    });
+
+    const clusterMemberships = await db.clusterMembership.findMany({
+      where: { clusterId: cluster.id },
+      include: {
+        rawSignal: {
+          select: {
+            sourceType: true,
+            title: true,
+            sourceUrl: true
+          }
+        }
+      }
+    });
+
+    const scoreFrequency = clusterSignalCount;
+    const scoreMomentum = Math.min(clusterSignalCount * 0.4, 5);
+    const scoreIntent = enrichment.intentPhrases.length > 0 ? 2 : 1;
+    const scoreWhitespace = 1.5;
+    const scoreFit = enrichment.categoryTags.length > 0 ? 2 : 1;
+    const scoreComplexity = /finance|fintech/.test(enrichment.primaryCategory) ? 3 : 1;
+    const scoreFeasibility = 3;
+    const scoreTotal =
+      scoreFrequency + scoreMomentum + scoreIntent + scoreWhitespace + scoreFit + scoreFeasibility - scoreComplexity;
+
+    await db.trendCluster.update({
+      where: { id: cluster.id },
+      data: {
+        signalCount: clusterSignalCount,
+        scoreTotal,
+        scoreFrequency,
+        scoreMomentum,
+        scoreIntent,
+        scoreWhitespace,
+        scoreFit,
+        scoreComplexity,
+        scoreFeasibility
+      }
+    });
+
+    const existingIdea = await db.idea.findFirst({
+      where: { clusterId: cluster.id }
+    });
+
+    const sourceAttribution = buildSourceAttribution(clusterMemberships);
+    const fallbackQuality = inferFallbackQuality({
+      category: enrichment.primaryCategory,
+      businessType: llmEnrichment?.idea.businessType ?? inferFallbackBusinessType(enrichment.primaryCategory, enrichment.clusterSeed),
+      targetCustomer: llmEnrichment?.idea.targetCustomer ?? "Founder / operator",
+      problemSummary: llmEnrichment?.idea.problemSummary ?? enrichment.summary,
+      solutionConcept:
+        llmEnrichment?.idea.solutionConcept ??
+        `Build a lightweight ${enrichment.primaryCategory} workflow tool around ${enrichment.clusterSeed}.`,
+      monetizationAngle:
+        llmEnrichment?.idea.monetizationAngle ?? "Subscription SaaS with premium workflow automation.",
+      signalCount: clusterSignalCount,
+      sourceAttribution
+    });
+
+    const ideaData = {
+      title: llmEnrichment?.idea.title ?? buildIdeaTitle(cluster.title),
+      category: enrichment.primaryCategory,
+      subcategory: enrichment.categoryTags[1] ?? null,
+      businessType:
+        llmEnrichment?.idea.businessType ?? inferFallbackBusinessType(enrichment.primaryCategory, enrichment.clusterSeed),
+      targetCustomer: llmEnrichment?.idea.targetCustomer ?? "Founder / operator",
+      problemSummary: llmEnrichment?.idea.problemSummary ?? enrichment.summary,
+      solutionConcept:
+        llmEnrichment?.idea.solutionConcept ??
+        `Build a lightweight ${enrichment.primaryCategory} workflow tool around ${enrichment.clusterSeed}.`,
+      monetizationAngle:
+        llmEnrichment?.idea.monetizationAngle ?? "Subscription SaaS with premium workflow automation.",
+      gtmJson: ["Founder communities", "Direct outreach", "Content-driven validation"],
+      validationQuestionsJson:
+        llmEnrichment?.idea.validationQuestions ?? [
+          `How often does the ${enrichment.clusterSeed} problem recur?`,
+          "Will operators pay for a narrower workflow-specific tool?"
+        ],
+      evidenceSummary: llmEnrichment?.idea.evidenceSummary ?? enrichment.summary,
+      riskNotes:
+        llmEnrichment?.idea.riskNotes ??
+        "Deterministic baseline only. Requires manual validation and later model-assisted refinement.",
+      qualityScore: llmEnrichment?.idea.qualityScore ?? fallbackQuality.qualityScore,
+      qualityReason: llmEnrichment?.idea.qualityReason ?? fallbackQuality.qualityReason,
+      sourceAttributionJson: sourceAttribution,
+      scoreSnapshot: {
+        scoreTotal,
+        scoreFrequency,
+        scoreMomentum,
+        scoreIntent,
+        scoreWhitespace,
+        scoreFit,
+        scoreComplexity,
+        scoreFeasibility
+      },
+      status: "new"
+    } as const;
+
+    if (!existingIdea) {
+      await db.idea.create({
+        data: {
+          clusterId: cluster.id,
+          ...ideaData
+        }
+      });
+    } else {
+      await db.idea.update({
+        where: { id: existingIdea.id },
+        data: ideaData
+      });
+    }
+
+    recordsWritten += existingIdea ? 3 : 4;
+  }
+
+  return {
+    recordsWritten,
+    warnings
+  };
 }
 
 function chunkSignals<T>(items: T[], size: number) {

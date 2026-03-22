@@ -198,6 +198,97 @@ export async function syncSocialContentDrafts() {
   return result;
 }
 
+export async function regenerateSocialDraftById(draftId: string) {
+  const draft = await db.contentDraft.findUnique({
+    where: { id: draftId },
+    include: {
+      researchStream: {
+        include: {
+          defaultCopyFramework: true,
+          defaultStyleProfile: true
+        }
+      },
+      topic: {
+        include: {
+          defaultCopyFramework: true,
+          defaultStyleProfile: true
+        }
+      },
+      sourceIdea: {
+        include: {
+          cluster: true
+        }
+      }
+    }
+  });
+
+  if (!draft) {
+    throw new Error("Social draft not found.");
+  }
+
+  if (!draft.topic || !draft.sourceIdea) {
+    throw new Error("Social draft is missing its topic or source idea.");
+  }
+
+  const framework = draft.topic.defaultCopyFramework ?? draft.researchStream.defaultCopyFramework ?? null;
+  const styleProfile = draft.topic.defaultStyleProfile ?? draft.researchStream.defaultStyleProfile ?? null;
+  const assetMode = draft.topic.defaultAssetMode ?? draft.researchStream.defaultAssetMode ?? "none";
+  const fallbackDraft = buildFallbackSocialDraft({
+    channel: draft.targetChannel as (typeof researchStreamChannels)[number],
+    idea: draft.sourceIdea,
+    topic: draft.topic,
+    frameworkName: framework?.name ?? "custom",
+    styleName: styleProfile?.name ?? "founder educator",
+    assetMode
+  });
+
+  let generated = fallbackDraft;
+  const warnings: string[] = [];
+
+  try {
+    generated =
+      (await generateSocialDraft({
+        channel: draft.targetChannel as (typeof researchStreamChannels)[number],
+        idea: draft.sourceIdea,
+        topic: draft.topic,
+        framework,
+        styleProfile,
+        assetMode
+      })) ?? fallbackDraft;
+  } catch (error) {
+    warnings.push(error instanceof Error ? error.message : String(error));
+  }
+
+  await db.contentDraft.update({
+    where: { id: draft.id },
+    data: {
+      copyFrameworkId: framework?.id ?? null,
+      styleProfileId: styleProfile?.id ?? null,
+      title: generated.title,
+      targetAudience: generated.targetAudience,
+      hook: generated.hook,
+      thesis: generated.thesis,
+      supportingPointsJson: generated.supportingPoints,
+      counterpoint: generated.counterpoint,
+      cta: generated.cta,
+      draftMarkdown: generated.draftMarkdown,
+      visualBriefJson: generated.visualBrief,
+      infographicBriefJson: generated.infographicBrief,
+      infographicFormat: generated.infographicBrief.format,
+      infographicPanelsJson: generated.infographicBrief.panels,
+      assetMode,
+      assetStatus: "draft",
+      qualityScore: generated.qualityScore,
+      sourceAttributionJson: draft.sourceIdea.sourceAttributionJson ?? undefined,
+      status: "draft"
+    }
+  });
+
+  return {
+    warnings
+  };
+}
+
 function resolveTopicChannels(value: unknown) {
   if (!Array.isArray(value)) {
     return [...researchStreamChannels];

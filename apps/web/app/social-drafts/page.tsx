@@ -1,5 +1,5 @@
 import { db } from "@bizbrain/db";
-import { runPipelineJob, updateContentDraftStatus } from "../actions";
+import { regenerateContentDraft, runPipelineJob, updateContentDraftStatus } from "../actions";
 import { formatDate, formatListInput, getDashboardData, readSearchParam } from "../dashboard-data";
 import { EmptyState } from "../dashboard-ui";
 
@@ -154,6 +154,12 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                         <p className="rowMeta"><strong>Asset mode:</strong> {draft.assetMode ?? "none"}</p>
                       </div>
                       <div className="jobButtons">
+                        <form action={regenerateContentDraft}>
+                          <input name="id" type="hidden" value={draft.id} />
+                          <button className="jobButton" type="submit">
+                            Regenerate
+                          </button>
+                        </form>
                         {[
                           ["promising", "Promising"],
                           ["revisit", "Revisit"],

@@ -3,7 +3,9 @@
 import type { JobName } from "@bizbrain/core";
 import { db } from "@bizbrain/db";
 import { revalidatePath } from "next/cache";
+import { regenerateIdeaById } from "../../worker/src/jobs/daily-enrich-score";
 import { workerJobs } from "../../worker/src/jobs/registry";
+import { regenerateSocialDraftById } from "../../worker/src/jobs/social-content";
 import { runSourceHealthCheck } from "./source-health";
 
 export async function runPipelineJob(formData: FormData) {
@@ -67,6 +69,16 @@ export async function updateIdeaStatus(formData: FormData) {
 
   revalidatePath("/");
   revalidatePath("/ideas");
+}
+
+export async function regenerateIdea(formData: FormData) {
+  const id = readRequiredString(formData, "id");
+
+  await regenerateIdeaById(id);
+
+  revalidatePath("/");
+  revalidatePath("/ideas");
+  revalidatePath("/social-drafts");
 }
 
 export async function createResearchStream(formData: FormData) {
@@ -430,6 +442,16 @@ export async function updateStyleProfile(formData: FormData) {
   });
 
   revalidatePath("/");
+}
+
+export async function regenerateContentDraft(formData: FormData) {
+  const id = readRequiredString(formData, "id");
+
+  await regenerateSocialDraftById(id);
+
+  revalidatePath("/");
+  revalidatePath("/ideas");
+  revalidatePath("/social-drafts");
 }
 
 export async function createDigestRecipient(formData: FormData) {
