@@ -127,66 +127,84 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
             <EmptyState message="No social drafts matched the current filters." />
           ) : (
             <div className="stack">
-              {filteredDrafts.map((draft) => (
-                <details className="adminDisclosure" key={draft.id}>
-                  <summary className="adminDisclosureSummary">
-                    <div>
-                      <p className="rowTitle">{draft.title}</p>
-                      <p className="rowMeta">
-                        {draft.targetChannel} · {draft.topic?.name ?? "No topic"} · {draft.copyFramework?.name ?? "No framework"} ·{" "}
-                        {draft.styleProfile?.name ?? "No style"} · quality {draft.qualityScore?.toFixed(1) ?? "n/a"} · {draft.status}
-                      </p>
-                      <p className="rowMeta">Updated {formatDate(draft.updatedAt)}</p>
-                    </div>
-                    <span className={`status status-${normalizeDraftStatus(draft.status)}`}>{draft.status}</span>
-                  </summary>
-                  <div className="draftDetailGrid">
-                    <div className="draftPrimary">
-                      <p className="rowBody"><strong>Hook:</strong> {draft.hook ?? "No hook yet."}</p>
-                      <p className="rowBody"><strong>Thesis:</strong> {draft.thesis ?? "No thesis yet."}</p>
-                      <p className="rowBody"><strong>Audience:</strong> {draft.targetAudience ?? "No target audience yet."}</p>
-                      <p className="rowBody"><strong>Supporting points:</strong> {formatListInput(draft.supportingPointsJson) || "No supporting points yet."}</p>
-                      <p className="rowBody"><strong>CTA:</strong> {draft.cta ?? "No CTA yet."}</p>
-                      <p className="rowBody"><strong>Source idea:</strong> {draft.sourceIdea?.title ?? "No linked idea."}</p>
-                      <div className="evidenceSection">
-                        <p className="rowBody">
-                          <strong>Source idea context:</strong>
+              {filteredDrafts.map((draft) => {
+                const fitPreview = buildDraftTopicFitPreview(draft);
+
+                return (
+                  <details className="adminDisclosure" key={draft.id}>
+                    <summary className="adminDisclosureSummary">
+                      <div>
+                        <p className="rowTitle">{draft.title}</p>
+                        <p className="rowMeta">
+                          {draft.targetChannel} · {draft.topic?.name ?? "No topic"} · {draft.copyFramework?.name ?? "No framework"} ·{" "}
+                          {draft.styleProfile?.name ?? "No style"} · quality {draft.qualityScore?.toFixed(1) ?? "n/a"} · {draft.status}
                         </p>
-                        {draft.sourceIdea ? (
-                          <div className="evidenceCard">
-                            <p className="rowMeta">
-                              {draft.sourceIdea.businessType ?? "Business type pending"}
-                              {draft.sourceIdea.targetCustomer ? ` · ${draft.sourceIdea.targetCustomer}` : ""}
-                              {draft.sourceIdea.cluster?.title ? ` · ${draft.sourceIdea.cluster.title}` : ""}
-                            </p>
-                            <p className="rowBody">
-                              <strong>Problem:</strong> {draft.sourceIdea.problemSummary ?? "No problem summary yet."}
-                            </p>
-                            <p className="rowBody">
-                              <strong>Solution:</strong> {draft.sourceIdea.solutionConcept ?? "No solution concept yet."}
-                            </p>
-                            <p className="rowBody">
-                              <strong>Evidence:</strong> {draft.sourceIdea.evidenceSummary ?? "No evidence summary yet."}
-                            </p>
-                            <p className="rowMeta">
-                              {formatSourceAttribution(draft.sourceIdea.sourceAttributionJson)}
-                            </p>
+                        <p className="rowMeta">Updated {formatDate(draft.updatedAt)}</p>
+                      </div>
+                      <span className={`status status-${normalizeDraftStatus(draft.status)}`}>{draft.status}</span>
+                    </summary>
+                    <div className="draftDetailGrid">
+                      <div className="draftPrimary">
+                        <p className="rowBody"><strong>Hook:</strong> {draft.hook ?? "No hook yet."}</p>
+                        <p className="rowBody"><strong>Thesis:</strong> {draft.thesis ?? "No thesis yet."}</p>
+                        <p className="rowBody"><strong>Audience:</strong> {draft.targetAudience ?? "No target audience yet."}</p>
+                        <p className="rowBody"><strong>Supporting points:</strong> {formatListInput(draft.supportingPointsJson) || "No supporting points yet."}</p>
+                        <p className="rowBody"><strong>CTA:</strong> {draft.cta ?? "No CTA yet."}</p>
+                        <p className="rowBody"><strong>Source idea:</strong> {draft.sourceIdea?.title ?? "No linked idea."}</p>
+                        <div className="evidenceSection">
+                          <p className="rowBody">
+                            <strong>Source idea context:</strong>
+                          </p>
+                          {draft.sourceIdea ? (
+                            <div className="evidenceCard">
+                              <p className="rowMeta">
+                                {draft.sourceIdea.businessType ?? "Business type pending"}
+                                {draft.sourceIdea.targetCustomer ? ` · ${draft.sourceIdea.targetCustomer}` : ""}
+                                {draft.sourceIdea.cluster?.title ? ` · ${draft.sourceIdea.cluster.title}` : ""}
+                              </p>
+                              <p className="rowBody">
+                                <strong>Problem:</strong> {draft.sourceIdea.problemSummary ?? "No problem summary yet."}
+                              </p>
+                              <p className="rowBody">
+                                <strong>Solution:</strong> {draft.sourceIdea.solutionConcept ?? "No solution concept yet."}
+                              </p>
+                              <p className="rowBody">
+                                <strong>Evidence:</strong> {draft.sourceIdea.evidenceSummary ?? "No evidence summary yet."}
+                              </p>
+                              <p className="rowMeta">
+                                {formatSourceAttribution(draft.sourceIdea.sourceAttributionJson)}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="rowMeta">No linked idea context yet.</p>
+                          )}
+                        </div>
+                        <pre className="draftPreview">{draft.draftMarkdown ?? "No draft body yet."}</pre>
+                      </div>
+                      <div className="draftSidebar">
+                        <div className="stackCompact">
+                          <p className="rowMeta"><strong>Visual brief:</strong> {readObjectField(draft.visualBriefJson, "concept") ?? "No visual brief yet."}</p>
+                          <p className="rowMeta"><strong>Infographic format:</strong> {draft.infographicFormat ?? "Not set"}</p>
+                          <p className="rowMeta"><strong>Infographic panels:</strong> {formatListInput(draft.infographicPanelsJson) || "No panel outline yet."}</p>
+                          <p className="rowMeta"><strong>Asset mode:</strong> {draft.assetMode ?? "none"}</p>
+                        </div>
+                        <div className="evidenceSection">
+                          <p className="rowBody">
+                            <strong>Topic fit:</strong>
+                          </p>
+                          <div className="stack">
+                            <div className="evidenceCard">
+                              <p className="rowTitle">{draft.topic?.name ?? "No topic linked"}</p>
+                              <p className="rowMeta">
+                                {draft.topic?.researchStream?.name ?? "No stream"} · content channels {formatListInput(draft.topic?.enabledChannelsJson) || "none"}
+                              </p>
+                              <p className="rowBody">{fitPreview.reason}</p>
+                              <p className="rowMeta">Preview terms: {fitPreview.terms.join(", ") || "none"}</p>
+                            </div>
                           </div>
-                        ) : (
-                          <p className="rowMeta">No linked idea context yet.</p>
-                        )}
-                      </div>
-                      <pre className="draftPreview">{draft.draftMarkdown ?? "No draft body yet."}</pre>
-                    </div>
-                    <div className="draftSidebar">
-                      <div className="stackCompact">
-                        <p className="rowMeta"><strong>Visual brief:</strong> {readObjectField(draft.visualBriefJson, "concept") ?? "No visual brief yet."}</p>
-                        <p className="rowMeta"><strong>Infographic format:</strong> {draft.infographicFormat ?? "Not set"}</p>
-                        <p className="rowMeta"><strong>Infographic panels:</strong> {formatListInput(draft.infographicPanelsJson) || "No panel outline yet."}</p>
-                        <p className="rowMeta"><strong>Asset mode:</strong> {draft.assetMode ?? "none"}</p>
-                      </div>
-                      <div className="jobButtons">
-                        <form action={regenerateContentDraft}>
+                        </div>
+                        <div className="jobButtons">
+                          <form action={regenerateContentDraft}>
                           <input name="id" type="hidden" value={draft.id} />
                           <button className="jobButton" type="submit">
                             Regenerate
@@ -207,11 +225,12 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                             </button>
                           </form>
                         ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </details>
-              ))}
+                  </details>
+                );
+              })}
             </div>
           )}
         </article>
@@ -227,7 +246,11 @@ async function getSocialDrafts() {
     },
     orderBy: [{ updatedAt: "desc" }, { qualityScore: "desc" }],
     include: {
-      topic: true,
+      topic: {
+        include: {
+          researchStream: true
+        }
+      },
       copyFramework: true,
       styleProfile: true,
       sourceIdea: {
@@ -266,4 +289,77 @@ function normalizeDraftStatus(status: string) {
   }
 
   return "skipped";
+}
+
+function buildDraftTopicFitPreview(draft: Awaited<ReturnType<typeof getSocialDrafts>>[number]) {
+  const topic = draft.topic;
+  const topicChannels = formatListInput(topic?.enabledChannelsJson) || "none";
+  const terms = collectDraftTerms(draft);
+  const overlap = topic ? countDraftTopicOverlap(terms, topic) : 0;
+  const reasons = [
+    draft.targetChannel ? `draft channel ${draft.targetChannel}` : null,
+    topic && Array.isArray(topic.enabledChannelsJson) && topic.enabledChannelsJson.includes(draft.targetChannel)
+      ? "channel enabled on topic"
+      : null,
+    overlap > 0 ? `${overlap} topic keyword match${overlap > 1 ? "es" : ""}` : null,
+    draft.sourceIdea?.primaryTopicId && topic && draft.sourceIdea.primaryTopicId === topic.id ? "source idea already linked to topic" : null
+  ].filter((reason): reason is string => Boolean(reason));
+
+  return {
+    terms,
+    reason:
+      reasons.join(" + ") ||
+      `This draft is attached to the topic and targets ${draft.targetChannel} within channels ${topicChannels}.`
+  };
+}
+
+function collectDraftTerms(draft: Awaited<ReturnType<typeof getSocialDrafts>>[number]) {
+  const terms = [
+    draft.title,
+    draft.targetChannel,
+    draft.hook ?? "",
+    draft.thesis ?? "",
+    draft.targetAudience ?? "",
+    formatListInput(draft.supportingPointsJson),
+    draft.cta ?? "",
+    draft.topic?.name ?? "",
+    draft.topic?.slug ?? "",
+    draft.topic?.description ?? "",
+    formatListInput(draft.topic?.keywordsJson),
+    draft.sourceIdea?.title ?? "",
+    draft.sourceIdea?.businessType ?? "",
+    draft.sourceIdea?.targetCustomer ?? "",
+    draft.sourceIdea?.problemSummary ?? "",
+    draft.sourceIdea?.solutionConcept ?? "",
+    draft.sourceIdea?.evidenceSummary ?? "",
+    draft.sourceIdea?.cluster?.title ?? ""
+  ]
+    .join(" ")
+    .toLowerCase()
+    .split(/[^a-z0-9+-]+/i)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length >= 3);
+
+  return [...new Set(terms)];
+}
+
+function countDraftTopicOverlap(
+  draftTerms: string[],
+  topic: NonNullable<Awaited<ReturnType<typeof getSocialDrafts>>[number]["topic"]>
+) {
+  if (draftTerms.length === 0) {
+    return 0;
+  }
+
+  const topicCorpus = [
+    topic.name,
+    topic.slug,
+    topic.description ?? "",
+    formatListInput(topic.keywordsJson),
+    formatListInput(topic.sourcePreferencesJson)
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return draftTerms.filter((term) => topicCorpus.includes(term)).length;
 }

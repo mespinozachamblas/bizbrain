@@ -166,98 +166,121 @@ export default async function IdeasPage({ searchParams }: PageProps) {
             <EmptyState message="No ideas matched the current filters." />
           ) : (
             <div className="stack">
-              {filteredIdeas.map((idea) => (
-                <details className="adminDisclosure" key={idea.id}>
-                  <summary className="adminDisclosureSummary">
-                    <div>
-                      <p className="rowTitle">{idea.title}</p>
-                      <p className="rowMeta">
-                        {idea.category}
-                        {idea.subcategory ? ` · ${idea.subcategory}` : ""}
-                        {idea.businessType ? ` · ${idea.businessType}` : ""}
-                        {idea.primaryTopic ? ` · ${idea.primaryTopic.name}` : ""}
-                        {idea.researchStream ? ` · ${idea.researchStream.name}` : ""}
-                        {idea.qualityScore !== null ? ` · quality ${idea.qualityScore.toFixed(1)}` : ""}
-                      </p>
-                      <p className="rowMeta">Updated {formatDate(idea.updatedAt)}</p>
-                    </div>
-                    <span className={`status status-${normalizeIdeaStatus(idea.status)}`}>{idea.status}</span>
-                  </summary>
-                  <div className="draftDetailGrid">
-                    <div className="draftPrimary">
-                      <p className="rowBody">
-                        <strong>Target customer:</strong> {idea.targetCustomer ?? "No target customer yet."}
-                      </p>
-                      <p className="rowBody">
-                        <strong>Problem:</strong> {idea.problemSummary ?? "No problem summary yet."}
-                      </p>
-                      <p className="rowBody">
-                        <strong>Solution:</strong> {idea.solutionConcept ?? "No solution concept yet."}
-                      </p>
-                      <p className="rowBody">
-                        <strong>Monetization:</strong> {idea.monetizationAngle ?? "No monetization angle yet."}
-                      </p>
-                      <p className="rowBody">
-                        <strong>Evidence:</strong> {idea.evidenceSummary ?? "No evidence summary yet."}
-                      </p>
-                      <p className="rowBody">
-                        <strong>Risks:</strong> {idea.riskNotes ?? "No risk notes yet."}
-                      </p>
-                      <p className="rowBody">
-                        <strong>Validation questions:</strong> {formatListInput(idea.validationQuestionsJson) || "No validation questions yet."}
-                      </p>
-                      <p className="rowBody">
-                        <strong>Cluster:</strong> {idea.cluster.title}
-                      </p>
-                      <p className="rowBody">
-                        <strong>Cluster summary:</strong> {idea.cluster.summary ?? "No cluster summary yet."}
-                      </p>
-                      <div className="evidenceSection">
+              {filteredIdeas.map((idea) => {
+                const topicPreview = buildIdeaTopicPreview(idea, dashboard.topics);
+
+                return (
+                  <details className="adminDisclosure" key={idea.id}>
+                    <summary className="adminDisclosureSummary">
+                      <div>
+                        <p className="rowTitle">{idea.title}</p>
+                        <p className="rowMeta">
+                          {idea.category}
+                          {idea.subcategory ? ` · ${idea.subcategory}` : ""}
+                          {idea.businessType ? ` · ${idea.businessType}` : ""}
+                          {idea.primaryTopic ? ` · ${idea.primaryTopic.name}` : ""}
+                          {idea.researchStream ? ` · ${idea.researchStream.name}` : ""}
+                          {idea.qualityScore !== null ? ` · quality ${idea.qualityScore.toFixed(1)}` : ""}
+                        </p>
+                        <p className="rowMeta">Updated {formatDate(idea.updatedAt)}</p>
+                      </div>
+                      <span className={`status status-${normalizeIdeaStatus(idea.status)}`}>{idea.status}</span>
+                    </summary>
+                    <div className="draftDetailGrid">
+                      <div className="draftPrimary">
                         <p className="rowBody">
-                          <strong>Underlying signals:</strong>
+                          <strong>Target customer:</strong> {idea.targetCustomer ?? "No target customer yet."}
                         </p>
-                        {idea.cluster.memberships.length === 0 ? (
-                          <p className="rowMeta">No raw signals are linked to this cluster yet.</p>
-                        ) : (
-                          <div className="stack">
-                            {idea.cluster.memberships.map((membership) => (
-                              <div className="evidenceCard" key={membership.id}>
-                                <p className="rowTitle">{membership.rawSignal.title ?? "Untitled signal"}</p>
-                                <p className="rowMeta">
-                                  {membership.rawSignal.sourceType}
-                                  {membership.rawSignal.authorName ? ` · ${membership.rawSignal.authorName}` : ""}
-                                  {membership.rawSignal.occurredAt ? ` · ${formatDate(membership.rawSignal.occurredAt)}` : ""}
-                                </p>
-                                <p className="rowBody">
-                                  {summarizeEvidenceText(membership.rawSignal.body ?? "No body text captured.", 220)}
-                                </p>
-                                {membership.rawSignal.sourceUrl ? (
+                        <p className="rowBody">
+                          <strong>Problem:</strong> {idea.problemSummary ?? "No problem summary yet."}
+                        </p>
+                        <p className="rowBody">
+                          <strong>Solution:</strong> {idea.solutionConcept ?? "No solution concept yet."}
+                        </p>
+                        <p className="rowBody">
+                          <strong>Monetization:</strong> {idea.monetizationAngle ?? "No monetization angle yet."}
+                        </p>
+                        <p className="rowBody">
+                          <strong>Evidence:</strong> {idea.evidenceSummary ?? "No evidence summary yet."}
+                        </p>
+                        <p className="rowBody">
+                          <strong>Risks:</strong> {idea.riskNotes ?? "No risk notes yet."}
+                        </p>
+                        <p className="rowBody">
+                          <strong>Validation questions:</strong> {formatListInput(idea.validationQuestionsJson) || "No validation questions yet."}
+                        </p>
+                        <p className="rowBody">
+                          <strong>Cluster:</strong> {idea.cluster.title}
+                        </p>
+                        <p className="rowBody">
+                          <strong>Cluster summary:</strong> {idea.cluster.summary ?? "No cluster summary yet."}
+                        </p>
+                        <div className="evidenceSection">
+                          <p className="rowBody">
+                            <strong>Underlying signals:</strong>
+                          </p>
+                          {idea.cluster.memberships.length === 0 ? (
+                            <p className="rowMeta">No raw signals are linked to this cluster yet.</p>
+                          ) : (
+                            <div className="stack">
+                              {idea.cluster.memberships.map((membership) => (
+                                <div className="evidenceCard" key={membership.id}>
+                                  <p className="rowTitle">{membership.rawSignal.title ?? "Untitled signal"}</p>
                                   <p className="rowMeta">
-                                    <a href={membership.rawSignal.sourceUrl} rel="noreferrer" target="_blank">
-                                      Open source link
-                                    </a>
+                                    {membership.rawSignal.sourceType}
+                                    {membership.rawSignal.authorName ? ` · ${membership.rawSignal.authorName}` : ""}
+                                    {membership.rawSignal.occurredAt ? ` · ${formatDate(membership.rawSignal.occurredAt)}` : ""}
                                   </p>
-                                ) : null}
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                                  <p className="rowBody">
+                                    {summarizeEvidenceText(membership.rawSignal.body ?? "No body text captured.", 220)}
+                                  </p>
+                                  {membership.rawSignal.sourceUrl ? (
+                                    <p className="rowMeta">
+                                      <a href={membership.rawSignal.sourceUrl} rel="noreferrer" target="_blank">
+                                        Open source link
+                                      </a>
+                                    </p>
+                                  ) : null}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="draftSidebar">
-                      <div className="stackCompact">
-                        <p className="rowMeta">
-                          <strong>Quality reason:</strong> {idea.qualityReason ?? "No quality rationale yet."}
-                        </p>
-                        <p className="rowMeta">
-                          <strong>Source attribution:</strong> {formatSourceAttribution(idea.sourceAttributionJson)}
-                        </p>
-                        <p className="rowMeta">
-                          <strong>Score snapshot:</strong> {formatScoreSnapshot(idea.scoreSnapshot)}
-                        </p>
-                      </div>
-                      <div className="jobButtons">
-                        <form action={regenerateIdea}>
+                      <div className="draftSidebar">
+                        <div className="stackCompact">
+                          <p className="rowMeta">
+                            <strong>Quality reason:</strong> {idea.qualityReason ?? "No quality rationale yet."}
+                          </p>
+                          <p className="rowMeta">
+                            <strong>Source attribution:</strong> {formatSourceAttribution(idea.sourceAttributionJson)}
+                          </p>
+                          <p className="rowMeta">
+                            <strong>Score snapshot:</strong> {formatScoreSnapshot(idea.scoreSnapshot)}
+                          </p>
+                        </div>
+                        <div className="evidenceSection">
+                          <p className="rowBody">
+                            <strong>Likely topic feeds:</strong>
+                          </p>
+                          {topicPreview.matches.length === 0 ? (
+                            <p className="rowMeta">No likely topic matches yet. Add topic keywords or assign a primary topic.</p>
+                          ) : (
+                            <div className="stack">
+                              {topicPreview.matches.map((match) => (
+                                <div className="evidenceCard" key={match.topicId}>
+                                  <p className="rowTitle">{match.topicName}</p>
+                                  <p className="rowMeta">
+                                    {match.streamName} · content channels {match.channels || "none"} · {match.reason}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <p className="rowMeta">Preview terms: {topicPreview.terms.join(", ") || "none"}</p>
+                        </div>
+                        <div className="jobButtons">
+                          <form action={regenerateIdea}>
                           <input name="id" type="hidden" value={idea.id} />
                           <button className="jobButton" type="submit">
                             Regenerate
@@ -277,11 +300,12 @@ export default async function IdeasPage({ searchParams }: PageProps) {
                             </button>
                           </form>
                         ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </details>
-              ))}
+                  </details>
+                );
+              })}
             </div>
           )}
         </article>
@@ -359,4 +383,101 @@ function summarizeEvidenceText(value: string, maxLength: number) {
   const clipped = normalized.slice(0, maxLength);
   const boundary = Math.max(clipped.lastIndexOf(". "), clipped.lastIndexOf("; "), clipped.lastIndexOf(", "));
   return `${(boundary > 80 ? clipped.slice(0, boundary) : clipped).trim()}...`;
+}
+
+function buildIdeaTopicPreview(
+  idea: Awaited<ReturnType<typeof getIdeas>>[number],
+  topics: Awaited<ReturnType<typeof getDashboardData>>["topics"]
+) {
+  const directTopicId = idea.primaryTopicId;
+  const directStreamId = idea.researchStreamId;
+  const terms = collectIdeaTerms(idea);
+
+  const matches = topics
+    .map((topic) => {
+      const directTopic = Boolean(directTopicId && topic.id === directTopicId);
+      const directStream = Boolean(directStreamId && topic.researchStreamId === directStreamId);
+      const overlap = countTopicOverlap(terms, topic);
+      const score = (directTopic ? 100 : 0) + (directStream ? 35 : 0) + overlap * 10;
+
+      if (score === 0) {
+        return null;
+      }
+
+      const reasons = [
+        directTopic ? "primary topic" : null,
+        directStream ? "same research stream" : null,
+        overlap > 0 ? `${overlap} keyword match${overlap > 1 ? "es" : ""}` : null
+      ].filter((reason): reason is string => Boolean(reason));
+
+      return {
+        topicId: topic.id,
+        topicName: topic.name,
+        streamName: topic.researchStream.name,
+        channels: formatListInput(topic.enabledChannelsJson),
+        reason: reasons.join(" + "),
+        score
+      };
+    })
+    .filter((match): match is NonNullable<typeof match> => Boolean(match))
+    .sort((left, right) => right.score - left.score || left.topicName.localeCompare(right.topicName))
+    .slice(0, 5);
+
+  return { matches, terms };
+}
+
+function collectIdeaTerms(idea: Awaited<ReturnType<typeof getIdeas>>[number]) {
+  const terms = [
+    idea.title,
+    idea.category,
+    idea.subcategory ?? "",
+    idea.businessType ?? "",
+    idea.targetCustomer ?? "",
+    idea.problemSummary ?? "",
+    idea.solutionConcept ?? "",
+    idea.monetizationAngle ?? "",
+    idea.evidenceSummary ?? "",
+    idea.riskNotes ?? "",
+    idea.primaryTopic?.name ?? "",
+    idea.primaryTopic?.slug ?? "",
+    idea.researchStream?.name ?? "",
+    idea.researchStream?.slug ?? "",
+    idea.cluster.title,
+    idea.cluster.summary ?? "",
+    ...idea.cluster.memberships.flatMap((membership) => [
+      membership.rawSignal.title ?? "",
+      membership.rawSignal.body ?? "",
+      membership.rawSignal.authorName ?? "",
+      membership.rawSignal.sourceType
+    ])
+  ]
+    .join(" ")
+    .toLowerCase()
+    .split(/[^a-z0-9+-]+/i)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length >= 3);
+
+  return [...new Set(terms)];
+}
+
+function countTopicOverlap(
+  ideaTerms: string[],
+  topic: Awaited<ReturnType<typeof getDashboardData>>["topics"][number]
+) {
+  if (ideaTerms.length === 0) {
+    return 0;
+  }
+
+  const topicCorpus = [
+    topic.name,
+    topic.slug,
+    topic.description ?? "",
+    formatListInput(topic.keywordsJson),
+    formatListInput(topic.exclusionsJson),
+    formatListInput(topic.sourcePreferencesJson)
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return ideaTerms.filter((term) => topicCorpus.includes(term)).length;
 }
