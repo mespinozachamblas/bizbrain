@@ -155,8 +155,20 @@ type DashboardData = {
   }>;
 };
 
-export default async function HomePage() {
+type HomePageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const resolvedSearchParams = (await searchParams) ?? {};
   const dashboard = await getDashboardData();
+  const streamQuery = readSearchParam(resolvedSearchParams, "streamQuery");
+  const topicQuery = readSearchParam(resolvedSearchParams, "topicQuery");
+  const topicStreamId = readSearchParam(resolvedSearchParams, "topicStreamId");
+  const filteredResearchStreams = dashboard.researchStreams.filter((stream) => matchesStreamSearch(stream, streamQuery));
+  const filteredTopics = dashboard.topics.filter(
+    (topic) => matchesTopicSearch(topic, topicQuery) && (!topicStreamId || topic.researchStreamId === topicStreamId)
+  );
 
   return (
     <main className="page">
@@ -603,54 +615,80 @@ export default async function HomePage() {
             <h2>Research streams</h2>
             <span className="badge">Admin</span>
           </div>
+          <form className="filterForm" method="get">
+            <label className="fieldLabel">
+              Search streams
+              <input className="fieldInput" defaultValue={streamQuery} name="streamQuery" placeholder="Search by name, slug, or description" type="text" />
+            </label>
+            <button className="jobButton jobButtonSecondary" type="submit">
+              Filter streams
+            </button>
+          </form>
+          <p className="helperText">
+            Showing {filteredResearchStreams.length} of {dashboard.researchStreams.length} research stream(s).
+          </p>
           {dashboard.researchStreams.length === 0 ? (
             <EmptyState message="No research streams are configured yet." />
+          ) : filteredResearchStreams.length === 0 ? (
+            <EmptyState message="No research streams matched the current filter." />
           ) : (
             <div className="stack">
-              {dashboard.researchStreams.map((stream) => (
-                <form action={updateResearchStream} className="adminForm adminFormCompact" key={stream.id}>
-                  <input name="id" type="hidden" value={stream.id} />
-                  <label className="fieldLabel">
-                    Name
-                    <input className="fieldInput" defaultValue={stream.name} name="name" required type="text" />
-                  </label>
-                  <label className="fieldLabel">
-                    Slug
-                    <input className="fieldInput" defaultValue={stream.slug} name="slug" required type="text" />
-                  </label>
-                  <label className="fieldLabel fieldLabelWide">
-                    Description
-                    <textarea className="fieldTextarea" defaultValue={stream.description ?? ""} name="description" rows={2} />
-                  </label>
-                  <label className="fieldLabel">
-                    Channels
-                    <input
-                      className="fieldInput"
-                      defaultValue={formatChannelInput(stream.enabledChannelsJson)}
-                      name="enabledChannels"
-                      type="text"
-                    />
-                  </label>
-                  <label className="fieldLabel">
-                    Schedule
-                    <input className="fieldInput" defaultValue={stream.scheduleCron ?? ""} name="scheduleCron" type="text" />
-                  </label>
-                  <label className="fieldLabel">
-                    Asset mode
-                    <input className="fieldInput" defaultValue={stream.defaultAssetMode ?? ""} name="defaultAssetMode" type="text" />
-                  </label>
-                  <label className="fieldLabel">
-                    Delivery type
-                    <input className="fieldInput" defaultValue={stream.deliveryType} name="deliveryType" type="text" />
-                  </label>
-                  <label className="fieldCheckbox">
-                    <input defaultChecked={stream.enabled} name="enabled" type="checkbox" />
-                    Enabled
-                  </label>
-                  <button className="jobButton jobButtonSecondary" type="submit">
-                    Save stream
-                  </button>
-                </form>
+              {filteredResearchStreams.map((stream) => (
+                <details className="adminDisclosure" key={stream.id}>
+                  <summary className="adminDisclosureSummary">
+                    <div>
+                      <p className="rowTitle">{stream.name}</p>
+                      <p className="rowMeta">
+                        {stream.slug} · {formatChannelInput(stream.enabledChannelsJson)} · {stream.scheduleCron ?? "No schedule"} ·{" "}
+                        {stream.enabled ? "enabled" : "disabled"}
+                      </p>
+                    </div>
+                    <span className="status status-skipped">Edit</span>
+                  </summary>
+                  <form action={updateResearchStream} className="adminForm adminFormCompact">
+                    <input name="id" type="hidden" value={stream.id} />
+                    <label className="fieldLabel">
+                      Name
+                      <input className="fieldInput" defaultValue={stream.name} name="name" required type="text" />
+                    </label>
+                    <label className="fieldLabel">
+                      Slug
+                      <input className="fieldInput" defaultValue={stream.slug} name="slug" required type="text" />
+                    </label>
+                    <label className="fieldLabel fieldLabelWide">
+                      Description
+                      <textarea className="fieldTextarea" defaultValue={stream.description ?? ""} name="description" rows={2} />
+                    </label>
+                    <label className="fieldLabel">
+                      Channels
+                      <input
+                        className="fieldInput"
+                        defaultValue={formatChannelInput(stream.enabledChannelsJson)}
+                        name="enabledChannels"
+                        type="text"
+                      />
+                    </label>
+                    <label className="fieldLabel">
+                      Schedule
+                      <input className="fieldInput" defaultValue={stream.scheduleCron ?? ""} name="scheduleCron" type="text" />
+                    </label>
+                    <label className="fieldLabel">
+                      Asset mode
+                      <input className="fieldInput" defaultValue={stream.defaultAssetMode ?? ""} name="defaultAssetMode" type="text" />
+                    </label>
+                    <label className="fieldLabel">
+                      Delivery type
+                      <input className="fieldInput" defaultValue={stream.deliveryType} name="deliveryType" type="text" />
+                    </label>
+                    <label className="fieldCheckbox">
+                      <input defaultChecked={stream.enabled} name="enabled" type="checkbox" />
+                      Enabled
+                    </label>
+                    <button className="jobButton jobButtonSecondary" type="submit">
+                      Save stream
+                    </button>
+                  </form>
+                </details>
               ))}
             </div>
           )}
@@ -661,93 +699,130 @@ export default async function HomePage() {
             <h2>Topics</h2>
             <span className="badge">Config</span>
           </div>
+          <form className="filterForm filterFormWide" method="get">
+            <label className="fieldLabel">
+              Search topics
+              <input className="fieldInput" defaultValue={topicQuery} name="topicQuery" placeholder="Search topic name, slug, keywords, or description" type="text" />
+            </label>
+            <label className="fieldLabel">
+              Filter by stream
+              <select className="fieldInput" defaultValue={topicStreamId} name="topicStreamId">
+                <option value="">All streams</option>
+                {dashboard.researchStreams.map((stream) => (
+                  <option key={stream.id} value={stream.id}>
+                    {stream.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="jobButton jobButtonSecondary" type="submit">
+              Filter topics
+            </button>
+          </form>
+          <p className="helperText">
+            Showing {filteredTopics.length} of {dashboard.topics.length} topic(s).
+          </p>
           {dashboard.topics.length === 0 ? (
             <EmptyState message="No topics are configured yet." />
+          ) : filteredTopics.length === 0 ? (
+            <EmptyState message="No topics matched the current filters." />
           ) : (
             <div className="stack">
-              {dashboard.topics.map((topic) => (
-                <form action={updateTopic} className="adminForm adminFormCompact" key={topic.id}>
-                  <input name="id" type="hidden" value={topic.id} />
-                  <label className="fieldLabel">
-                    Research stream
-                    <select className="fieldInput" defaultValue={topic.researchStreamId} name="researchStreamId" required>
-                      {dashboard.researchStreams.map((stream) => (
-                        <option key={stream.id} value={stream.id}>
-                          {stream.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="fieldLabel">
-                    Name
-                    <input className="fieldInput" defaultValue={topic.name} name="name" required type="text" />
-                  </label>
-                  <label className="fieldLabel">
-                    Slug
-                    <input className="fieldInput" defaultValue={topic.slug} name="slug" required type="text" />
-                  </label>
-                  <label className="fieldLabel">
-                    Channels
-                    <input className="fieldInput" defaultValue={formatListInput(topic.enabledChannelsJson)} name="enabledChannels" type="text" />
-                  </label>
-                  <label className="fieldLabel fieldLabelWide">
-                    Description
-                    <textarea className="fieldTextarea" defaultValue={topic.description ?? ""} name="description" rows={2} />
-                  </label>
-                  <label className="fieldLabel fieldLabelWide">
-                    Keywords
-                    <input className="fieldInput" defaultValue={formatListInput(topic.keywordsJson)} name="keywords" type="text" />
-                  </label>
-                  <label className="fieldLabel fieldLabelWide">
-                    Exclusions
-                    <input className="fieldInput" defaultValue={formatListInput(topic.exclusionsJson)} name="exclusions" type="text" />
-                  </label>
-                  <label className="fieldLabel fieldLabelWide">
-                    Source preferences
-                    <input
-                      className="fieldInput"
-                      defaultValue={formatListInput(topic.sourcePreferencesJson)}
-                      name="sourcePreferences"
-                      type="text"
-                    />
-                  </label>
-                  <label className="fieldLabel">
-                    Default framework
-                    <select className="fieldInput" defaultValue={topic.defaultCopyFrameworkId ?? ""} name="defaultCopyFrameworkId">
-                      <option value="">Use stream default</option>
-                      {dashboard.copyFrameworks.map((framework) => (
-                        <option key={framework.id} value={framework.id}>
-                          {framework.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="fieldLabel">
-                    Default style
-                    <select className="fieldInput" defaultValue={topic.defaultStyleProfileId ?? ""} name="defaultStyleProfileId">
-                      <option value="">Use stream default</option>
-                      {dashboard.styleProfiles.map((profile) => (
-                        <option key={profile.id} value={profile.id}>
-                          {profile.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="fieldLabel">
-                    Asset mode
-                    <input className="fieldInput" defaultValue={topic.defaultAssetMode ?? ""} name="defaultAssetMode" type="text" />
-                  </label>
-                  <label className="fieldCheckbox">
-                    <input defaultChecked={topic.enabled} name="enabled" type="checkbox" />
-                    Enabled
-                  </label>
-                  <p className="rowMeta topicMeta">
-                    Stream: {topic.researchStream.name} ({topic.researchStream.slug})
-                  </p>
-                  <button className="jobButton jobButtonSecondary" type="submit">
-                    Save topic
-                  </button>
-                </form>
+              {filteredTopics.map((topic) => (
+                <details className="adminDisclosure" key={topic.id}>
+                  <summary className="adminDisclosureSummary">
+                    <div>
+                      <p className="rowTitle">{topic.name}</p>
+                      <p className="rowMeta">
+                        {topic.researchStream.name} · {topic.slug} · {formatListInput(topic.enabledChannelsJson) || "No channels"} ·{" "}
+                        {topic.enabled ? "enabled" : "disabled"}
+                      </p>
+                    </div>
+                    <span className="status status-skipped">Edit</span>
+                  </summary>
+                  <form action={updateTopic} className="adminForm adminFormCompact">
+                    <input name="id" type="hidden" value={topic.id} />
+                    <label className="fieldLabel">
+                      Research stream
+                      <select className="fieldInput" defaultValue={topic.researchStreamId} name="researchStreamId" required>
+                        {dashboard.researchStreams.map((stream) => (
+                          <option key={stream.id} value={stream.id}>
+                            {stream.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="fieldLabel">
+                      Name
+                      <input className="fieldInput" defaultValue={topic.name} name="name" required type="text" />
+                    </label>
+                    <label className="fieldLabel">
+                      Slug
+                      <input className="fieldInput" defaultValue={topic.slug} name="slug" required type="text" />
+                    </label>
+                    <label className="fieldLabel">
+                      Channels
+                      <input className="fieldInput" defaultValue={formatListInput(topic.enabledChannelsJson)} name="enabledChannels" type="text" />
+                    </label>
+                    <label className="fieldLabel fieldLabelWide">
+                      Description
+                      <textarea className="fieldTextarea" defaultValue={topic.description ?? ""} name="description" rows={2} />
+                    </label>
+                    <label className="fieldLabel fieldLabelWide">
+                      Keywords
+                      <input className="fieldInput" defaultValue={formatListInput(topic.keywordsJson)} name="keywords" type="text" />
+                    </label>
+                    <label className="fieldLabel fieldLabelWide">
+                      Exclusions
+                      <input className="fieldInput" defaultValue={formatListInput(topic.exclusionsJson)} name="exclusions" type="text" />
+                    </label>
+                    <label className="fieldLabel fieldLabelWide">
+                      Source preferences
+                      <input
+                        className="fieldInput"
+                        defaultValue={formatListInput(topic.sourcePreferencesJson)}
+                        name="sourcePreferences"
+                        type="text"
+                      />
+                    </label>
+                    <label className="fieldLabel">
+                      Default framework
+                      <select className="fieldInput" defaultValue={topic.defaultCopyFrameworkId ?? ""} name="defaultCopyFrameworkId">
+                        <option value="">Use stream default</option>
+                        {dashboard.copyFrameworks.map((framework) => (
+                          <option key={framework.id} value={framework.id}>
+                            {framework.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="fieldLabel">
+                      Default style
+                      <select className="fieldInput" defaultValue={topic.defaultStyleProfileId ?? ""} name="defaultStyleProfileId">
+                        <option value="">Use stream default</option>
+                        {dashboard.styleProfiles.map((profile) => (
+                          <option key={profile.id} value={profile.id}>
+                            {profile.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="fieldLabel">
+                      Asset mode
+                      <input className="fieldInput" defaultValue={topic.defaultAssetMode ?? ""} name="defaultAssetMode" type="text" />
+                    </label>
+                    <label className="fieldCheckbox">
+                      <input defaultChecked={topic.enabled} name="enabled" type="checkbox" />
+                      Enabled
+                    </label>
+                    <p className="rowMeta topicMeta">
+                      Stream: {topic.researchStream.name} ({topic.researchStream.slug})
+                    </p>
+                    <button className="jobButton jobButtonSecondary" type="submit">
+                      Save topic
+                    </button>
+                  </form>
+                </details>
               ))}
             </div>
           )}
@@ -1168,6 +1243,51 @@ function formatListInput(value: unknown) {
   }
 
   return value.filter((entry): entry is string => typeof entry === "string").join(", ");
+}
+
+function readSearchParam(searchParams: Record<string, string | string[] | undefined>, key: string) {
+  const value = searchParams[key];
+
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+
+  return value ?? "";
+}
+
+function matchesStreamSearch(stream: DashboardData["researchStreams"][number], query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  return [stream.name, stream.slug, stream.description ?? "", formatChannelInput(stream.enabledChannelsJson)]
+    .join(" ")
+    .toLowerCase()
+    .includes(normalizedQuery);
+}
+
+function matchesTopicSearch(topic: DashboardData["topics"][number], query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  return [
+    topic.name,
+    topic.slug,
+    topic.description ?? "",
+    topic.researchStream.name,
+    formatListInput(topic.enabledChannelsJson),
+    formatListInput(topic.keywordsJson),
+    formatListInput(topic.exclusionsJson),
+    formatListInput(topic.sourcePreferencesJson)
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(normalizedQuery);
 }
 
 function StatCard({ label, value }: { label: string; value: number }) {

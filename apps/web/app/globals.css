@@ -332,14 +332,55 @@ h1 {
   line-height: 1.5;
 }
 
+.filterForm {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  margin-bottom: 14px;
+}
+
+.filterFormWide {
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 280px) auto;
+}
+
+.adminDisclosure {
+  border: 1px solid rgba(217, 208, 193, 0.7);
+  border-radius: 16px;
+  background: rgba(255, 254, 251, 0.7);
+  padding: 12px 14px;
+}
+
+.adminDisclosureSummary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.adminDisclosureSummary::-webkit-details-marker {
+  display: none;
+}
+
+.adminDisclosure[open] .adminDisclosureSummary {
+  margin-bottom: 14px;
+}
+
 @media (max-width: 640px) {
   body {
     padding: 28px 14px 48px;
   }
 
   .cardHeader,
-  .listRow {
+  .listRow,
+  .adminDisclosureSummary {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .filterForm,
+  .filterFormWide {
+    grid-template-columns: 1fr;
   }
 }
