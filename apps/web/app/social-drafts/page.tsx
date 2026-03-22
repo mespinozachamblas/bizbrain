@@ -18,6 +18,7 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
   const topicId = readSearchParam(resolvedSearchParams, "topicId");
   const status = readSearchParam(resolvedSearchParams, "status");
   const assetStatus = readSearchParam(resolvedSearchParams, "assetStatus");
+  const reviewMode = readSearchParam(resolvedSearchParams, "reviewMode");
 
   const filteredDrafts = drafts.filter((draft) => {
     const matchesQuery =
@@ -42,8 +43,17 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
     const matchesTopic = !topicId || draft.topicId === topicId;
     const matchesStatus = !status || draft.status === status;
     const matchesAssetStatus = !assetStatus || (draft.assetStatus ?? "draft") === assetStatus;
+    const supportingStats = readSupportingStats(draft.supportingStatsJson);
+    const mediaCandidates = readMediaCandidates(draft.assetCandidatesJson);
+    const matchesReviewMode =
+      !reviewMode ||
+      (reviewMode === "ready-only"
+        ? draftHasReadyEvidence({ supportingStats, mediaCandidates })
+        : reviewMode === "needs-review"
+          ? draftNeedsReview({ supportingStats, mediaCandidates, assetStatus: draft.assetStatus ?? "draft" })
+          : true);
 
-    return matchesQuery && matchesChannel && matchesTopic && matchesStatus && matchesAssetStatus;
+    return matchesQuery && matchesChannel && matchesTopic && matchesStatus && matchesAssetStatus && matchesReviewMode;
   });
 
   const socialTopics = dashboard.topics.filter((topic) => topic.researchStream.slug === "social-media-research");
@@ -125,6 +135,14 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                 <option value="approved">approved</option>
                 <option value="reference-only">reference-only</option>
                 <option value="rejected">rejected</option>
+              </select>
+            </label>
+            <label className="fieldLabel">
+              Review mode
+              <select className="fieldInput" defaultValue={reviewMode} name="reviewMode">
+                <option value="">All drafts</option>
+                <option value="ready-only">Ready only</option>
+                <option value="needs-review">Needs review</option>
               </select>
             </label>
             <button className="jobButton jobButtonSecondary" type="submit">
@@ -546,6 +564,27 @@ function normalizeStatReviewStatus(status: string) {
   }
 
   return "skipped";
+}
+
+function draftHasReadyEvidence(input: {
+  supportingStats: ReturnType<typeof readSupportingStats>;
+  mediaCandidates: ReturnType<typeof readMediaCandidates>;
+}) {
+  const hasApprovedStat = input.supportingStats.some((stat) => stat.reviewStatus === "approved");
+  const hasApprovedMedia = input.mediaCandidates.some((candidate) => candidate.reviewStatus === "approved");
+
+  return hasApprovedStat || hasApprovedMedia;
+}
+
+function draftNeedsReview(input: {
+  supportingStats: ReturnType<typeof readSupportingStats>;
+  mediaCandidates: ReturnType<typeof readMediaCandidates>;
+  assetStatus: string;
+}) {
+  const hasPendingStat = input.supportingStats.some((stat) => stat.reviewStatus === "pending");
+  const hasPendingMedia = input.mediaCandidates.some((candidate) => candidate.reviewStatus === "pending");
+
+  return hasPendingStat || hasPendingMedia || input.assetStatus === "review-required";
 }
 
 function normalizeDraftStatus(status: string) {
