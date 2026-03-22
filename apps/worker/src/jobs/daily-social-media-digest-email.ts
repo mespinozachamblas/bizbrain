@@ -25,7 +25,7 @@ export async function runDailySocialMediaDigestEmail() {
         });
       }
 
-      const [drafts, failedJobs, failedSourceChecks, recipients] = await Promise.all([
+      const [drafts, failedJobs, failedSourceChecks, recipients, existingDigest, previousDigest] = await Promise.all([
         db.contentDraft.findMany({
           where: {
             researchStreamId,
@@ -56,13 +56,39 @@ export async function runDailySocialMediaDigestEmail() {
         db.digestRecipient.findMany({
           where: { enabled: true, researchStreamId },
           orderBy: [{ isOwnerDefault: "desc" }, { email: "asc" }]
+        }),
+        db.digest.findUnique({
+          where: { digestKey },
+          select: {
+            selectionJson: true,
+            sentAt: true,
+            createdAt: true
+          }
+        }),
+        db.digest.findFirst({
+          where: {
+            researchStreamId,
+            sentAt: { not: null },
+            digestKey: { not: digestKey }
+          },
+          orderBy: [{ sentAt: "desc" }],
+          select: {
+            selectionJson: true,
+            sentAt: true,
+            createdAt: true
+          }
         })
       ]);
 
+      const comparisonDigest = existingDigest ?? previousDigest;
+      const priorDraftTitles = extractDigestDraftTitles(comparisonDigest?.selectionJson);
+      const freshnessBaseline = comparisonDigest?.sentAt ?? comparisonDigest?.createdAt ?? null;
       const sections = buildSocialDigestSections({
         drafts,
         failedJobs,
-        failedSourceChecks
+        failedSourceChecks,
+        priorDraftTitles,
+        freshnessBaseline
       });
       const subject = buildDigestSubject(digestDate, SOCIAL_DIGEST_TITLE);
       const markdownBody = renderDigestMarkdown({
@@ -239,6 +265,8 @@ type SocialDigestInputs = {
   drafts: SocialDigestDraft[];
   failedJobs: Awaited<ReturnType<typeof db.jobRun.findMany>>;
   failedSourceChecks: Awaited<ReturnType<typeof db.sourceHealthCheck.findMany>>;
+  priorDraftTitles: Set<string>;
+  freshnessBaseline: Date | null;
 };
 
 type SocialDigestDraft = Awaited<ReturnType<typeof db.contentDraft.findMany<{
@@ -251,9 +279,10 @@ type SocialDigestDraft = Awaited<ReturnType<typeof db.contentDraft.findMany<{
 }>>>[number];
 
 function buildSocialDigestSections(input: SocialDigestInputs) {
-  const linkedinDrafts = input.drafts.filter((draft) => draft.targetChannel === "linkedin").slice(0, 3);
-  const xDrafts = input.drafts.filter((draft) => draft.targetChannel === "x").slice(0, 3);
-  const infographicDrafts = input.drafts.filter((draft) => hasInfographicPanels(draft.infographicPanelsJson)).slice(0, 3);
+  const rankedDrafts = rankSocialDigestDrafts(input.drafts, input.priorDraftTitles, input.freshnessBaseline);
+  const linkedinDrafts = rankedDrafts.filter((draft) => draft.targetChannel === "linkedin").slice(0, 3);
+  const xDrafts = rankedDrafts.filter((draft) => draft.targetChannel === "x").slice(0, 3);
+  const infographicDrafts = rankedDrafts.filter((draft) => hasInfographicPanels(draft.infographicPanelsJson)).slice(0, 3);
   const healthAlerts = [
     ...input.failedJobs.map((job) => `Job ${job.jobName} failed at ${job.startedAt.toISOString()}.`),
     ...input.failedSourceChecks.map(
@@ -271,7 +300,7 @@ function buildSocialDigestSections(input: SocialDigestInputs) {
       alerts: [],
       plainLanguageSummary:
         linkedinDrafts.length > 0
-          ? "These are the highest-quality LinkedIn-ready angles in the current social research queue."
+          ? "These are the highest-quality LinkedIn-ready angles in the queue, weighted toward drafts that are new or materially updated since the last sent social digest."
           : "LinkedIn drafts will appear after the social-media stream has matched topics and generated content."
     },
     {
@@ -280,7 +309,7 @@ function buildSocialDigestSections(input: SocialDigestInputs) {
       alerts: [],
       plainLanguageSummary:
         xDrafts.length > 0
-          ? "These are the strongest short-form X angles currently in the draft queue."
+          ? "These are the strongest short-form X angles currently in the queue, weighted toward fresher drafts that were not already sent."
           : "X drafts will appear after the social-media stream has matched topics and generated content."
     },
     {
@@ -311,8 +340,9 @@ function buildSocialDigestSections(input: SocialDigestInputs) {
 }
 
 function formatSocialDraftLine(draft: SocialDigestDraft) {
+  const freshnessLabel = summarizeDraftFreshnessLabel(draft);
   const parts = [
-    `${draft.title}`,
+    `${freshnessLabel ? `${freshnessLabel} ` : ""}${draft.title}`,
     `Topic: ${draft.topic?.name ?? "Unassigned"}`,
     `Framework: ${draft.copyFramework?.name ?? "Stream default"}`,
     `Style: ${draft.styleProfile?.name ?? "Stream default"}`,
@@ -328,9 +358,10 @@ function formatInfographicLine(draft: SocialDigestDraft) {
   const panels = toStringArray(draft.infographicPanelsJson).slice(0, 3);
   const panelSummary =
     panels.length > 0 ? panels.map((panel) => ensureSentence(panel)).join(" / ") : "Panel outline pending.";
+  const freshnessLabel = summarizeDraftFreshnessLabel(draft);
 
   return [
-    `${draft.title}`,
+    `${freshnessLabel ? `${freshnessLabel} ` : ""}${draft.title}`,
     `Format: ${draft.infographicFormat ?? "visual brief"}`,
     `Topic: ${draft.topic?.name ?? "Unassigned"}`,
     `Panels: ${panelSummary}`
@@ -357,6 +388,116 @@ function ensureSentence(value: string) {
   }
 
   return `${trimmed}.`;
+}
+
+function rankSocialDigestDrafts(
+  drafts: SocialDigestDraft[],
+  priorDraftTitles: Set<string>,
+  freshnessBaseline: Date | null
+) {
+  return drafts
+    .map((draft) => ({
+      draft,
+      quality: draft.qualityScore ?? 0,
+      freshness: scoreDraftFreshness(draft, priorDraftTitles, freshnessBaseline),
+      freshnessLabel: buildDraftFreshnessLabel(draft, priorDraftTitles, freshnessBaseline)
+    }))
+    .filter(({ quality }) => quality >= 6)
+    .sort(
+      (left, right) =>
+        right.freshness - left.freshness ||
+        right.quality - left.quality ||
+        right.draft.updatedAt.getTime() - left.draft.updatedAt.getTime()
+    )
+    .map(({ draft, freshnessLabel }) => ({
+      ...draft,
+      freshnessTag: freshnessLabel
+    }));
+}
+
+function scoreDraftFreshness(
+  draft: SocialDigestDraft,
+  priorDraftTitles: Set<string>,
+  freshnessBaseline: Date | null
+) {
+  let score = 0;
+  const createdAt = "createdAt" in draft && draft.createdAt instanceof Date ? draft.createdAt : null;
+  const titleKey = normalizeDraftTitle(draft.title);
+
+  if (freshnessBaseline) {
+    if (createdAt && createdAt.getTime() > freshnessBaseline.getTime()) {
+      score += 8;
+    } else if (draft.updatedAt.getTime() > freshnessBaseline.getTime()) {
+      score += 5;
+    }
+  } else {
+    score += 2;
+  }
+
+  if (priorDraftTitles.has(titleKey)) {
+    score -= 6;
+  } else {
+    score += 2;
+  }
+
+  return score;
+}
+
+function summarizeDraftFreshnessLabel(draft: SocialDigestDraft) {
+  const freshness = "freshnessTag" in draft ? draft.freshnessTag : undefined;
+  return typeof freshness === "string" && freshness.length > 0 ? freshness : "";
+}
+
+function buildDraftFreshnessLabel(
+  draft: SocialDigestDraft,
+  priorDraftTitles: Set<string>,
+  freshnessBaseline: Date | null
+) {
+  const createdAt = "createdAt" in draft && draft.createdAt instanceof Date ? draft.createdAt : null;
+  const titleKey = normalizeDraftTitle(draft.title);
+
+  if (freshnessBaseline) {
+    if (createdAt && createdAt.getTime() > freshnessBaseline.getTime()) {
+      return "[New]";
+    }
+
+    if (!priorDraftTitles.has(titleKey) || draft.updatedAt.getTime() > freshnessBaseline.getTime()) {
+      return "[Updated]";
+    }
+
+    return "";
+  }
+
+  return "[New]";
+}
+
+function normalizeDraftTitle(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function extractDigestDraftTitles(selectionJson: unknown) {
+  if (!Array.isArray(selectionJson)) {
+    return new Set<string>();
+  }
+
+  const titles = selectionJson
+    .flatMap((section): string[] => {
+      if (!section || typeof section !== "object" || !("items" in section) || !Array.isArray(section.items)) {
+        return [];
+      }
+
+      const items = section.items as unknown[];
+
+      return items
+        .filter((item): item is string => typeof item === "string")
+        .map((item: string) => {
+          const firstSegment = item.split("|")[0]?.trim() ?? "";
+          return normalizeDraftTitle(firstSegment.replace(/^\[(new|updated)\]\s*/i, ""));
+        });
+    })
+    .filter(Boolean);
+
+  return new Set(titles);
 }
 
 function resolveAppBaseUrl() {
