@@ -202,6 +202,7 @@ export default async function SourcesPage({ searchParams }: PageProps) {
                 const selectedTopicIds = mapSelectedIds(source.topicIdsJson);
                 const mode = readObjectField(source.configJson, "mode") ?? "unknown";
                 const normalizedSourceType = normalizeSourceType(source.sourceType);
+                const preview = buildTopicAwarePreview(source, dashboard.topics, dashboard.researchStreams);
 
                 return (
                   <details className="adminDisclosure" key={source.id}>
@@ -336,6 +337,28 @@ export default async function SourcesPage({ searchParams }: PageProps) {
                               ))}
                             </div>
                           )}
+                        </div>
+                        <div className="evidenceSection">
+                          <p className="rowBody">
+                            <strong>Likely topic / stream feeds:</strong>
+                          </p>
+                          {preview.matches.length === 0 ? (
+                            <p className="rowMeta">No likely topic matches yet. Link a stream/topic or add more source keywords.</p>
+                          ) : (
+                            <div className="stack">
+                              {preview.matches.map((match) => (
+                                <div className="evidenceCard" key={match.topicId}>
+                                  <p className="rowTitle">{match.topicName}</p>
+                                  <p className="rowMeta">
+                                    {match.streamName} · channels {match.channels || "none"} · {match.reason}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <p className="rowMeta">
+                            Preview terms: {preview.terms.join(", ") || "none"}
+                          </p>
                         </div>
                       </div>
                       <div className="draftSidebar">
@@ -475,6 +498,96 @@ function formatUnknownList(value: unknown) {
 
 function normalizeSourceType(value: string): SourceType {
   return sourceTypes.includes(value as SourceType) ? (value as SourceType) : "reddit";
+}
+
+function buildTopicAwarePreview(
+  source: Awaited<ReturnType<typeof getSources>>[number],
+  topics: Awaited<ReturnType<typeof getDashboardData>>["topics"],
+  streams: Awaited<ReturnType<typeof getDashboardData>>["researchStreams"]
+) {
+  const selectedStreamIds = new Set(mapSelectedIds(source.researchStreamIdsJson));
+  const selectedTopicIds = new Set(mapSelectedIds(source.topicIdsJson));
+  const streamNameLookup = new Map(streams.map((stream) => [stream.id, stream.name]));
+  const terms = collectSourceTerms(source);
+
+  const matches = topics
+    .map((topic) => {
+      const directTopic = selectedTopicIds.has(topic.id);
+      const viaStream = selectedStreamIds.has(topic.researchStreamId);
+      const overlap = countTopicOverlap(terms, topic);
+      const score = (directTopic ? 100 : 0) + (viaStream ? 40 : 0) + overlap * 10;
+
+      if (score === 0) {
+        return null;
+      }
+
+      const reasons = [
+        directTopic ? "direct topic link" : null,
+        viaStream ? "stream link" : null,
+        overlap > 0 ? `${overlap} keyword match${overlap > 1 ? "es" : ""}` : null
+      ].filter((reason): reason is string => Boolean(reason));
+
+      return {
+        topicId: topic.id,
+        topicName: topic.name,
+        streamName: streamNameLookup.get(topic.researchStreamId) ?? topic.researchStream.name,
+        channels: formatListInput(topic.enabledChannelsJson),
+        reason: reasons.join(" + "),
+        score
+      };
+    })
+    .filter((match): match is NonNullable<typeof match> => Boolean(match))
+    .sort((left, right) => right.score - left.score || left.topicName.localeCompare(right.topicName))
+    .slice(0, 5);
+
+  return { matches, terms };
+}
+
+function collectSourceTerms(source: Awaited<ReturnType<typeof getSources>>[number]) {
+  const config = isObject(source.configJson) ? source.configJson : {};
+  const terms = [
+    source.sourceType,
+    ...mapSelectedIds(source.nicheModes),
+    ...readConfigStringArray(config, "keywords"),
+    ...readConfigStringArray(config, "exclusions"),
+    ...readConfigStringArray(config, "subredditList"),
+    ...readConfigStringArray(config, "productTopics"),
+    ...readConfigStringArray(config, "storyTypes"),
+    readStringConfig(config, "geo")
+  ].filter((term): term is string => typeof term === "string" && term.trim().length > 0);
+
+  return [...new Set(terms.map((term) => term.trim().toLowerCase()))];
+}
+
+function countTopicOverlap(
+  sourceTerms: string[],
+  topic: Awaited<ReturnType<typeof getDashboardData>>["topics"][number]
+) {
+  if (sourceTerms.length === 0) {
+    return 0;
+  }
+
+  const topicCorpus = [
+    topic.name,
+    topic.slug,
+    topic.description ?? "",
+    formatListInput(topic.keywordsJson),
+    formatListInput(topic.sourcePreferencesJson)
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return sourceTerms.filter((term) => topicCorpus.includes(term)).length;
+}
+
+function readConfigStringArray(config: Record<string, unknown>, key: string) {
+  const value = config[key];
+
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((entry): entry is string => typeof entry === "string");
 }
 
 function renderSourceSpecificFields(sourceType: SourceType, configJson: unknown) {
