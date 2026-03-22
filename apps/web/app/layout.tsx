@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "BizBrain",
@@ -10,7 +11,34 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <div className="appShell">
+          <aside className="sidebar">
+            <div className="sidebarBrand">
+              <p className="eyebrow">BizBrain</p>
+              <p className="sidebarTitle">Admin</p>
+            </div>
+            <nav className="sidebarNav">
+              <Link className="sidebarLink" href="/">
+                Overview
+              </Link>
+              <Link className="sidebarLink" href="/research-streams">
+                Research Streams
+              </Link>
+              <Link className="sidebarLink" href="/topics">
+                Topics
+              </Link>
+              <Link className="sidebarLink" href="/frameworks">
+                Frameworks
+              </Link>
+              <Link className="sidebarLink" href="/style-profiles">
+                Style Profiles
+              </Link>
+            </nav>
+          </aside>
+          <div className="appContent">{children}</div>
+        </div>
+      </body>
     </html>
   );
 }
