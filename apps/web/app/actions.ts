@@ -1,6 +1,6 @@
 "use server";
 
-import type { JobName } from "@bizbrain/core";
+import { sourceAdapterConfigSchema, sourceTypes, type JobName } from "@bizbrain/core";
 import { db } from "@bizbrain/db";
 import { revalidatePath } from "next/cache";
 import { regenerateIdeaById } from "../../worker/src/jobs/daily-enrich-score";
@@ -31,6 +31,66 @@ export async function runSourceCheck(formData: FormData) {
   }
 
   await runSourceHealthCheck(sourceConfigId);
+  revalidatePath("/");
+  revalidatePath("/sources");
+}
+
+export async function createSourceConfig(formData: FormData) {
+  const sourceType = readRequiredString(formData, "sourceType");
+  const enabled = readBoolean(formData, "enabled", true);
+  const researchStreamIds = readStringList(formData, "researchStreamIds");
+  const topicIds = readStringList(formData, "topicIds");
+  const nicheModes = parseCommaSeparatedString(readOptionalString(formData, "nicheModes"));
+  const configJson = parseConfigJson(readRequiredString(formData, "configJson"));
+
+  if (!sourceTypes.includes(sourceType as (typeof sourceTypes)[number])) {
+    throw new Error(`Unsupported source type: ${sourceType}`);
+  }
+
+  await validateSourceRelations({ researchStreamIds, topicIds });
+
+  await db.sourceConfig.create({
+    data: {
+      sourceType,
+      enabled,
+      researchStreamIdsJson: researchStreamIds,
+      topicIdsJson: topicIds,
+      nicheModes,
+      configJson
+    }
+  });
+
+  revalidatePath("/");
+  revalidatePath("/sources");
+}
+
+export async function updateSourceConfig(formData: FormData) {
+  const id = readRequiredString(formData, "id");
+  const sourceType = readRequiredString(formData, "sourceType");
+  const enabled = readBoolean(formData, "enabled", false);
+  const researchStreamIds = readStringList(formData, "researchStreamIds");
+  const topicIds = readStringList(formData, "topicIds");
+  const nicheModes = parseCommaSeparatedString(readOptionalString(formData, "nicheModes"));
+  const configJson = parseConfigJson(readRequiredString(formData, "configJson"));
+
+  if (!sourceTypes.includes(sourceType as (typeof sourceTypes)[number])) {
+    throw new Error(`Unsupported source type: ${sourceType}`);
+  }
+
+  await validateSourceRelations({ researchStreamIds, topicIds });
+
+  await db.sourceConfig.update({
+    where: { id },
+    data: {
+      sourceType,
+      enabled,
+      researchStreamIdsJson: researchStreamIds,
+      topicIdsJson: topicIds,
+      nicheModes,
+      configJson
+    }
+  });
+
   revalidatePath("/");
   revalidatePath("/sources");
 }
@@ -586,6 +646,14 @@ function readBoolean(formData: FormData, key: string, defaultValue: boolean) {
   return value === "on" || value === "true" || value === "1";
 }
 
+function readStringList(formData: FormData, key: string) {
+  return [...new Set(formData
+    .getAll(key)
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter(Boolean))];
+}
+
 function parseChannels(value: FormDataEntryValue | null) {
   if (typeof value !== "string") {
     return [];
@@ -603,6 +671,55 @@ function parseList(value: FormDataEntryValue | null) {
     .split(",")
     .map((entry) => entry.trim())
     .filter(Boolean))];
+}
+
+function parseCommaSeparatedString(value: string | null) {
+  if (!value) {
+    return [];
+  }
+
+  return [...new Set(value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean))];
+}
+
+function parseConfigJson(value: string) {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error("configJson must be valid JSON.");
+  }
+
+  return sourceAdapterConfigSchema.parse(parsed);
+}
+
+async function validateSourceRelations(input: { researchStreamIds: string[]; topicIds: string[] }) {
+  if (input.researchStreamIds.length > 0) {
+    const count = await db.researchStream.count({
+      where: {
+        id: { in: input.researchStreamIds }
+      }
+    });
+
+    if (count !== input.researchStreamIds.length) {
+      throw new Error("One or more selected research streams do not exist.");
+    }
+  }
+
+  if (input.topicIds.length > 0) {
+    const count = await db.topic.count({
+      where: {
+        id: { in: input.topicIds }
+      }
+    });
+
+    if (count !== input.topicIds.length) {
+      throw new Error("One or more selected topics do not exist.");
+    }
+  }
 }
 
 function slugify(value: string) {

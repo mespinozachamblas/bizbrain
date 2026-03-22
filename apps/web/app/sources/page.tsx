@@ -1,5 +1,6 @@
 import { db } from "@bizbrain/db";
-import { runPipelineJob, runSourceCheck } from "../actions";
+import { sourceTypes } from "@bizbrain/core";
+import { createSourceConfig, runPipelineJob, runSourceCheck, updateSourceConfig } from "../actions";
 import {
   formatDate,
   formatListInput,
@@ -90,6 +91,64 @@ export default async function SourcesPage({ searchParams }: PageProps) {
 
         <article className="card cardTall">
           <div className="cardHeader">
+            <h2>Create source config</h2>
+            <span className="badge">Create</span>
+          </div>
+          <form action={createSourceConfig} className="adminForm">
+            <label className="fieldLabel">
+              Source type
+              <select className="fieldInput" defaultValue={sourceTypes[0]} name="sourceType">
+                {sourceTypes.map((sourceType) => (
+                  <option key={sourceType} value={sourceType}>
+                    {sourceType}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="fieldCheckbox">
+              <input defaultChecked name="enabled" type="checkbox" />
+              Enabled
+            </label>
+            <label className="fieldLabel">
+              Niche modes
+              <input className="fieldInput" name="nicheModes" placeholder="pain, trends, validation" type="text" />
+            </label>
+            <label className="fieldLabel fieldLabelWide">
+              Linked research streams
+              <select className="fieldInput" multiple name="researchStreamIds" size={Math.min(6, Math.max(2, dashboard.researchStreams.length))}>
+                {dashboard.researchStreams.map((stream) => (
+                  <option key={stream.id} value={stream.id}>
+                    {stream.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="fieldLabel fieldLabelWide">
+              Linked topics
+              <select className="fieldInput" multiple name="topicIds" size={Math.min(8, Math.max(3, dashboard.topics.length))}>
+                {dashboard.topics.map((topic) => (
+                  <option key={topic.id} value={topic.id}>
+                    {topic.researchStream.name} · {topic.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="fieldLabel fieldLabelWide">
+              Config JSON
+              <textarea
+                className="fieldTextarea"
+                defaultValue={JSON.stringify({ mode: "sample", sampleSize: 5 }, null, 2)}
+                name="configJson"
+              />
+            </label>
+            <button className="jobButton" type="submit">
+              Create source config
+            </button>
+          </form>
+        </article>
+
+        <article className="card cardTall">
+          <div className="cardHeader">
             <h2>Source configs</h2>
             <span className="badge">Config</span>
           </div>
@@ -130,6 +189,8 @@ export default async function SourcesPage({ searchParams }: PageProps) {
                 const latestCheck = source.healthChecks[0] ?? null;
                 const linkedStreams = mapLinkedNames(source.researchStreamIdsJson, streamLookup);
                 const linkedTopics = mapLinkedNames(source.topicIdsJson, topicLookup);
+                const selectedStreamIds = mapSelectedIds(source.researchStreamIdsJson);
+                const selectedTopicIds = mapSelectedIds(source.topicIdsJson);
                 const mode = readObjectField(source.configJson, "mode") ?? "unknown";
 
                 return (
@@ -150,24 +211,89 @@ export default async function SourcesPage({ searchParams }: PageProps) {
                     </summary>
                     <div className="draftDetailGrid">
                       <div className="draftPrimary">
-                        <p className="rowBody">
-                          <strong>Config mode:</strong> {mode}
-                        </p>
-                        <p className="rowBody">
-                          <strong>Niche modes:</strong> {formatListInput(source.nicheModes) || "Not set"}
-                        </p>
-                        <p className="rowBody">
-                          <strong>Latest run:</strong>{" "}
-                          {latestRun
-                            ? `${formatDate(latestRun.startedAt)} · ${latestRun.runStatus} · read ${latestRun.recordsRead} · wrote ${latestRun.recordsWritten}`
-                            : "No source runs yet."}
-                        </p>
-                        <p className="rowBody">
-                          <strong>Latest run warnings:</strong> {formatUnknownList(latestRun?.warningsJson) || "None"}
-                        </p>
-                        <p className="rowBody">
-                          <strong>Latest run errors:</strong> {formatUnknownList(latestRun?.errorsJson) || "None"}
-                        </p>
+                        <form action={updateSourceConfig} className="adminForm adminFormCompact">
+                          <input name="id" type="hidden" value={source.id} />
+                          <label className="fieldLabel">
+                            Source type
+                            <select className="fieldInput" defaultValue={source.sourceType} name="sourceType">
+                              {sourceTypes.map((entry) => (
+                                <option key={entry} value={entry}>
+                                  {entry}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="fieldCheckbox">
+                            <input defaultChecked={source.enabled} name="enabled" type="checkbox" />
+                            Enabled
+                          </label>
+                          <label className="fieldLabel">
+                            Niche modes
+                            <input
+                              className="fieldInput"
+                              defaultValue={formatListInput(source.nicheModes)}
+                              name="nicheModes"
+                              type="text"
+                            />
+                          </label>
+                          <label className="fieldLabel fieldLabelWide">
+                            Linked research streams
+                            <select
+                              className="fieldInput"
+                              defaultValue={selectedStreamIds}
+                              multiple
+                              name="researchStreamIds"
+                              size={Math.min(6, Math.max(2, dashboard.researchStreams.length))}
+                            >
+                              {dashboard.researchStreams.map((stream) => (
+                                <option key={stream.id} value={stream.id}>
+                                  {stream.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="fieldLabel fieldLabelWide">
+                            Linked topics
+                            <select
+                              className="fieldInput"
+                              defaultValue={selectedTopicIds}
+                              multiple
+                              name="topicIds"
+                              size={Math.min(8, Math.max(3, dashboard.topics.length))}
+                            >
+                              {dashboard.topics.map((topic) => (
+                                <option key={topic.id} value={topic.id}>
+                                  {topic.researchStream.name} · {topic.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="fieldLabel fieldLabelWide">
+                            Config JSON
+                            <textarea
+                              className="fieldTextarea"
+                              defaultValue={JSON.stringify(source.configJson, null, 2)}
+                              name="configJson"
+                            />
+                          </label>
+                          <button className="jobButton jobButtonSecondary" type="submit">
+                            Save source config
+                          </button>
+                        </form>
+                        <div className="stackCompact">
+                          <p className="rowBody">
+                            <strong>Latest run:</strong>{" "}
+                            {latestRun
+                              ? `${formatDate(latestRun.startedAt)} · ${latestRun.runStatus} · read ${latestRun.recordsRead} · wrote ${latestRun.recordsWritten}`
+                              : "No source runs yet."}
+                          </p>
+                          <p className="rowBody">
+                            <strong>Latest run warnings:</strong> {formatUnknownList(latestRun?.warningsJson) || "None"}
+                          </p>
+                          <p className="rowBody">
+                            <strong>Latest run errors:</strong> {formatUnknownList(latestRun?.errorsJson) || "None"}
+                          </p>
+                        </div>
                       </div>
                       <div className="draftSidebar">
                         <div className="stackCompact">
@@ -273,6 +399,14 @@ function mapLinkedNames(value: unknown, lookup: Map<string, string>) {
   return value
     .filter((entry): entry is string => typeof entry === "string")
     .map((entry) => lookup.get(entry) ?? entry);
+}
+
+function mapSelectedIds(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((entry): entry is string => typeof entry === "string");
 }
 
 function readObjectField(value: unknown, key: string) {
