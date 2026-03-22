@@ -30,6 +30,7 @@ BizBrain is a founder-focused opportunity discovery system. This scaffold matche
 - Hacker News live mode uses the public Firebase API and filters story content with word-boundary keyword matching.
 - Product Hunt live mode uses the official GraphQL API and requires `PRODUCT_HUNT_ACCESS_TOKEN`; the starter config falls back to `sample` mode until that token is set.
 - Social draft statistics can optionally use live Google Trends validation when a topic includes `google-trends` in `source preferences`; override the RSS geography with `SOCIAL_STATS_TRENDS_GEO` if needed.
+- Social draft statistics can also use Product Hunt launch/engagement signals when a topic includes `marketplace-data` or `product-hunt` in `source preferences`.
 
 ## Database Commands
 - `pnpm db:generate`: regenerate Prisma client

@@ -727,6 +727,15 @@ async function fetchExternalSupportingStats(input: {
     }
   }
 
+  if (preferredStatSources.includes("marketplace-data") || preferredStatSources.includes("product-hunt")) {
+    try {
+      const productHuntStats = await fetchProductHuntSupportingStats(input);
+      stats.push(...productHuntStats);
+    } catch {
+      // Keep external statistics enrichment non-blocking.
+    }
+  }
+
   return stats.slice(0, 2);
 }
 
@@ -802,6 +811,171 @@ async function fetchGoogleTrendsSupportingStats(input: {
       freshnessNote: "Approximate traffic comes from the Google Trends trending feed and reflects search attention, not customer count or revenue.",
       confidenceNote: "Use with caution; this is a platform-reported approximate traffic label, not a precise benchmark.",
       recommendedUsage: `Use this as a supporting statistic for ${input.topic.name} when you want a stronger external number in the hook or infographic.`
+    });
+  }
+
+  return stats;
+}
+
+async function fetchProductHuntSupportingStats(input: {
+  idea: Pick<IdeaWithCluster, "title" | "category" | "problemSummary">;
+  topic: Pick<TopicRecord, "name" | "slug" | "keywordsJson" | "sourcePreferencesJson">;
+  channel: (typeof researchStreamChannels)[number];
+}) {
+  const accessToken = process.env.PRODUCT_HUNT_ACCESS_TOKEN?.trim();
+
+  if (!accessToken) {
+    return [];
+  }
+
+  const response = await fetchWithTimeout("https://api.producthunt.com/v2/api/graphql", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    body: JSON.stringify({
+      query: `
+        query BizBrainProductHuntStats($first: Int!) {
+          posts(first: $first) {
+            edges {
+              node {
+                id
+                name
+                tagline
+                url
+                votesCount
+                commentsCount
+                createdAt
+                topics(first: 10) {
+                  edges {
+                    node {
+                      name
+                      slug
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      `,
+      variables: { first: 12 }
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Product Hunt GraphQL fetch failed with ${response.status}.`);
+  }
+
+  const payload = (await response.json()) as {
+    data?: {
+      posts?: {
+        edges?: Array<{
+          node?: {
+            id: string;
+            name?: string | null;
+            tagline?: string | null;
+            url?: string | null;
+            votesCount?: number | null;
+            commentsCount?: number | null;
+            createdAt?: string | null;
+            topics?: {
+              edges?: Array<{
+                node?: {
+                  name?: string | null;
+                  slug?: string | null;
+                } | null;
+              }>;
+            } | null;
+          } | null;
+        }>;
+      };
+    };
+    errors?: Array<{ message?: string }>;
+  };
+
+  if (payload.errors?.length) {
+    throw new Error(`Product Hunt GraphQL returned ${payload.errors[0]?.message ?? "an unknown error"}.`);
+  }
+
+  const researchTerms = buildStatResearchTerms(input.topic.keywordsJson, input.idea);
+  const matches = (payload.data?.posts?.edges ?? [])
+    .map((edge) => edge.node)
+    .filter((node): node is NonNullable<typeof node> => Boolean(node?.id))
+    .map((post) => {
+      const title = [post.name, post.tagline].filter(Boolean).join(" ").toLowerCase();
+      const topicLabels = (post.topics?.edges ?? [])
+        .map((edge) => edge?.node?.name || edge?.node?.slug)
+        .filter((value): value is string => typeof value === "string")
+        .join(" ")
+        .toLowerCase();
+      const haystack = `${title} ${topicLabels}`;
+      const matchedTerms = researchTerms.filter((term) => keywordMatchesHaystack(term, haystack));
+
+      return {
+        post,
+        matchedTermsCount: matchedTerms.length
+      };
+    })
+    .filter((entry) => entry.matchedTermsCount > 0)
+    .sort((left, right) => {
+      const voteDelta = (right.post.votesCount ?? 0) - (left.post.votesCount ?? 0);
+
+      if (voteDelta !== 0) {
+        return voteDelta;
+      }
+
+      return right.matchedTermsCount - left.matchedTermsCount;
+    });
+
+  if (matches.length === 0) {
+    return [];
+  }
+
+  const topMatch = matches[0].post;
+  const stats: Array<{
+    claim: string;
+    plainLanguageAngle: string;
+    sourceName: string;
+    sourceUrl: string;
+    sourceDate: string | null;
+    freshnessNote: string;
+    confidenceNote: string;
+    recommendedUsage: string;
+  }> = [
+    {
+      claim:
+        matches.length === 1
+          ? `Product Hunt surfaced 1 recent launch relevant to ${input.topic.name}.`
+          : `Product Hunt surfaced ${matches.length} recent launches relevant to ${input.topic.name}.`,
+      plainLanguageAngle:
+        input.channel === "linkedin"
+          ? "Use this to show that the topic has visible launch and product activity, not just discussion volume."
+          : "Use this as a quick proof that builders are already shipping into this space.",
+      sourceName: "Product Hunt",
+      sourceUrl: topMatch.url ?? "https://www.producthunt.com/",
+      sourceDate: topMatch.createdAt ? new Date(topMatch.createdAt).toISOString().slice(0, 10) : null,
+      freshnessNote: "This reflects a recent Product Hunt launch snapshot, not a comprehensive market count.",
+      confidenceNote: matches.length >= 2 ? "Moderate confidence from multiple relevant launches." : "Early external signal from a single relevant launch.",
+      recommendedUsage: `Use this as marketplace validation for ${input.topic.slug}, then connect it to the practical wedge or positioning angle.`
+    }
+  ];
+
+  if (typeof topMatch.votesCount === "number") {
+    stats.push({
+      claim: `The strongest matching Product Hunt launch drew ${topMatch.votesCount} vote${topMatch.votesCount === 1 ? "" : "s"}${typeof topMatch.commentsCount === "number" ? ` and ${topMatch.commentsCount} comment${topMatch.commentsCount === 1 ? "" : "s"}` : ""}.`,
+      plainLanguageAngle:
+        input.channel === "linkedin"
+          ? "Use this as an interest signal for visible launch traction, not as proof of revenue or retention."
+          : "Use this as a short traction stat when you want to show builders are paying attention.",
+      sourceName: "Product Hunt",
+      sourceUrl: topMatch.url ?? "https://www.producthunt.com/",
+      sourceDate: topMatch.createdAt ? new Date(topMatch.createdAt).toISOString().slice(0, 10) : null,
+      freshnessNote: "Votes and comments reflect Product Hunt engagement on a specific launch day or period.",
+      confidenceNote: "Use with caution; marketplace engagement is directional traction, not commercial proof.",
+      recommendedUsage: `Use this as a supporting marketplace-data stat for ${input.topic.name}, especially in social hooks or infographic callouts.`
     });
   }
 
