@@ -41,7 +41,13 @@ export default async function IdeasPage({ searchParams }: PageProps) {
         idea.riskNotes ?? "",
         idea.primaryTopic?.name ?? "",
         idea.researchStream?.name ?? "",
-        idea.cluster.title
+        idea.cluster.title,
+        ...idea.cluster.memberships.flatMap((membership) => [
+          membership.rawSignal.title ?? "",
+          membership.rawSignal.body ?? "",
+          membership.rawSignal.authorName ?? "",
+          membership.rawSignal.sourceType
+        ])
       ]
         .join(" ")
         .toLowerCase()
@@ -206,6 +212,37 @@ export default async function IdeasPage({ searchParams }: PageProps) {
                       <p className="rowBody">
                         <strong>Cluster summary:</strong> {idea.cluster.summary ?? "No cluster summary yet."}
                       </p>
+                      <div className="evidenceSection">
+                        <p className="rowBody">
+                          <strong>Underlying signals:</strong>
+                        </p>
+                        {idea.cluster.memberships.length === 0 ? (
+                          <p className="rowMeta">No raw signals are linked to this cluster yet.</p>
+                        ) : (
+                          <div className="stack">
+                            {idea.cluster.memberships.map((membership) => (
+                              <div className="evidenceCard" key={membership.id}>
+                                <p className="rowTitle">{membership.rawSignal.title ?? "Untitled signal"}</p>
+                                <p className="rowMeta">
+                                  {membership.rawSignal.sourceType}
+                                  {membership.rawSignal.authorName ? ` · ${membership.rawSignal.authorName}` : ""}
+                                  {membership.rawSignal.occurredAt ? ` · ${formatDate(membership.rawSignal.occurredAt)}` : ""}
+                                </p>
+                                <p className="rowBody">
+                                  {summarizeEvidenceText(membership.rawSignal.body ?? "No body text captured.", 220)}
+                                </p>
+                                {membership.rawSignal.sourceUrl ? (
+                                  <p className="rowMeta">
+                                    <a href={membership.rawSignal.sourceUrl} rel="noreferrer" target="_blank">
+                                      Open source link
+                                    </a>
+                                  </p>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="draftSidebar">
                       <div className="stackCompact">
@@ -260,9 +297,24 @@ async function getIdeas() {
       researchStream: true,
       primaryTopic: true,
       cluster: {
-        select: {
-          title: true,
-          summary: true
+        include: {
+          memberships: {
+            orderBy: { createdAt: "desc" },
+            take: 4,
+            include: {
+              rawSignal: {
+                select: {
+                  id: true,
+                  sourceType: true,
+                  sourceUrl: true,
+                  title: true,
+                  body: true,
+                  authorName: true,
+                  occurredAt: true
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -295,4 +347,16 @@ function normalizeIdeaStatus(status: string) {
   }
 
   return "skipped";
+}
+
+function summarizeEvidenceText(value: string, maxLength: number) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  const clipped = normalized.slice(0, maxLength);
+  const boundary = Math.max(clipped.lastIndexOf(". "), clipped.lastIndexOf("; "), clipped.lastIndexOf(", "));
+  return `${(boundary > 80 ? clipped.slice(0, boundary) : clipped).trim()}...`;
 }

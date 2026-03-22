@@ -1,6 +1,6 @@
 import { db } from "@bizbrain/db";
 import { regenerateContentDraft, runPipelineJob, updateContentDraftStatus } from "../actions";
-import { formatDate, formatListInput, getDashboardData, readSearchParam } from "../dashboard-data";
+import { formatDate, formatListInput, formatSourceAttribution, getDashboardData, readSearchParam } from "../dashboard-data";
 import { EmptyState } from "../dashboard-ui";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +28,11 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
         draft.thesis ?? "",
         draft.copyFramework?.name ?? "",
         draft.styleProfile?.name ?? "",
-        draft.sourceIdea?.title ?? ""
+        draft.sourceIdea?.title ?? "",
+        draft.sourceIdea?.problemSummary ?? "",
+        draft.sourceIdea?.solutionConcept ?? "",
+        draft.sourceIdea?.targetCustomer ?? "",
+        draft.sourceIdea?.cluster?.title ?? ""
       ]
         .join(" ")
         .toLowerCase()
@@ -144,6 +148,34 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                       <p className="rowBody"><strong>Supporting points:</strong> {formatListInput(draft.supportingPointsJson) || "No supporting points yet."}</p>
                       <p className="rowBody"><strong>CTA:</strong> {draft.cta ?? "No CTA yet."}</p>
                       <p className="rowBody"><strong>Source idea:</strong> {draft.sourceIdea?.title ?? "No linked idea."}</p>
+                      <div className="evidenceSection">
+                        <p className="rowBody">
+                          <strong>Source idea context:</strong>
+                        </p>
+                        {draft.sourceIdea ? (
+                          <div className="evidenceCard">
+                            <p className="rowMeta">
+                              {draft.sourceIdea.businessType ?? "Business type pending"}
+                              {draft.sourceIdea.targetCustomer ? ` · ${draft.sourceIdea.targetCustomer}` : ""}
+                              {draft.sourceIdea.cluster?.title ? ` · ${draft.sourceIdea.cluster.title}` : ""}
+                            </p>
+                            <p className="rowBody">
+                              <strong>Problem:</strong> {draft.sourceIdea.problemSummary ?? "No problem summary yet."}
+                            </p>
+                            <p className="rowBody">
+                              <strong>Solution:</strong> {draft.sourceIdea.solutionConcept ?? "No solution concept yet."}
+                            </p>
+                            <p className="rowBody">
+                              <strong>Evidence:</strong> {draft.sourceIdea.evidenceSummary ?? "No evidence summary yet."}
+                            </p>
+                            <p className="rowMeta">
+                              {formatSourceAttribution(draft.sourceIdea.sourceAttributionJson)}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="rowMeta">No linked idea context yet.</p>
+                        )}
+                      </div>
                       <pre className="draftPreview">{draft.draftMarkdown ?? "No draft body yet."}</pre>
                     </div>
                     <div className="draftSidebar">
@@ -198,7 +230,15 @@ async function getSocialDrafts() {
       topic: true,
       copyFramework: true,
       styleProfile: true,
-      sourceIdea: true
+      sourceIdea: {
+        include: {
+          cluster: {
+            select: {
+              title: true
+            }
+          }
+        }
+      }
     }
   });
 }

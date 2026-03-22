@@ -461,6 +461,21 @@ h1 {
   margin-bottom: 16px;
 }
 
+.evidenceSection {
+  margin-top: 14px;
+}
+
+.evidenceCard {
+  padding: 12px 14px;
+  border: 1px solid rgba(217, 208, 193, 0.7);
+  border-radius: 14px;
+  background: rgba(255, 254, 251, 0.72);
+}
+
+.evidenceCard a {
+  color: var(--accent);
+}
+
 @media (max-width: 640px) {
   body {
     padding: 28px 14px 48px;
