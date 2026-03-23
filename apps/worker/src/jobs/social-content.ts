@@ -2,8 +2,9 @@ import { researchStreamChannels, researchStreamIds, socialDraftSchema, type Soci
 import { db } from "@bizbrain/db";
 import { buildSocialDraftPrompt } from "@bizbrain/prompts";
 
-type IdeaWithCluster = {
+type SocialBriefWithCluster = {
   id: string;
+  topicId?: string;
   clusterId: string;
   title: string;
   category: string;
@@ -20,7 +21,11 @@ type IdeaWithCluster = {
     title: string;
     summary: string | null;
   } | null;
+  supportingStatsJson?: unknown;
+  signalEvidenceStatsJson?: unknown;
 };
+
+type IdeaWithCluster = SocialBriefWithCluster;
 
 type TopicRecord = {
   id: string;
@@ -57,6 +62,119 @@ type SocialDraftContext = {
 type ContentDraftCreateData = Parameters<typeof db.contentDraft.create>[0]["data"];
 type ContentDraftUpdateData = Parameters<typeof db.contentDraft.update>[0]["data"];
 
+async function syncSocialResearchBriefs() {
+  const socialTopics = await db.topic.findMany({
+    where: {
+      researchStreamId: researchStreamIds.socialMedia,
+      enabled: true
+    },
+    orderBy: { name: "asc" }
+  });
+
+  if (socialTopics.length === 0) {
+    return [] as SocialBriefWithCluster[];
+  }
+
+  const clusters = await db.trendCluster.findMany({
+    where: {
+      status: "open"
+    },
+    orderBy: [{ scoreTotal: "desc" }, { updatedAt: "desc" }],
+    take: 24,
+    include: {
+      memberships: {
+        take: 6,
+        include: {
+          rawSignal: {
+            select: {
+              sourceType: true,
+              title: true,
+              body: true,
+              sourceUrl: true,
+              authorName: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  const synced: SocialBriefWithCluster[] = [];
+
+  for (const topic of socialTopics) {
+    const matchedClusters = clusters
+      .map((cluster) => ({
+        cluster,
+        score: scoreClusterForTopic(cluster, topic)
+      }))
+      .filter((entry) => entry.score > 0)
+      .sort((left, right) => right.score - left.score || right.cluster.scoreTotal - left.cluster.scoreTotal)
+      .slice(0, 3);
+
+    for (const { cluster, score } of matchedClusters) {
+      const sourceAttribution = buildClusterSourceAttribution(cluster);
+      const briefData = {
+        researchStreamId: researchStreamIds.socialMedia,
+        topicId: topic.id,
+        clusterId: cluster.id,
+        title: cluster.title,
+        framingMode: resolveSocialDraftMode(topic),
+        themeSummary: cluster.summary ?? buildThemeSummary(cluster, topic),
+        audienceInsight: buildAudienceInsight(cluster, topic),
+        operatorTakeaway: buildOperatorTakeaway(cluster, topic),
+        contrarianAngle: buildContrarianAngle(cluster, topic),
+        evidenceSummary: buildClusterEvidenceSummary(cluster),
+        supportingStatsJson: [],
+        signalEvidenceStatsJson: [],
+        sourceAttributionJson: sourceAttribution,
+        qualityScore: Math.min(9.4, Math.max(5.8, score + (cluster.scoreTotal ?? 0))),
+        status: "ready"
+      };
+
+      const brief = await (db as any).socialResearchBrief.upsert({
+        where: {
+          topicId_clusterId: {
+            topicId: topic.id,
+            clusterId: cluster.id
+          }
+        },
+        update: briefData,
+        create: briefData
+      });
+
+      const briefSource = mapStoredBriefToDraftSource({
+        ...brief,
+        cluster: {
+          title: cluster.title,
+          summary: cluster.summary
+        }
+      });
+      const signalEvidenceStats = await buildSignalEvidenceStatsResearch(briefSource, topic, "linkedin");
+      const externalInsightStats = await buildExternalInsightStatsResearch({ idea: briefSource, topic, channel: "linkedin" });
+
+      const updatedBrief = await (db as any).socialResearchBrief.update({
+        where: { id: brief.id },
+        data: {
+          signalEvidenceStatsJson: signalEvidenceStats,
+          supportingStatsJson: externalInsightStats
+        }
+      });
+
+      synced.push(
+        mapStoredBriefToDraftSource({
+          ...updatedBrief,
+          cluster: {
+            title: cluster.title,
+            summary: cluster.summary
+          }
+        })
+      );
+    }
+  }
+
+  return synced;
+}
+
 export async function syncSocialContentDrafts() {
   const socialStream = await db.researchStream.findUnique({
     where: { id: researchStreamIds.socialMedia },
@@ -70,7 +188,7 @@ export async function syncSocialContentDrafts() {
     return { recordsWritten: 0, warnings: ["Social media research stream is not configured."] };
   }
 
-  const [topics, ideas] = await Promise.all([
+  const [topics, briefs] = await Promise.all([
     db.topic.findMany({
       where: {
         researchStreamId: socialStream.id,
@@ -82,19 +200,10 @@ export async function syncSocialContentDrafts() {
       },
       orderBy: { name: "asc" }
     }),
-    db.idea.findMany({
-      where: {
-        researchStreamId: researchStreamIds.opportunity
-      },
-      orderBy: [{ qualityScore: "desc" }, { updatedAt: "desc" }],
-      take: 12,
-      include: {
-        cluster: true
-      }
-    })
+    syncSocialResearchBriefs()
   ]);
 
-  if (topics.length === 0 || ideas.length === 0) {
+  if (topics.length === 0 || briefs.length === 0) {
     return { recordsWritten: 0, warnings: [] };
   }
 
@@ -105,16 +214,17 @@ export async function syncSocialContentDrafts() {
   };
 
   for (const topic of topics) {
-    const matchedIdeas = ideas
-      .map((idea) => ({
-        idea,
-        score: scoreIdeaForTopic(idea, topic)
+    const matchedBriefs = briefs
+      .filter((brief) => brief.topicId === topic.id)
+      .map((brief) => ({
+        brief,
+        score: brief.qualityScore ?? 0
       }))
       .filter((entry) => entry.score > 0)
-      .sort((left, right) => right.score - left.score || (right.idea.qualityScore ?? 0) - (left.idea.qualityScore ?? 0))
+      .sort((left, right) => right.score - left.score || (right.brief.qualityScore ?? 0) - (left.brief.qualityScore ?? 0))
       .slice(0, 2);
 
-    for (const { idea } of matchedIdeas) {
+    for (const { brief } of matchedBriefs) {
       const channels = resolveTopicChannels(topic.enabledChannelsJson);
 
       for (const channel of channels) {
@@ -122,11 +232,11 @@ export async function syncSocialContentDrafts() {
           const framework = topic.defaultCopyFramework ?? socialStream.defaultCopyFramework ?? null;
           const styleProfile = topic.defaultStyleProfile ?? socialStream.defaultStyleProfile ?? null;
           const assetMode = topic.defaultAssetMode ?? socialStream.defaultAssetMode ?? "none";
-          const signalEvidenceStats = await buildSignalEvidenceStatsResearch(idea, topic, channel);
-          const externalInsightStats = await buildExternalInsightStatsResearch({ idea, topic, channel });
+          const signalEvidenceStats = readStatArray(brief.signalEvidenceStatsJson);
+          const externalInsightStats = readStatArray(brief.supportingStatsJson);
           const fallbackDraft = buildFallbackSocialDraft({
             channel,
-            idea,
+            idea: brief,
             topic,
             frameworkName: framework?.name ?? "custom",
             styleName: styleProfile?.name ?? "founder educator",
@@ -138,7 +248,7 @@ export async function syncSocialContentDrafts() {
           try {
             generated = (await generateSocialDraft({
               channel,
-              idea,
+              idea: brief,
               topic,
               framework,
               styleProfile,
@@ -153,7 +263,7 @@ export async function syncSocialContentDrafts() {
             where: {
               researchStreamId: socialStream.id,
               topicId: topic.id,
-              sourceIdeaId: idea.id,
+              sourceBriefId: brief.id,
               targetChannel: channel
             },
             select: { id: true }
@@ -162,7 +272,8 @@ export async function syncSocialContentDrafts() {
           const createData: ContentDraftCreateData = {
             researchStreamId: socialStream.id,
             topicId: topic.id,
-            sourceIdeaId: idea.id,
+            sourceBriefId: brief.id,
+            sourceIdeaId: null,
             copyFrameworkId: framework?.id ?? null,
             styleProfileId: styleProfile?.id ?? null,
             title: generated.title,
@@ -189,7 +300,7 @@ export async function syncSocialContentDrafts() {
             assetCandidatesJson: generated.mediaCandidates,
             mediaPolicyJson: generated.mediaPolicy,
             qualityScore: generated.qualityScore,
-            sourceAttributionJson: idea.sourceAttributionJson ?? undefined,
+            sourceAttributionJson: brief.sourceAttributionJson ?? undefined,
             status: "draft"
           };
 
@@ -219,7 +330,7 @@ export async function syncSocialContentDrafts() {
             assetCandidatesJson: generated.mediaCandidates,
             mediaPolicyJson: generated.mediaPolicy,
             qualityScore: generated.qualityScore,
-            sourceAttributionJson: idea.sourceAttributionJson ?? undefined,
+            sourceAttributionJson: brief.sourceAttributionJson ?? undefined,
             status: "draft"
           };
 
@@ -246,7 +357,7 @@ export async function syncSocialContentDrafts() {
 }
 
 export async function regenerateSocialDraftById(draftId: string) {
-  const draft = await db.contentDraft.findUnique({
+  const draft = await (db as any).contentDraft.findUnique({
     where: { id: draftId },
     include: {
       researchStream: {
@@ -261,11 +372,8 @@ export async function regenerateSocialDraftById(draftId: string) {
           defaultStyleProfile: true
         }
       },
-      sourceIdea: {
-        include: {
-          cluster: true
-        }
-      }
+      sourceIdea: { include: { cluster: true } },
+      sourceBrief: true
     }
   });
 
@@ -273,26 +381,33 @@ export async function regenerateSocialDraftById(draftId: string) {
     throw new Error("Social draft not found.");
   }
 
-  if (!draft.topic || !draft.sourceIdea) {
-    throw new Error("Social draft is missing its topic or source idea.");
+  if (!draft.topic || (!draft.sourceBrief && !draft.sourceIdea)) {
+    throw new Error("Social draft is missing its topic or source brief.");
   }
 
   const framework = draft.topic.defaultCopyFramework ?? draft.researchStream.defaultCopyFramework ?? null;
   const styleProfile = draft.topic.defaultStyleProfile ?? draft.researchStream.defaultStyleProfile ?? null;
   const assetMode = draft.topic.defaultAssetMode ?? draft.researchStream.defaultAssetMode ?? "none";
-  const signalEvidenceStats = await buildSignalEvidenceStatsResearch(
-    draft.sourceIdea,
-    draft.topic,
-    draft.targetChannel as (typeof researchStreamChannels)[number]
-  );
-  const externalInsightStats = await buildExternalInsightStatsResearch({
-    idea: draft.sourceIdea,
-    topic: draft.topic,
-    channel: draft.targetChannel as (typeof researchStreamChannels)[number]
-  });
+  const sourceBrief = draft.sourceBrief
+    ? mapStoredBriefToDraftSource(draft.sourceBrief)
+    : mapIdeaToDraftSource(draft.sourceIdea!);
+  const signalEvidenceStats = draft.sourceBrief
+    ? readStatArray(draft.sourceBrief.signalEvidenceStatsJson)
+    : await buildSignalEvidenceStatsResearch(
+        draft.sourceIdea!,
+        draft.topic,
+        draft.targetChannel as (typeof researchStreamChannels)[number]
+      );
+  const externalInsightStats = draft.sourceBrief
+    ? readStatArray(draft.sourceBrief.supportingStatsJson)
+    : await buildExternalInsightStatsResearch({
+        idea: draft.sourceIdea!,
+        topic: draft.topic,
+        channel: draft.targetChannel as (typeof researchStreamChannels)[number]
+      });
   const fallbackDraft = buildFallbackSocialDraft({
     channel: draft.targetChannel as (typeof researchStreamChannels)[number],
-    idea: draft.sourceIdea,
+    idea: sourceBrief,
     topic: draft.topic,
     frameworkName: framework?.name ?? "custom",
     styleName: styleProfile?.name ?? "founder educator",
@@ -307,7 +422,7 @@ export async function regenerateSocialDraftById(draftId: string) {
     generated =
       (await generateSocialDraft({
         channel: draft.targetChannel as (typeof researchStreamChannels)[number],
-        idea: draft.sourceIdea,
+        idea: sourceBrief,
         topic: draft.topic,
         framework,
         styleProfile,
@@ -346,7 +461,7 @@ export async function regenerateSocialDraftById(draftId: string) {
       assetCandidatesJson: generated.mediaCandidates,
       mediaPolicyJson: generated.mediaPolicy,
       qualityScore: generated.qualityScore,
-      sourceAttributionJson: draft.sourceIdea.sourceAttributionJson ?? undefined,
+      sourceAttributionJson: sourceBrief.sourceAttributionJson ?? undefined,
       status: "draft"
     }
   });
@@ -370,7 +485,10 @@ function resolveTopicChannels(value: unknown) {
   return channels.length > 0 ? channels : [...researchStreamChannels];
 }
 
-function scoreIdeaForTopic(idea: IdeaWithCluster, topic: TopicRecord) {
+function scoreClusterForTopic(
+  cluster: any,
+  topic: Pick<TopicRecord, "keywordsJson" | "exclusionsJson" | "slug" | "name">
+) {
   const keywords = Array.isArray(topic.keywordsJson)
     ? topic.keywordsJson.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.toLowerCase())
     : [];
@@ -378,15 +496,11 @@ function scoreIdeaForTopic(idea: IdeaWithCluster, topic: TopicRecord) {
     ? topic.exclusionsJson.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.toLowerCase())
     : [];
   const haystack = [
-    idea.title,
-    idea.category,
-    idea.subcategory,
-    idea.targetCustomer,
-    idea.problemSummary,
-    idea.solutionConcept,
-    idea.evidenceSummary,
-    idea.cluster?.summary,
-    idea.cluster?.title
+    cluster.title,
+    cluster.primaryCategory,
+    cluster.summary,
+    ...(Array.isArray(cluster.tagsJson) ? cluster.tagsJson.filter((entry: unknown): entry is string => typeof entry === "string") : []),
+    ...cluster.memberships.flatMap((membership: any) => [membership.rawSignal.title, membership.rawSignal.body])
   ]
     .filter(Boolean)
     .join(" ")
@@ -396,7 +510,7 @@ function scoreIdeaForTopic(idea: IdeaWithCluster, topic: TopicRecord) {
     return 0;
   }
 
-  let score = idea.qualityScore ?? 0;
+  let score = cluster.scoreTotal ?? 0;
 
   for (const keyword of keywords) {
     if (haystack.includes(keyword)) {
@@ -413,6 +527,140 @@ function scoreIdeaForTopic(idea: IdeaWithCluster, topic: TopicRecord) {
   }
 
   return score;
+}
+
+function buildClusterSourceAttribution(cluster: any) {
+  const sourceGroups = new Map<string, { count: number; titles: string[]; urls: string[] }>();
+
+  for (const membership of cluster.memberships as Array<any>) {
+    const sourceType = membership.rawSignal.sourceType;
+    const group = sourceGroups.get(sourceType) ?? { count: 0, titles: [], urls: [] };
+    group.count += 1;
+    if (membership.rawSignal.title && group.titles.length < 3) {
+      group.titles.push(membership.rawSignal.title);
+    }
+    if (membership.rawSignal.sourceUrl && group.urls.length < 3) {
+      group.urls.push(membership.rawSignal.sourceUrl);
+    }
+    sourceGroups.set(sourceType, group);
+  }
+
+  return [...sourceGroups.entries()].map(([sourceType, group]) => ({
+    sourceType,
+    signalCount: group.count,
+    sampleTitles: group.titles,
+    sampleUrls: group.urls
+  }));
+}
+
+function buildThemeSummary(cluster: any, topic: Pick<TopicRecord, "name">) {
+  const sampleTitle = cluster.memberships.find((membership: any) => membership.rawSignal.title)?.rawSignal.title;
+  return `Signals relevant to ${topic.name} keep clustering around ${cluster.title.toLowerCase()}${sampleTitle ? `, including examples like "${sampleTitle}".` : "."}`;
+}
+
+function buildClusterEvidenceSummary(cluster: any) {
+  const titles = cluster.memberships
+    .map((membership: any) => membership.rawSignal.title)
+    .filter((title: unknown): title is string => Boolean(title))
+    .slice(0, 3);
+
+  if (titles.length === 0) {
+    return cluster.summary ?? "Repeated discussion signals support this topic.";
+  }
+
+  return `Repeated examples include ${titles.map((title: string) => `"${title}"`).join(", ")}.`;
+}
+
+function buildAudienceInsight(cluster: any, topic: Pick<TopicRecord, "name">) {
+  return `People following ${topic.name} are responding to repeated workflow friction around ${cluster.title.toLowerCase()}.`;
+}
+
+function buildOperatorTakeaway(cluster: any, topic: Pick<TopicRecord, "name">) {
+  return `The operational lesson for ${topic.name} is that the process around ${cluster.title.toLowerCase()} is breaking before people even start looking for a tool.`;
+}
+
+function buildContrarianAngle(cluster: any, topic: Pick<TopicRecord, "name">) {
+  return `The interesting part for ${topic.name} is not the software category itself, but the repeated friction pattern hidden inside ${cluster.title.toLowerCase()}.`;
+}
+
+function mapStoredBriefToDraftSource(
+  brief: {
+    id: string;
+    topicId?: string | null;
+    clusterId: string | null;
+    title: string;
+    themeSummary: string | null;
+    audienceInsight: string | null;
+    operatorTakeaway: string | null;
+    evidenceSummary: string | null;
+    qualityScore: number | null;
+    sourceAttributionJson: unknown;
+    supportingStatsJson?: unknown;
+    signalEvidenceStatsJson?: unknown;
+    cluster?: { title: string; summary: string | null } | null;
+  }
+): SocialBriefWithCluster {
+  return {
+    id: brief.id,
+    topicId: brief.topicId ?? undefined,
+    clusterId: brief.clusterId ?? "",
+    title: brief.title,
+    category: "social-research",
+    subcategory: null,
+    businessType: null,
+    targetCustomer: brief.audienceInsight,
+    problemSummary: brief.themeSummary,
+    solutionConcept: brief.operatorTakeaway,
+    monetizationAngle: null,
+    evidenceSummary: brief.evidenceSummary,
+    qualityScore: brief.qualityScore,
+    sourceAttributionJson: brief.sourceAttributionJson,
+    cluster: brief.cluster ?? null,
+    supportingStatsJson: brief.supportingStatsJson,
+    signalEvidenceStatsJson: brief.signalEvidenceStatsJson
+  };
+}
+
+function mapIdeaToDraftSource(idea: {
+  id: string;
+  clusterId: string;
+  title: string;
+  category: string;
+  subcategory: string | null;
+  businessType: string | null;
+  targetCustomer: string | null;
+  problemSummary: string | null;
+  solutionConcept: string | null;
+  monetizationAngle: string | null;
+  evidenceSummary: string | null;
+  qualityScore: number | null;
+  sourceAttributionJson: unknown;
+  cluster?: { title: string } | null;
+}): SocialBriefWithCluster {
+  return {
+    id: idea.id,
+    clusterId: idea.clusterId,
+    title: idea.title,
+    category: idea.category,
+    subcategory: idea.subcategory,
+    businessType: idea.businessType,
+    targetCustomer: idea.targetCustomer,
+    problemSummary: idea.problemSummary,
+    solutionConcept: idea.solutionConcept,
+    monetizationAngle: idea.monetizationAngle,
+    evidenceSummary: idea.evidenceSummary,
+    qualityScore: idea.qualityScore,
+    sourceAttributionJson: idea.sourceAttributionJson,
+    cluster: idea.cluster ? { title: idea.cluster.title, summary: null } : null
+  };
+}
+
+function readStatArray(value: unknown): SupportingStat[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((entry): entry is SupportingStat => Boolean(entry) && typeof entry === "object" && typeof (entry as { claim?: unknown }).claim === "string");
 }
 
 function resolveSocialDraftMode(topic: Pick<TopicRecord, "slug" | "name" | "keywordsJson" | "description">) {

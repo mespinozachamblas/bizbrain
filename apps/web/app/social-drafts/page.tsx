@@ -12,7 +12,7 @@ type PageProps = {
 export default async function SocialDraftsPage({ searchParams }: PageProps) {
   const resolvedSearchParams = (await searchParams) ?? {};
   const dashboard = await getDashboardData();
-  const drafts = await getSocialDrafts();
+  const drafts = (await getSocialDrafts()) as any[];
   const query = readSearchParam(resolvedSearchParams, "q");
   const channel = readSearchParam(resolvedSearchParams, "channel");
   const topicId = readSearchParam(resolvedSearchParams, "topicId");
@@ -30,6 +30,9 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
         draft.thesis ?? "",
         draft.copyFramework?.name ?? "",
         draft.styleProfile?.name ?? "",
+        draft.sourceBrief?.title ?? "",
+        draft.sourceBrief?.themeSummary ?? "",
+        draft.sourceBrief?.operatorTakeaway ?? "",
         draft.sourceIdea?.title ?? "",
         draft.sourceIdea?.problemSummary ?? "",
         draft.sourceIdea?.solutionConcept ?? "",
@@ -184,12 +187,34 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                         <p className="rowBody"><strong>Audience:</strong> {draft.targetAudience ?? "No target audience yet."}</p>
                         <p className="rowBody"><strong>Supporting points:</strong> {formatListInput(draft.supportingPointsJson) || "No supporting points yet."}</p>
                         <p className="rowBody"><strong>CTA:</strong> {draft.cta ?? "No CTA yet."}</p>
-                        <p className="rowBody"><strong>Source idea:</strong> {draft.sourceIdea?.title ?? "No linked idea."}</p>
+                        <p className="rowBody"><strong>Source brief:</strong> {draft.sourceBrief?.title ?? draft.sourceIdea?.title ?? "No linked research brief."}</p>
                         <div className="evidenceSection">
                           <p className="rowBody">
-                            <strong>Source idea context:</strong>
+                            <strong>Source research context:</strong>
                           </p>
-                          {draft.sourceIdea ? (
+                          {draft.sourceBrief ? (
+                            <div className="evidenceCard">
+                              <p className="rowMeta">
+                                {draft.sourceBrief.cluster?.title ?? "Cluster pending"}
+                                {draft.sourceBrief.topic?.name ? ` · ${draft.sourceBrief.topic.name}` : ""}
+                              </p>
+                              <p className="rowBody">
+                                <strong>Theme:</strong> {draft.sourceBrief.themeSummary ?? "No theme summary yet."}
+                              </p>
+                              <p className="rowBody">
+                                <strong>Audience insight:</strong> {draft.sourceBrief.audienceInsight ?? "No audience insight yet."}
+                              </p>
+                              <p className="rowBody">
+                                <strong>Operator takeaway:</strong> {draft.sourceBrief.operatorTakeaway ?? "No operator takeaway yet."}
+                              </p>
+                              <p className="rowBody">
+                                <strong>Evidence:</strong> {draft.sourceBrief.evidenceSummary ?? "No evidence summary yet."}
+                              </p>
+                              <p className="rowMeta">
+                                {formatSourceAttribution(draft.sourceBrief.sourceAttributionJson)}
+                              </p>
+                            </div>
+                          ) : draft.sourceIdea ? (
                             <div className="evidenceCard">
                               <p className="rowMeta">
                                 {draft.sourceIdea.businessType ?? "Business type pending"}
@@ -470,7 +495,7 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
 }
 
 async function getSocialDrafts() {
-  return db.contentDraft.findMany({
+  return (db as any).contentDraft.findMany({
     where: {
       researchStreamId: "stream-social-media-research"
     },
@@ -483,6 +508,16 @@ async function getSocialDrafts() {
       },
       copyFramework: true,
       styleProfile: true,
+      sourceBrief: {
+        include: {
+          topic: true,
+          cluster: {
+            select: {
+              title: true
+            }
+          }
+        }
+      },
       sourceIdea: {
         include: {
           cluster: {
@@ -658,7 +693,8 @@ function buildDraftTopicFitPreview(draft: Awaited<ReturnType<typeof getSocialDra
       ? "channel enabled on topic"
       : null,
     overlap > 0 ? `${overlap} topic keyword match${overlap > 1 ? "es" : ""}` : null,
-    draft.sourceIdea?.primaryTopicId && topic && draft.sourceIdea.primaryTopicId === topic.id ? "source idea already linked to topic" : null
+    draft.sourceIdea?.primaryTopicId && topic && draft.sourceIdea.primaryTopicId === topic.id ? "source idea already linked to topic" : null,
+    draft.sourceBrief && topic && draft.sourceBrief.topicId === topic.id ? "brief already linked to topic" : null
   ].filter((reason): reason is string => Boolean(reason));
 
   return {

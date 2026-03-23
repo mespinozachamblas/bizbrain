@@ -70,6 +70,7 @@ model ResearchStream {
   defaultStyleProfile  StyleProfile?    @relation("ResearchStreamDefaultStyleProfile", fields: [defaultStyleProfileId], references: [id], onDelete: SetNull)
   topics               Topic[]
   ideas                Idea[]
+  socialResearchBriefs SocialResearchBrief[]
   digests              Digest[]
   digestRecipients     DigestRecipient[]
   contentDrafts        ContentDraft[]
@@ -97,6 +98,7 @@ model Topic {
   defaultCopyFramework  CopyFramework?  @relation("TopicDefaultCopyFramework", fields: [defaultCopyFrameworkId], references: [id], onDelete: SetNull)
   defaultStyleProfile   StyleProfile?   @relation("TopicDefaultStyleProfile", fields: [defaultStyleProfileId], references: [id], onDelete: SetNull)
   ideas                 Idea[]
+  socialResearchBriefs  SocialResearchBrief[]
   contentDrafts         ContentDraft[]
 
   @@unique([researchStreamId, slug])
@@ -231,10 +233,40 @@ model TrendCluster {
   updatedAt         DateTime            @updatedAt @map("updated_at")
   memberships       ClusterMembership[]
   ideas             Idea[]
+  socialResearchBriefs SocialResearchBrief[]
 
   @@index([scoreTotal(sort: Desc)])
   @@index([primaryCategory, scoreTotal(sort: Desc)])
   @@map("trend_clusters")
+}
+
+model SocialResearchBrief {
+  id                  String         @id @default(cuid())
+  researchStreamId    String         @default("stream-social-media-research") @map("research_stream_id")
+  topicId             String         @map("topic_id")
+  clusterId           String?        @map("cluster_id")
+  title               String
+  framingMode         String         @default("commentary") @map("framing_mode")
+  themeSummary        String?        @map("theme_summary")
+  audienceInsight     String?        @map("audience_insight")
+  operatorTakeaway    String?        @map("operator_takeaway")
+  contrarianAngle     String?        @map("contrarian_angle")
+  evidenceSummary     String?        @map("evidence_summary")
+  supportingStatsJson Json?          @map("supporting_stats_json")
+  signalEvidenceStatsJson Json?      @map("signal_evidence_stats_json")
+  sourceAttributionJson Json?        @map("source_attribution_json")
+  qualityScore        Float?         @map("quality_score")
+  status              String
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+  researchStream      ResearchStream @relation(fields: [researchStreamId], references: [id], onDelete: Restrict)
+  topic               Topic          @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  cluster             TrendCluster?  @relation(fields: [clusterId], references: [id], onDelete: SetNull)
+  contentDrafts       ContentDraft[]
+
+  @@unique([topicId, clusterId])
+  @@index([researchStreamId, qualityScore(sort: Desc), updatedAt(sort: Desc)])
+  @@map("social_research_briefs")
 }
 
 model ClusterMembership {
@@ -294,6 +326,7 @@ model ContentDraft {
   id                 String          @id @default(cuid())
   researchStreamId   String          @default("stream-social-media-research") @map("research_stream_id")
   topicId            String?         @map("topic_id")
+  sourceBriefId      String?         @map("source_brief_id")
   sourceIdeaId       String?         @map("source_idea_id")
   copyFrameworkId    String?         @map("copy_framework_id")
   styleProfileId     String?         @map("style_profile_id")
@@ -324,6 +357,7 @@ model ContentDraft {
   updatedAt          DateTime        @updatedAt @map("updated_at")
   researchStream     ResearchStream  @relation(fields: [researchStreamId], references: [id], onDelete: Restrict)
   topic              Topic?          @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  sourceBrief        SocialResearchBrief? @relation(fields: [sourceBriefId], references: [id], onDelete: SetNull)
   sourceIdea         Idea?           @relation(fields: [sourceIdeaId], references: [id], onDelete: SetNull)
   copyFramework      CopyFramework?  @relation(fields: [copyFrameworkId], references: [id], onDelete: SetNull)
   styleProfile       StyleProfile?   @relation(fields: [styleProfileId], references: [id], onDelete: SetNull)
