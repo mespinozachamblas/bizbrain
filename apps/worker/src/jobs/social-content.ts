@@ -727,7 +727,10 @@ function readStatArray(value: unknown): SupportingStat[] {
     return [];
   }
 
-  return value.filter((entry): entry is SupportingStat => Boolean(entry) && typeof entry === "object" && typeof (entry as { claim?: unknown }).claim === "string");
+  return value
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object" && typeof entry.claim === "string")
+    .map((entry) => normalizeSupportingStat(entry))
+    .filter((entry): entry is SupportingStat => Boolean(entry));
 }
 
 function resolveSocialDraftMode(topic: Pick<TopicRecord, "slug" | "name" | "keywordsJson" | "description">) {
@@ -772,6 +775,38 @@ async function generateSocialDraft(input: {
     const promptEvidence = truncateAtWordBoundary(buildConciseEvidenceLine(input.idea.evidenceSummary, input.externalInsightStats), 180);
     const promptSourceAttribution = summarizeSourceAttributionForPrompt(input.idea.sourceAttributionJson);
     const promptStats = summarizeStatsForPrompt(input.externalInsightStats);
+    const promptLines = [
+      `CHANNEL: ${input.channel}`,
+      `TOPIC: ${input.topic.name}`,
+      `TOPIC_DESCRIPTION: ${input.topic.description ?? "(none)"}`,
+      `COPY_FRAMEWORK: ${input.framework?.name ?? "Use the topic/stream default persuasion structure."}`,
+      `COPY_FRAMEWORK_DETAILS: ${JSON.stringify(input.framework?.structureJson ?? [])}`,
+      `STYLE_PROFILE: ${input.styleProfile?.name ?? "Founder educator"}`,
+      `STYLE_DESCRIPTION: ${input.styleProfile?.description ?? "(none)"}`,
+      `STYLE_INSPIRATION: ${input.styleProfile?.inspirationSummary ?? "(none)"}`,
+      `STYLE_TRAITS: ${formatPromptList(input.styleProfile?.styleTraitsJson, 4)}`,
+      `STYLE_GUARDRAILS: ${formatPromptList(input.styleProfile?.guardrailsJson, 4)}`,
+      `ASSET_MODE: ${input.assetMode}`,
+      `SOCIAL_DRAFT_MODE: ${socialDraftMode}`,
+      `SOURCE_RESEARCH_TITLE: ${truncateAtWordBoundary(input.idea.title, 100)}`,
+      `SOURCE_RESEARCH_CATEGORY: ${input.idea.category}`,
+      `TARGET_CUSTOMER: ${truncateAtWordBoundary(input.idea.targetCustomer ?? "(none)", 80)}`,
+      `PROBLEM: ${promptProblem}`,
+      `EVIDENCE: ${promptEvidence}`,
+      `SOURCE_ATTRIBUTION_SUMMARY: ${promptSourceAttribution}`,
+      `EXTERNAL_INSIGHT_STATS_RESEARCH: ${promptStats}`
+    ];
+
+    if (socialDraftMode === "opportunity-derived") {
+      promptLines.splice(
+        14,
+        0,
+        `BUSINESS_TYPE: ${input.idea.businessType ?? "(none)"}`,
+        `SOLUTION: ${truncateAtWordBoundary(input.idea.solutionConcept ?? "(none)", 100)}`,
+        `MONETIZATION: ${truncateAtWordBoundary(input.idea.monetizationAngle ?? "(none)", 80)}`
+      );
+    }
+
     response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -791,30 +826,7 @@ async function generateSocialDraft(input: {
             content: [
               {
                 type: "input_text",
-                text: [
-                  `CHANNEL: ${input.channel}`,
-                  `TOPIC: ${input.topic.name}`,
-                  `TOPIC_DESCRIPTION: ${input.topic.description ?? "(none)"}`,
-                  `COPY_FRAMEWORK: ${input.framework?.name ?? "Use the topic/stream default persuasion structure."}`,
-                  `COPY_FRAMEWORK_DETAILS: ${JSON.stringify(input.framework?.structureJson ?? [])}`,
-                  `STYLE_PROFILE: ${input.styleProfile?.name ?? "Founder educator"}`,
-                  `STYLE_DESCRIPTION: ${input.styleProfile?.description ?? "(none)"}`,
-                  `STYLE_INSPIRATION: ${input.styleProfile?.inspirationSummary ?? "(none)"}`,
-                  `STYLE_TRAITS: ${formatPromptList(input.styleProfile?.styleTraitsJson, 4)}`,
-                  `STYLE_GUARDRAILS: ${formatPromptList(input.styleProfile?.guardrailsJson, 4)}`,
-                  `ASSET_MODE: ${input.assetMode}`,
-                  `SOCIAL_DRAFT_MODE: ${socialDraftMode}`,
-                  `SOURCE_RESEARCH_TITLE: ${truncateAtWordBoundary(input.idea.title, 100)}`,
-                  `SOURCE_RESEARCH_CATEGORY: ${input.idea.category}`,
-                  `BUSINESS_TYPE: ${input.idea.businessType ?? "(none)"}`,
-                  `TARGET_CUSTOMER: ${truncateAtWordBoundary(input.idea.targetCustomer ?? "(none)", 100)}`,
-                  `PROBLEM: ${promptProblem}`,
-                  `SOLUTION: ${truncateAtWordBoundary(input.idea.solutionConcept ?? "(none)", 120)}`,
-                  `MONETIZATION: ${truncateAtWordBoundary(input.idea.monetizationAngle ?? "(none)", 100)}`,
-                  `EVIDENCE: ${promptEvidence}`,
-                  `SOURCE_ATTRIBUTION_SUMMARY: ${promptSourceAttribution}`,
-                  `EXTERNAL_INSIGHT_STATS_RESEARCH: ${promptStats}`
-                ].join("\n")
+                text: promptLines.join("\n")
               }
             ]
           }
@@ -857,7 +869,11 @@ async function generateSocialDraft(input: {
     throw new Error("OpenAI social draft response did not include output_text.");
   }
 
-  return socialDraftSchema.parse(JSON.parse(textOutput));
+  const parsed = socialDraftSchema.parse(JSON.parse(textOutput));
+  return {
+    ...parsed,
+    supportingStats: parsed.supportingStats.map((stat) => normalizeSupportingStat(stat)).filter((stat): stat is SupportingStat => Boolean(stat))
+  };
 }
 
 function resolveSocialDraftTimeoutMs() {
@@ -1112,7 +1128,7 @@ async function buildSignalEvidenceStatsResearch(
           ? "Use this to establish that the insight is pattern-based, not a one-off anecdote."
           : "Use this as a concise pattern signal before the sharper take.",
       sourceName: "BizBrain cluster evidence",
-      sourceUrl: sourceUrls.get(sortedSources[0]?.[0] ?? "") ?? "https://app.bizbrain.local/source-evidence",
+      sourceUrl: normalizePublicUrl(sourceUrls.get(sortedSources[0]?.[0] ?? "") ?? null),
       sourceDate: cluster?.lastSeenAt?.toISOString().slice(0, 10) ?? null,
       freshnessNote:
         cluster?.lastSeenAt
@@ -1133,7 +1149,7 @@ async function buildSignalEvidenceStatsResearch(
           ? "Use this to show the theme is showing up across different contexts, not just one community."
           : "Use this as a short cross-source validation point.",
       sourceName: "BizBrain source attribution",
-      sourceUrl: sourceUrls.get(sortedSources[0]?.[0] ?? "") ?? "https://app.bizbrain.local/source-evidence",
+      sourceUrl: normalizePublicUrl(sourceUrls.get(sortedSources[0]?.[0] ?? "") ?? null),
       sourceDate: cluster?.lastSeenAt?.toISOString().slice(0, 10) ?? null,
       freshnessNote: "This is based on the current cluster membership and source attribution, not a market-size estimate.",
       confidenceNote: sourceDiversity >= 3 ? "Higher confidence because multiple source classes contributed." : "Moderate confidence with limited source diversity.",
@@ -1155,7 +1171,7 @@ async function buildSignalEvidenceStatsResearch(
           ? "Use this to explain where the strongest current proof is concentrated."
           : "Use this only if the source concentration sharpens the take rather than narrowing it too much.",
       sourceName: sourceType,
-      sourceUrl: sourceUrls.get(sourceType) ?? "https://app.bizbrain.local/source-evidence",
+      sourceUrl: normalizePublicUrl(sourceUrls.get(sourceType) ?? null),
       sourceDate: cluster?.lastSeenAt?.toISOString().slice(0, 10) ?? null,
       freshnessNote: "Source concentration can shift as new signals arrive; treat this as a current snapshot.",
       confidenceNote: percentage >= 60 ? "Moderate confidence for a source-concentration stat." : "Use cautiously; the mix is still fairly distributed.",
@@ -1232,7 +1248,7 @@ async function buildExternalInsightStatsResearch(input: {
               ? `Use this to anchor the post in outside evidence about ${input.topic.name}, then translate the number into an operator implication.`
               : `Use this as a sharp external fact that makes the ${input.topic.name} angle feel timely and concrete.`,
           sourceName: match.sourceName,
-          sourceUrl: match.sourceUrl,
+          sourceUrl: normalizePublicUrl(match.sourceUrl),
           sourceDate: match.sourceDate,
           freshnessNote: match.sourceDate
             ? `This statistic was cited in a source dated ${match.sourceDate}. Verify the underlying article before publishing.`
@@ -1325,7 +1341,7 @@ async function fetchGoogleTrendsSupportingStats(input: {
           ? "Use this to show the topic is colliding with live search interest, not just discussion chatter."
           : "Use this as a quick proof that the theme is showing up in live search behavior too.",
       sourceName: "Google Trends",
-      sourceUrl: topMatch.sourceUrl,
+      sourceUrl: normalizePublicUrl(topMatch.sourceUrl),
       sourceDate: mostRecentDate,
       freshnessNote: mostRecentDate
         ? `The latest matching Google Trends item in this pass was dated ${mostRecentDate}.`
@@ -1345,7 +1361,7 @@ async function fetchGoogleTrendsSupportingStats(input: {
           ? "Use this as a punchy quantitative anchor, but keep the claim tied to search attention rather than market size."
           : "Use this as a short wow-factor stat without overstating what search volume means commercially.",
       sourceName: "Google Trends",
-      sourceUrl: topMatch.sourceUrl,
+      sourceUrl: normalizePublicUrl(topMatch.sourceUrl),
       sourceDate: topMatch.sourceDate,
       freshnessNote: "Approximate traffic comes from the Google Trends trending feed and reflects search attention, not customer count or revenue.",
       confidenceNote: "Use with caution; this is a platform-reported approximate traffic label, not a precise benchmark.",
@@ -1487,7 +1503,7 @@ async function fetchProductHuntSupportingStats(input: {
           ? "Use this to show that the topic has visible launch and product activity, not just discussion volume."
           : "Use this as a quick proof that builders are already shipping into this space.",
       sourceName: "Product Hunt",
-      sourceUrl: topMatch.url ?? "https://www.producthunt.com/",
+      sourceUrl: normalizePublicUrl(topMatch.url) ?? "https://www.producthunt.com/",
       sourceDate: topMatch.createdAt ? new Date(topMatch.createdAt).toISOString().slice(0, 10) : null,
       freshnessNote: "This reflects a recent Product Hunt launch snapshot, not a comprehensive market count.",
       confidenceNote: matches.length >= 2 ? "Moderate confidence from multiple relevant launches." : "Early external signal from a single relevant launch.",
@@ -1505,7 +1521,7 @@ async function fetchProductHuntSupportingStats(input: {
           ? "Use this as an interest signal for visible launch traction, not as proof of revenue or retention."
           : "Use this as a short traction stat when you want to show builders are paying attention.",
       sourceName: "Product Hunt",
-      sourceUrl: topMatch.url ?? "https://www.producthunt.com/",
+      sourceUrl: normalizePublicUrl(topMatch.url) ?? "https://www.producthunt.com/",
       sourceDate: topMatch.createdAt ? new Date(topMatch.createdAt).toISOString().slice(0, 10) : null,
       freshnessNote: "Votes and comments reflect Product Hunt engagement on a specific launch day or period.",
       confidenceNote: "Use with caution; marketplace engagement is directional traction, not commercial proof.",
@@ -1873,7 +1889,7 @@ function buildFallbackSupportingStats(input: {
           ? "Use this as a credibility anchor before explaining the business implication."
           : "Use this as a quick proof point before the sharper opinion.",
       sourceName: sourceType,
-      sourceUrl: sampleUrl ?? "https://app.bizbrain.local/source-evidence",
+      sourceUrl: normalizePublicUrl(sampleUrl ?? null),
       sourceDate: null,
       freshnessNote: "This stat is derived from the latest matched source evidence in BizBrain, not a third-party benchmark report.",
       confidenceNote: signalCount && signalCount > 1 ? "Moderate confidence from repeated source matches." : "Low-to-moderate confidence; based on limited source evidence.",
@@ -1882,6 +1898,40 @@ function buildFallbackSupportingStats(input: {
       reviewStatus: "pending"
     };
   });
+}
+
+function normalizeSupportingStat(value: Record<string, unknown> | SupportingStat): SupportingStat | null {
+  if (typeof value.claim !== "string" || typeof value.plainLanguageAngle !== "string" || typeof value.sourceName !== "string") {
+    return null;
+  }
+
+  return {
+    claim: value.claim,
+    plainLanguageAngle: value.plainLanguageAngle,
+    sourceName: value.sourceName,
+    sourceUrl: normalizePublicUrl(typeof value.sourceUrl === "string" ? value.sourceUrl : null),
+    sourceDate: typeof value.sourceDate === "string" ? value.sourceDate : null,
+    freshnessNote: typeof value.freshnessNote === "string" ? value.freshnessNote : "No freshness note recorded.",
+    confidenceNote: typeof value.confidenceNote === "string" ? value.confidenceNote : "No confidence note recorded.",
+    recommendedUsage: typeof value.recommendedUsage === "string" ? value.recommendedUsage : "No usage guidance recorded.",
+    reviewStatus:
+      typeof value.reviewStatus === "string" && ["pending", "approved", "use-with-caution", "rejected"].includes(value.reviewStatus)
+        ? (value.reviewStatus as SupportingStat["reviewStatus"])
+        : "pending"
+  };
+}
+
+function normalizePublicUrl(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function buildFallbackMediaCandidates(input: {
@@ -2128,7 +2178,7 @@ const socialDraftJsonSchema = {
           claim: { type: "string" },
           plainLanguageAngle: { type: "string" },
           sourceName: { type: "string" },
-          sourceUrl: { type: "string" },
+          sourceUrl: { type: ["string", "null"] },
           sourceDate: { type: ["string", "null"] },
           freshnessNote: { type: "string" },
           confidenceNote: { type: "string" },

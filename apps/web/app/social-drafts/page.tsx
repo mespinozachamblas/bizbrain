@@ -289,9 +289,13 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                                   </p>
                                   <p className="rowMeta">
                                     <strong>Source:</strong>{" "}
-                                    <a href={stat.sourceUrl} rel="noreferrer" target="_blank">
-                                      {stat.sourceUrl}
-                                    </a>
+                                    {stat.sourceUrl ? (
+                                      <a href={stat.sourceUrl} rel="noreferrer" target="_blank">
+                                        {stat.sourceUrl}
+                                      </a>
+                                    ) : (
+                                      "No source URL stored"
+                                    )}
                                   </p>
                                   <div className="jobButtons">
                                     {[
@@ -346,9 +350,13 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                                   </p>
                                   <p className="rowMeta">
                                     <strong>Source:</strong>{" "}
-                                    <a href={stat.sourceUrl} rel="noreferrer" target="_blank">
-                                      {stat.sourceUrl}
-                                    </a>
+                                    {stat.sourceUrl ? (
+                                      <a href={stat.sourceUrl} rel="noreferrer" target="_blank">
+                                        {stat.sourceUrl}
+                                      </a>
+                                    ) : (
+                                      "No source URL stored"
+                                    )}
                                   </p>
                                 </div>
                               ))}
@@ -587,7 +595,7 @@ function readSupportingStats(value: unknown) {
       claim: typeof entry.claim === "string" ? entry.claim : "No claim recorded.",
       plainLanguageAngle: typeof entry.plainLanguageAngle === "string" ? entry.plainLanguageAngle : "No angle recorded.",
       sourceName: typeof entry.sourceName === "string" ? entry.sourceName : "Unknown source",
-      sourceUrl: typeof entry.sourceUrl === "string" ? entry.sourceUrl : "#",
+      sourceUrl: typeof entry.sourceUrl === "string" && entry.sourceUrl.trim().length > 0 ? entry.sourceUrl : null,
       sourceDate: typeof entry.sourceDate === "string" ? entry.sourceDate : null,
       freshnessNote: typeof entry.freshnessNote === "string" ? entry.freshnessNote : "No freshness note recorded.",
       confidenceNote: typeof entry.confidenceNote === "string" ? entry.confidenceNote : "No confidence note recorded.",
@@ -598,14 +606,14 @@ function readSupportingStats(value: unknown) {
           : "pending",
       sourceClassLabel: inferStatSourceClass(
         typeof entry.sourceName === "string" ? entry.sourceName : "Unknown source",
-        typeof entry.sourceUrl === "string" ? entry.sourceUrl : "#"
+        typeof entry.sourceUrl === "string" ? entry.sourceUrl : null
       )
     }));
 }
 
-function inferStatSourceClass(sourceName: string, sourceUrl: string) {
+function inferStatSourceClass(sourceName: string, sourceUrl: string | null) {
   const normalizedName = sourceName.toLowerCase();
-  const normalizedUrl = sourceUrl.toLowerCase();
+  const normalizedUrl = (sourceUrl ?? "").toLowerCase();
 
   if (normalizedName.includes("google trends") || normalizedUrl.includes("trends.google.com")) {
     return "Google Trends";

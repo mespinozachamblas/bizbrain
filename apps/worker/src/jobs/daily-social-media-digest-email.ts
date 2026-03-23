@@ -262,7 +262,7 @@ type SupportingStat = {
   claim: string;
   plainLanguageAngle: string;
   sourceName: string;
-  sourceUrl: string;
+  sourceUrl: string | null;
   sourceDate: string | null;
   freshnessNote: string;
   confidenceNote: string;
@@ -447,7 +447,7 @@ function readSupportingStats(value: unknown): SupportingStat[] {
       claim: typeof entry.claim === "string" ? entry.claim : "No claim recorded.",
       plainLanguageAngle: typeof entry.plainLanguageAngle === "string" ? entry.plainLanguageAngle : "No angle recorded.",
       sourceName: typeof entry.sourceName === "string" ? entry.sourceName : "Unknown source",
-      sourceUrl: typeof entry.sourceUrl === "string" ? entry.sourceUrl : "https://app.bizbrain.local/source-evidence",
+      sourceUrl: typeof entry.sourceUrl === "string" && /^https?:\/\//i.test(entry.sourceUrl) ? entry.sourceUrl : null,
       sourceDate: typeof entry.sourceDate === "string" ? entry.sourceDate : null,
       freshnessNote: typeof entry.freshnessNote === "string" ? entry.freshnessNote : "No freshness note recorded.",
       confidenceNote: typeof entry.confidenceNote === "string" ? entry.confidenceNote : "No confidence note recorded.",
@@ -512,7 +512,7 @@ function formatSupportingStatLine(
     `Draft: ${stat.draftTitle}`,
     `Source class: ${stat.sourceClass}`,
     `Review: ${stat.reviewStatus}`,
-    `Source: ${stat.sourceName} (${stat.sourceUrl})`,
+    `Source: ${stat.sourceName}${stat.sourceUrl ? ` (${stat.sourceUrl})` : ""}`,
     `Freshness: ${ensureSentence(stat.freshnessNote)}`,
     `Confidence: ${ensureSentence(stat.confidenceNote)}`
   ].join(" | ");
@@ -569,7 +569,7 @@ function buildSignalEvidenceSections(
 
 function inferSupportingStatSourceClass(stat: SupportingStat) {
   const sourceName = stat.sourceName.toLowerCase();
-  const sourceUrl = stat.sourceUrl.toLowerCase();
+  const sourceUrl = (stat.sourceUrl ?? "").toLowerCase();
 
   if (sourceName.includes("google trends") || sourceUrl.includes("trends.google.com")) {
     return "Google Trends";
@@ -591,12 +591,12 @@ function scoreSupportingStat(
   draft: SocialDigestDraft & { freshnessTag?: string | null }
 ) {
   let score = draft.qualityScore ?? 0;
-  const sourceUrl = stat.sourceUrl.toLowerCase();
+  const sourceUrl = (stat.sourceUrl ?? "").toLowerCase();
   const freshnessText = `${stat.freshnessNote} ${stat.sourceDate ?? ""}`.toLowerCase();
   const confidenceText = stat.confidenceNote.toLowerCase();
   const claimText = stat.claim.toLowerCase();
 
-  if (!sourceUrl.includes("app.bizbrain.local")) {
+  if (sourceUrl && !sourceUrl.includes("app.bizbrain.local")) {
     score += 3;
   }
 

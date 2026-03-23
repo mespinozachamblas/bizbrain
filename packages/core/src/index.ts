@@ -33,7 +33,7 @@ export const supportingStatSchema = z.object({
   claim: z.string(),
   plainLanguageAngle: z.string(),
   sourceName: z.string(),
-  sourceUrl: z.string().url(),
+  sourceUrl: z.string().url().nullable().optional(),
   sourceDate: z.string().nullable().optional(),
   freshnessNote: z.string(),
   confidenceNote: z.string(),
