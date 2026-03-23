@@ -415,6 +415,24 @@ function scoreIdeaForTopic(idea: IdeaWithCluster, topic: TopicRecord) {
   return score;
 }
 
+function resolveSocialDraftMode(topic: Pick<TopicRecord, "slug" | "name" | "keywordsJson" | "description">) {
+  const haystack = [
+    topic.slug,
+    topic.name,
+    topic.description,
+    Array.isArray(topic.keywordsJson) ? topic.keywordsJson.join(" ") : ""
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (/(build in public|build-in-public|ship|launch|offer|productized|opportunity|founder content)/.test(haystack)) {
+    return "opportunity-derived";
+  }
+
+  return "commentary";
+}
+
 async function generateSocialDraft(input: {
   channel: (typeof researchStreamChannels)[number];
   idea: IdeaWithCluster;
@@ -434,6 +452,7 @@ async function generateSocialDraft(input: {
   let response: Response;
 
   try {
+    const socialDraftMode = resolveSocialDraftMode(input.topic);
     response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -465,8 +484,9 @@ async function generateSocialDraft(input: {
                   `STYLE_TRAITS: ${JSON.stringify(input.styleProfile?.styleTraitsJson ?? [])}`,
                   `STYLE_GUARDRAILS: ${JSON.stringify(input.styleProfile?.guardrailsJson ?? [])}`,
                   `ASSET_MODE: ${input.assetMode}`,
-                  `IDEA_TITLE: ${input.idea.title}`,
-                  `IDEA_CATEGORY: ${input.idea.category}`,
+                  `SOCIAL_DRAFT_MODE: ${socialDraftMode}`,
+                  `SOURCE_RESEARCH_TITLE: ${input.idea.title}`,
+                  `SOURCE_RESEARCH_CATEGORY: ${input.idea.category}`,
                   `BUSINESS_TYPE: ${input.idea.businessType ?? "(none)"}`,
                   `TARGET_CUSTOMER: ${input.idea.targetCustomer ?? "(none)"}`,
                   `PROBLEM: ${input.idea.problemSummary ?? "(none)"}`,
@@ -539,31 +559,58 @@ function buildFallbackSocialDraft(input: {
   assetMode: string;
   externalInsightStats: SupportingStat[];
 }): SocialDraft {
+  const mode = resolveSocialDraftMode(input.topic);
   const audience = input.channel === "linkedin" ? "Founders and operators on LinkedIn" : "Operators and builders on X";
   const hook =
-    input.channel === "linkedin"
-      ? `Most founders miss this signal: ${input.idea.problemSummary ?? input.idea.title}`
-      : `${input.idea.title} is a stronger business signal than it looks.`;
+    mode === "opportunity-derived"
+      ? input.channel === "linkedin"
+        ? `Most founders miss this signal: ${input.idea.problemSummary ?? input.idea.title}`
+        : `${input.idea.title} is a stronger business signal than it looks.`
+      : input.channel === "linkedin"
+        ? `${input.idea.problemSummary ?? input.idea.title} keeps showing up for operators for a reason.`
+        : `${input.idea.problemSummary ?? input.idea.title} is more than a one-off complaint.`;
   const thesis =
-    input.channel === "linkedin"
-      ? `${input.idea.title} points to a practical wedge in ${input.idea.category} that operators would understand immediately.`
-      : `${input.idea.title} shows where ${input.idea.category} demand is getting sharper.`;
-  const supportingPoints = [
-    input.idea.problemSummary ?? "The source material showed concrete operator pain.",
-    input.idea.solutionConcept ?? "There is a clear product angle, not just a generic trend.",
-    input.idea.monetizationAngle ?? "There is an identifiable way to make money from the opportunity."
-  ].slice(0, 3);
+    mode === "opportunity-derived"
+      ? input.channel === "linkedin"
+        ? `${input.idea.title} points to a practical wedge in ${input.idea.category} that operators would understand immediately.`
+        : `${input.idea.title} shows where ${input.idea.category} demand is getting sharper.`
+      : input.channel === "linkedin"
+        ? `The real story is the repeated workflow friction behind ${input.idea.title}, not just the product angle.`
+        : `${input.idea.title} highlights a repeated workflow problem in ${input.idea.category}.`;
+  const supportingPoints =
+    mode === "opportunity-derived"
+      ? [
+          input.idea.problemSummary ?? "The source material showed concrete operator pain.",
+          input.idea.solutionConcept ?? "There is a clear product angle, not just a generic trend.",
+          input.idea.monetizationAngle ?? "There is an identifiable way to make money from the opportunity."
+        ].slice(0, 3)
+      : [
+          input.idea.problemSummary ?? "The source material showed concrete operator pain.",
+          input.idea.evidenceSummary ?? "The same friction appears repeatedly across the evidence.",
+          input.externalInsightStats[0]?.claim ?? "There is enough outside evidence to turn the pattern into a stronger public-facing insight."
+        ].slice(0, 3);
   const cta =
-    input.channel === "linkedin"
-      ? "Would you build this as software, a service, or a marketplace?"
-      : "Would you ship this as SaaS, service, or workflow tooling?";
+    mode === "opportunity-derived"
+      ? input.channel === "linkedin"
+        ? "Would you build this as software, a service, or a marketplace?"
+        : "Would you ship this as SaaS, service, or workflow tooling?"
+      : input.channel === "linkedin"
+        ? "Have you seen this same workflow friction in your business or clients?"
+        : "Have you seen this pattern too, or is this still early?";
   const draftMarkdown =
-    input.channel === "linkedin"
-      ? `${hook}\n\n${thesis}\n\n1. ${supportingPoints[0]}\n2. ${supportingPoints[1]}\n3. ${supportingPoints[2]}\n\nMy take: ${input.idea.solutionConcept ?? input.idea.title}\n\n${cta}`
-      : `${hook}\n\n${thesis}\n\n- ${supportingPoints[0]}\n- ${supportingPoints[1]}\n- ${supportingPoints[2]}\n\n${cta}`;
+    mode === "opportunity-derived"
+      ? input.channel === "linkedin"
+        ? `${hook}\n\n${thesis}\n\n1. ${supportingPoints[0]}\n2. ${supportingPoints[1]}\n3. ${supportingPoints[2]}\n\nMy take: ${input.idea.solutionConcept ?? input.idea.title}\n\n${cta}`
+        : `${hook}\n\n${thesis}\n\n- ${supportingPoints[0]}\n- ${supportingPoints[1]}\n- ${supportingPoints[2]}\n\n${cta}`
+      : input.channel === "linkedin"
+        ? `${hook}\n\n${thesis}\n\n1. ${supportingPoints[0]}\n2. ${supportingPoints[1]}\n3. ${supportingPoints[2]}\n\nThe better conversation is what this says about the workflow, not just the tool.\n\n${cta}`
+        : `${hook}\n\n${thesis}\n\n- ${supportingPoints[0]}\n- ${supportingPoints[1]}\n- ${supportingPoints[2]}\n\n${cta}`;
 
   return socialDraftSchema.parse({
-    title: `${input.idea.title} (${input.channel.toUpperCase()})`,
+    title:
+      mode === "opportunity-derived"
+        ? `${input.idea.title} (${input.channel.toUpperCase()})`
+        : `${input.topic.name}: ${input.idea.problemSummary ?? input.idea.title} (${input.channel.toUpperCase()})`,
     targetAudience: audience,
     hook,
     thesis,
