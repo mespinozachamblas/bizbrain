@@ -74,6 +74,7 @@ export type DashboardData = {
     name: string;
     description: string | null;
     enabled: boolean;
+    topicFitThreshold: number | null;
     defaultAssetMode: string | null;
     defaultCopyFrameworkId: string | null;
     defaultStyleProfileId: string | null;
@@ -265,6 +266,7 @@ export async function getDashboardData(): Promise<DashboardData> {
           name: true,
           description: true,
           enabled: true,
+          topicFitThreshold: true,
           defaultAssetMode: true,
           defaultCopyFrameworkId: true,
           defaultStyleProfileId: true,

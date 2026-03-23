@@ -36,6 +36,7 @@ type TopicRecord = {
   keywordsJson: unknown;
   exclusionsJson: unknown;
   sourcePreferencesJson: unknown;
+  topicFitThreshold: number | null;
   defaultAssetMode: string | null;
   defaultCopyFramework: {
     id: string;
@@ -105,13 +106,13 @@ async function syncSocialResearchBriefs() {
     const matchedClusters = clusters
       .map((cluster) => ({
         cluster,
-        score: scoreClusterForTopic(cluster, topic)
+        fitScore: scoreClusterForTopic(cluster, topic)
       }))
-      .filter((entry) => entry.score > 0)
-      .sort((left, right) => right.score - left.score || right.cluster.scoreTotal - left.cluster.scoreTotal)
+      .filter((entry) => entry.fitScore >= resolveTopicFitThreshold(topic))
+      .sort((left, right) => right.fitScore - left.fitScore || right.cluster.scoreTotal - left.cluster.scoreTotal)
       .slice(0, 3);
 
-    for (const { cluster, score } of matchedClusters) {
+    for (const { cluster, fitScore } of matchedClusters) {
       const sourceAttribution = buildClusterSourceAttribution(cluster);
       const briefData = {
         researchStreamId: researchStreamIds.socialMedia,
@@ -127,7 +128,7 @@ async function syncSocialResearchBriefs() {
         supportingStatsJson: [],
         signalEvidenceStatsJson: [],
         sourceAttributionJson: sourceAttribution,
-        qualityScore: Math.min(9.4, Math.max(5.8, score + (cluster.scoreTotal ?? 0))),
+        qualityScore: Math.min(9.4, Math.max(5.8, fitScore + Math.min(2.4, (cluster.scoreTotal ?? 0) * 0.15))),
         status: "ready"
       };
 
@@ -487,7 +488,7 @@ function resolveTopicChannels(value: unknown) {
 
 function scoreClusterForTopic(
   cluster: any,
-  topic: Pick<TopicRecord, "keywordsJson" | "exclusionsJson" | "slug" | "name">
+  topic: Pick<TopicRecord, "keywordsJson" | "exclusionsJson" | "slug" | "name" | "description">
 ) {
   const keywords = Array.isArray(topic.keywordsJson)
     ? topic.keywordsJson.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.toLowerCase())
@@ -510,12 +511,46 @@ function scoreClusterForTopic(
     return 0;
   }
 
-  let score = cluster.scoreTotal ?? 0;
+  const topicalTerms = new Set<string>();
+
+  for (const keyword of keywords) {
+    topicalTerms.add(keyword);
+    for (const token of tokenizeTopicText(keyword)) {
+      topicalTerms.add(token);
+    }
+  }
+
+  for (const token of tokenizeTopicText([topic.slug, topic.name, topic.description ?? ""].filter(Boolean).join(" "))) {
+    topicalTerms.add(token);
+  }
+
+  let score = 0;
+  let matchedTerms = 0;
 
   for (const keyword of keywords) {
     if (haystack.includes(keyword)) {
-      score += 3;
+      score += 3.5;
+      matchedTerms += 1;
     }
+  }
+
+  for (const term of topicalTerms) {
+    if (term.length < 4) {
+      continue;
+    }
+
+    if (new RegExp(`\\b${escapeRegExp(term)}\\b`, "i").test(haystack)) {
+      score += 1.25;
+      matchedTerms += 1;
+    }
+  }
+
+  if (matchedTerms > 0) {
+    score += 1;
+  }
+
+  if (topic.name && new RegExp(`\\b${escapeRegExp(topic.name.toLowerCase())}\\b`, "i").test(haystack)) {
+    score += 2;
   }
 
   if (topic.slug.includes("linkedin") && /(founder|operator|team|startup)/.test(haystack)) {
@@ -528,6 +563,38 @@ function scoreClusterForTopic(
 
   return score;
 }
+
+function resolveTopicFitThreshold(topic: Pick<TopicRecord, "topicFitThreshold">) {
+  return typeof topic.topicFitThreshold === "number" && Number.isFinite(topic.topicFitThreshold) ? topic.topicFitThreshold : 6;
+}
+
+function tokenizeTopicText(value: string) {
+  return value
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 4 && !TOPIC_STOPWORDS.has(token));
+}
+
+const TOPIC_STOPWORDS = new Set([
+  "with",
+  "from",
+  "into",
+  "that",
+  "this",
+  "your",
+  "have",
+  "about",
+  "around",
+  "quick",
+  "build",
+  "public",
+  "content",
+  "research",
+  "social",
+  "media",
+  "weekly"
+]);
 
 function buildClusterSourceAttribution(cluster: any) {
   const sourceGroups = new Map<string, { count: number; titles: string[]; urls: string[] }>();

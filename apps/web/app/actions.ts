@@ -405,6 +405,7 @@ export async function createTopic(_: ActionState, formData: FormData): Promise<A
     const defaultAssetMode = readOptionalString(formData, "defaultAssetMode");
     const defaultCopyFrameworkId = readOptionalString(formData, "defaultCopyFrameworkId");
     const defaultStyleProfileId = readOptionalString(formData, "defaultStyleProfileId");
+    const topicFitThreshold = readOptionalNumber(formData, "topicFitThreshold");
     const enabled = readBoolean(formData, "enabled", true);
     const enabledChannels = parseChannels(formData.get("enabledChannels"));
     const keywords = parseList(formData.get("keywords"));
@@ -449,6 +450,7 @@ export async function createTopic(_: ActionState, formData: FormData): Promise<A
         keywordsJson: keywords,
         exclusionsJson: exclusions,
         sourcePreferencesJson: sourcePreferences,
+        topicFitThreshold,
         defaultAssetMode,
         defaultCopyFrameworkId,
         defaultStyleProfileId
@@ -473,6 +475,7 @@ export async function updateTopic(_: ActionState, formData: FormData): Promise<A
     const defaultAssetMode = readOptionalString(formData, "defaultAssetMode");
     const defaultCopyFrameworkId = readOptionalString(formData, "defaultCopyFrameworkId");
     const defaultStyleProfileId = readOptionalString(formData, "defaultStyleProfileId");
+    const topicFitThreshold = readOptionalNumber(formData, "topicFitThreshold");
     const enabled = readBoolean(formData, "enabled", false);
     const enabledChannels = parseChannels(formData.get("enabledChannels"));
     const keywords = parseList(formData.get("keywords"));
@@ -518,6 +521,7 @@ export async function updateTopic(_: ActionState, formData: FormData): Promise<A
         keywordsJson: keywords,
         exclusionsJson: exclusions,
         sourcePreferencesJson: sourcePreferences,
+        topicFitThreshold,
         defaultAssetMode,
         defaultCopyFrameworkId,
         defaultStyleProfileId
@@ -991,6 +995,20 @@ function readBoolean(formData: FormData, key: string, defaultValue: boolean) {
   return value === "on" || value === "true" || value === "1";
 }
 
+function readOptionalNumber(formData: FormData, key: string) {
+  const value = readOptionalString(formData, key);
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${key} must be a valid number.`);
+  }
+
+  return parsed;
+}
+
 function readStringList(formData: FormData, key: string) {
   return [...new Set(formData
     .getAll(key)
@@ -1089,22 +1107,6 @@ function buildSourceConfigFromFormData(formData: FormData, sourceType: string) {
   }
 
   return sourceAdapterConfigSchema.parse(config);
-}
-
-function readOptionalNumber(formData: FormData, key: string) {
-  const value = readOptionalString(formData, key);
-
-  if (!value) {
-    return null;
-  }
-
-  const parsed = Number(value);
-
-  if (!Number.isFinite(parsed)) {
-    throw new Error(`${key} must be a valid number.`);
-  }
-
-  return parsed;
 }
 
 async function validateSourceRelations(input: { researchStreamIds: string[]; topicIds: string[] }) {

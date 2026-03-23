@@ -78,6 +78,13 @@ export default async function TopicsPage({ searchParams }: PageProps) {
               Include stats preferences here too when useful, for example `google-trends, government-data, industry-report`.
             </p>
             <label className="fieldLabel">
+              Topic fit threshold
+              <input className="fieldInput" defaultValue="6" max="20" min="0" name="topicFitThreshold" placeholder="6" step="0.5" type="number" />
+            </label>
+            <p className="helperText">
+              Higher values make this topic stricter. Social topics around `6-8` usually block weak matches without starving draft generation.
+            </p>
+            <label className="fieldLabel">
               Default framework
               <select className="fieldInput" defaultValue="" name="defaultCopyFrameworkId">
                 <option value="">Use stream default</option>
@@ -202,6 +209,21 @@ export default async function TopicsPage({ searchParams }: PageProps) {
                     <p className="helperText">
                       Use source preferences to guide both signal matching and preferred stats-source classes such as `google-trends`,
                       `government-data`, `industry-report`, or `marketplace-data`.
+                    </p>
+                    <label className="fieldLabel">
+                      Topic fit threshold
+                      <input
+                        className="fieldInput"
+                        defaultValue={topic.topicFitThreshold ?? 6}
+                        max="20"
+                        min="0"
+                        name="topicFitThreshold"
+                        step="0.5"
+                        type="number"
+                      />
+                    </label>
+                    <p className="helperText">
+                      Raise this to demand tighter topic overlap before the worker creates a social brief and downstream drafts.
                     </p>
                     <label className="fieldLabel">
                       Default framework

@@ -88,6 +88,7 @@ model Topic {
   keywordsJson          Json?           @map("keywords_json")
   exclusionsJson        Json?           @map("exclusions_json")
   sourcePreferencesJson Json?           @map("source_preferences_json")
+  topicFitThreshold     Float?          @map("topic_fit_threshold")
   defaultCopyFrameworkId String?        @map("default_copy_framework_id")
   defaultStyleProfileId  String?        @map("default_style_profile_id")
   defaultAssetMode      String?         @map("default_asset_mode")
