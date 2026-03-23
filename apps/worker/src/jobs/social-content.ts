@@ -701,6 +701,10 @@ async function generateSocialDraft(input: {
 
   try {
     const socialDraftMode = resolveSocialDraftMode(input.topic);
+    const promptProblem = truncateAtWordBoundary(buildConciseProblemStatement(input.idea.problemSummary ?? input.idea.title), 140);
+    const promptEvidence = truncateAtWordBoundary(buildConciseEvidenceLine(input.idea.evidenceSummary, input.externalInsightStats), 180);
+    const promptSourceAttribution = summarizeSourceAttributionForPrompt(input.idea.sourceAttributionJson);
+    const promptStats = summarizeStatsForPrompt(input.externalInsightStats);
     response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -729,20 +733,20 @@ async function generateSocialDraft(input: {
                   `STYLE_PROFILE: ${input.styleProfile?.name ?? "Founder educator"}`,
                   `STYLE_DESCRIPTION: ${input.styleProfile?.description ?? "(none)"}`,
                   `STYLE_INSPIRATION: ${input.styleProfile?.inspirationSummary ?? "(none)"}`,
-                  `STYLE_TRAITS: ${JSON.stringify(input.styleProfile?.styleTraitsJson ?? [])}`,
-                  `STYLE_GUARDRAILS: ${JSON.stringify(input.styleProfile?.guardrailsJson ?? [])}`,
+                  `STYLE_TRAITS: ${formatPromptList(input.styleProfile?.styleTraitsJson, 4)}`,
+                  `STYLE_GUARDRAILS: ${formatPromptList(input.styleProfile?.guardrailsJson, 4)}`,
                   `ASSET_MODE: ${input.assetMode}`,
                   `SOCIAL_DRAFT_MODE: ${socialDraftMode}`,
-                  `SOURCE_RESEARCH_TITLE: ${input.idea.title}`,
+                  `SOURCE_RESEARCH_TITLE: ${truncateAtWordBoundary(input.idea.title, 100)}`,
                   `SOURCE_RESEARCH_CATEGORY: ${input.idea.category}`,
                   `BUSINESS_TYPE: ${input.idea.businessType ?? "(none)"}`,
-                  `TARGET_CUSTOMER: ${input.idea.targetCustomer ?? "(none)"}`,
-                  `PROBLEM: ${input.idea.problemSummary ?? "(none)"}`,
-                  `SOLUTION: ${input.idea.solutionConcept ?? "(none)"}`,
-                  `MONETIZATION: ${input.idea.monetizationAngle ?? "(none)"}`,
-                  `EVIDENCE: ${input.idea.evidenceSummary ?? "(none)"}`,
-                  `SOURCE_ATTRIBUTION: ${JSON.stringify(input.idea.sourceAttributionJson ?? [])}`,
-                  `EXTERNAL_INSIGHT_STATS_RESEARCH: ${JSON.stringify(input.externalInsightStats)}`
+                  `TARGET_CUSTOMER: ${truncateAtWordBoundary(input.idea.targetCustomer ?? "(none)", 100)}`,
+                  `PROBLEM: ${promptProblem}`,
+                  `SOLUTION: ${truncateAtWordBoundary(input.idea.solutionConcept ?? "(none)", 120)}`,
+                  `MONETIZATION: ${truncateAtWordBoundary(input.idea.monetizationAngle ?? "(none)", 100)}`,
+                  `EVIDENCE: ${promptEvidence}`,
+                  `SOURCE_ATTRIBUTION_SUMMARY: ${promptSourceAttribution}`,
+                  `EXTERNAL_INSIGHT_STATS_RESEARCH: ${promptStats}`
                 ].join("\n")
               }
             ]
@@ -939,6 +943,50 @@ function truncateAtWordBoundary(value: string, maxLength: number) {
   const truncated = value.slice(0, maxLength);
   const lastSpace = truncated.lastIndexOf(" ");
   return `${(lastSpace > 40 ? truncated.slice(0, lastSpace) : truncated).trim()}.`;
+}
+
+function formatPromptList(value: unknown, maxItems: number) {
+  if (!Array.isArray(value)) {
+    return "(none)";
+  }
+
+  const items = value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => truncateAtWordBoundary(entry, 60))
+    .slice(0, maxItems);
+
+  return items.length > 0 ? items.join(" | ") : "(none)";
+}
+
+function summarizeSourceAttributionForPrompt(value: unknown) {
+  if (!Array.isArray(value)) {
+    return "(none)";
+  }
+
+  const summary = value
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+    .slice(0, 3)
+    .map((entry) => {
+      const sourceType = typeof entry.sourceType === "string" ? entry.sourceType : "source";
+      const signalCount = typeof entry.signalCount === "number" ? entry.signalCount : null;
+      const title = Array.isArray(entry.sampleTitles)
+        ? entry.sampleTitles.find((candidate): candidate is string => typeof candidate === "string" && candidate.trim().length > 0)
+        : null;
+      return `${sourceType}${signalCount ? ` (${signalCount})` : ""}${title ? `: ${truncateAtWordBoundary(title, 70)}` : ""}`;
+    });
+
+  return summary.length > 0 ? summary.join(" | ") : "(none)";
+}
+
+function summarizeStatsForPrompt(stats: SupportingStat[]) {
+  const trimmed = stats.slice(0, 2).map((stat) => ({
+    claim: truncateAtWordBoundary(stat.claim, 140),
+    sourceName: stat.sourceName,
+    sourceDate: stat.sourceDate,
+    recommendedUsage: truncateAtWordBoundary(stat.recommendedUsage, 120)
+  }));
+
+  return trimmed.length > 0 ? JSON.stringify(trimmed) : "[]";
 }
 
 async function buildSignalEvidenceStatsResearch(
