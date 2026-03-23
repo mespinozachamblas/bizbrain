@@ -674,7 +674,7 @@ function resolveSocialDraftMode(topic: Pick<TopicRecord, "slug" | "name" | "keyw
     .join(" ")
     .toLowerCase();
 
-  if (/(build in public|build-in-public|ship|launch|offer|productized|opportunity|founder content)/.test(haystack)) {
+  if (/(build in public|build-in-public|ship|launch|offer|productized|opportunity-derived)/.test(haystack)) {
     return "opportunity-derived";
   }
 
@@ -810,46 +810,49 @@ function buildFallbackSocialDraft(input: {
 }): SocialDraft {
   const mode = resolveSocialDraftMode(input.topic);
   const audience = input.channel === "linkedin" ? "Founders and operators on LinkedIn" : "Operators and builders on X";
+  const conciseTitle = buildConciseDraftTitle(input.idea, input.topic);
+  const conciseProblem = buildConciseProblemStatement(input.idea.problemSummary ?? input.idea.title);
+  const conciseEvidence = buildConciseEvidenceLine(input.idea.evidenceSummary, input.externalInsightStats);
   const hook =
     mode === "opportunity-derived"
       ? input.channel === "linkedin"
-        ? `Most founders miss this signal: ${input.idea.problemSummary ?? input.idea.title}`
-        : `${input.idea.title} is a stronger business signal than it looks.`
+        ? `The interesting part isn’t the tool idea. It’s the workflow friction behind ${conciseTitle.toLowerCase()}.`
+        : `${conciseTitle} is really a workflow lesson hiding inside a market signal.`
       : input.channel === "linkedin"
-        ? `${input.idea.problemSummary ?? input.idea.title} keeps showing up for operators for a reason.`
-        : `${input.idea.problemSummary ?? input.idea.title} is more than a one-off complaint.`;
+        ? `A pattern I’d pay attention to: ${conciseProblem}`
+        : `${conciseProblem} keeps showing up in operator conversations.`;
   const thesis =
     mode === "opportunity-derived"
       ? input.channel === "linkedin"
-        ? `${input.idea.title} points to a practical wedge in ${input.idea.category} that operators would understand immediately.`
-        : `${input.idea.title} shows where ${input.idea.category} demand is getting sharper.`
+        ? `The opportunity is less about inventing a new app and more about fixing the decision process around ${conciseTitle.toLowerCase()}.`
+        : `The signal matters because it exposes where the current workflow is failing before software even enters the picture.`
       : input.channel === "linkedin"
-        ? `The real story is the repeated workflow friction behind ${input.idea.title}, not just the product angle.`
-        : `${input.idea.title} highlights a repeated workflow problem in ${input.idea.category}.`;
+        ? `The real story is the repeated workflow friction behind ${conciseTitle.toLowerCase()}, not just the surface request.`
+        : `This is a repeated workflow problem, not a one-off edge case.`;
   const supportingPoints =
     mode === "opportunity-derived"
       ? [
-          input.idea.problemSummary ?? "The source material showed concrete operator pain.",
-          input.idea.solutionConcept ?? "There is a clear product angle, not just a generic trend.",
-          input.idea.monetizationAngle ?? "There is an identifiable way to make money from the opportunity."
+          conciseProblem,
+          input.idea.solutionConcept ?? "There is a clearer operating fix here than most teams realize.",
+          conciseEvidence
         ].slice(0, 3)
       : [
-          input.idea.problemSummary ?? "The source material showed concrete operator pain.",
-          input.idea.evidenceSummary ?? "The same friction appears repeatedly across the evidence.",
+          conciseProblem,
+          conciseEvidence,
           input.externalInsightStats[0]?.claim ?? "There is enough outside evidence to turn the pattern into a stronger public-facing insight."
         ].slice(0, 3);
   const cta =
     mode === "opportunity-derived"
       ? input.channel === "linkedin"
-        ? "Would you build this as software, a service, or a marketplace?"
-        : "Would you ship this as SaaS, service, or workflow tooling?"
+        ? "If you were fixing this tomorrow, would you start with process, service, or software?"
+        : "Would you solve this with a process fix first or productize it?"
       : input.channel === "linkedin"
         ? "Have you seen this same workflow friction in your business or clients?"
         : "Have you seen this pattern too, or is this still early?";
   const draftMarkdown =
     mode === "opportunity-derived"
       ? input.channel === "linkedin"
-        ? `${hook}\n\n${thesis}\n\n1. ${supportingPoints[0]}\n2. ${supportingPoints[1]}\n3. ${supportingPoints[2]}\n\nMy take: ${input.idea.solutionConcept ?? input.idea.title}\n\n${cta}`
+        ? `${hook}\n\n${thesis}\n\n1. ${supportingPoints[0]}\n2. ${supportingPoints[1]}\n3. ${supportingPoints[2]}\n\nMy take: fix the operating motion before jumping to tooling.\n\n${cta}`
         : `${hook}\n\n${thesis}\n\n- ${supportingPoints[0]}\n- ${supportingPoints[1]}\n- ${supportingPoints[2]}\n\n${cta}`
       : input.channel === "linkedin"
         ? `${hook}\n\n${thesis}\n\n1. ${supportingPoints[0]}\n2. ${supportingPoints[1]}\n3. ${supportingPoints[2]}\n\nThe better conversation is what this says about the workflow, not just the tool.\n\n${cta}`
@@ -858,8 +861,8 @@ function buildFallbackSocialDraft(input: {
   return socialDraftSchema.parse({
     title:
       mode === "opportunity-derived"
-        ? `${input.idea.title} (${input.channel.toUpperCase()})`
-        : `${input.topic.name}: ${input.idea.problemSummary ?? input.idea.title} (${input.channel.toUpperCase()})`,
+        ? `${conciseTitle} (${input.channel.toUpperCase()})`
+        : `${input.topic.name}: ${conciseTitle} (${input.channel.toUpperCase()})`,
     targetAudience: audience,
     hook,
     thesis,
@@ -888,6 +891,54 @@ function buildFallbackSocialDraft(input: {
     supportingStats: input.externalInsightStats,
     qualityScore: Math.min(9.2, Math.max(6.4, input.idea.qualityScore ?? 7))
   });
+}
+
+function buildConciseDraftTitle(idea: Pick<IdeaWithCluster, "title" | "problemSummary">, topic: Pick<TopicRecord, "name">) {
+  const raw = firstMeaningfulSentence(idea.title) || firstMeaningfulSentence(idea.problemSummary) || topic.name;
+  return truncateAtWordBoundary(raw, 72);
+}
+
+function buildConciseProblemStatement(value: string) {
+  const sentence = firstMeaningfulSentence(value);
+  return truncateAtWordBoundary(sentence || "The same workflow friction keeps resurfacing.", 160);
+}
+
+function buildConciseEvidenceLine(evidenceSummary: string | null | undefined, stats: SupportingStat[]) {
+  const evidence = firstMeaningfulSentence(evidenceSummary);
+  if (evidence) {
+    return truncateAtWordBoundary(evidence, 160);
+  }
+
+  const statClaim = firstMeaningfulSentence(stats[0]?.claim);
+  if (statClaim) {
+    return truncateAtWordBoundary(statClaim, 160);
+  }
+
+  return "The same friction appears repeatedly across the available evidence.";
+}
+
+function firstMeaningfulSentence(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  const normalized = value.replace(/\s+/g, " ").trim();
+  const sentence = normalized.split(/(?<=[.!?])\s+/)[0] ?? normalized;
+  return sentence
+    .replace(/^the poster is actively seeking recommendations for /i, "")
+    .replace(/^founders want /i, "Teams want ")
+    .replace(/^a young entrepreneur runs /i, "A small operator runs ")
+    .trim();
+}
+
+function truncateAtWordBoundary(value: string, maxLength: number) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  const truncated = value.slice(0, maxLength);
+  const lastSpace = truncated.lastIndexOf(" ");
+  return `${(lastSpace > 40 ? truncated.slice(0, lastSpace) : truncated).trim()}.`;
 }
 
 async function buildSignalEvidenceStatsResearch(
