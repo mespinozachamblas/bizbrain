@@ -769,7 +769,8 @@ async function generateSocialDraft(input: {
   }
 
   if (!response.ok) {
-    throw new Error(`OpenAI social draft request failed with ${response.status}.`);
+    const errorBody = await response.text();
+    throw new Error(`OpenAI social draft request failed with ${response.status}: ${errorBody.slice(0, 600)}`);
   }
 
   const payload = (await response.json()) as {
@@ -789,10 +790,10 @@ async function generateSocialDraft(input: {
 }
 
 function resolveSocialDraftTimeoutMs() {
-  const parsed = Number(process.env.OPENAI_SOCIAL_DRAFT_TIMEOUT_MS ?? "20000");
+  const parsed = Number(process.env.OPENAI_SOCIAL_DRAFT_TIMEOUT_MS ?? "45000");
 
   if (!Number.isFinite(parsed) || parsed < 5000) {
-    return 20000;
+    return 45000;
   }
 
   return parsed;
@@ -1893,11 +1894,11 @@ const socialDraftJsonSchema = {
         properties: {
           label: { type: "string" },
           sourceType: { type: "string", enum: ["first-party", "licensed-stock", "open-license", "ai-generated", "discovery-reference"] },
-          originUrl: { type: ["string", "null"], format: "uri" },
+          originUrl: { type: ["string", "null"] },
           originDomain: { type: ["string", "null"] },
-          candidateUrl: { type: ["string", "null"], format: "uri" },
+          candidateUrl: { type: ["string", "null"] },
           licenseLabel: { type: ["string", "null"] },
-          licenseUrl: { type: ["string", "null"], format: "uri" },
+          licenseUrl: { type: ["string", "null"] },
           attributionText: { type: ["string", "null"] },
           usageStatus: { type: "string", enum: ["publishable", "review-required", "reference-only"] },
           reviewStatus: { type: "string", enum: ["pending", "approved", "use-with-caution", "rejected", "reference-only"] },
@@ -1961,7 +1962,7 @@ const socialDraftJsonSchema = {
           claim: { type: "string" },
           plainLanguageAngle: { type: "string" },
           sourceName: { type: "string" },
-          sourceUrl: { type: "string", format: "uri" },
+          sourceUrl: { type: "string" },
           sourceDate: { type: ["string", "null"] },
           freshnessNote: { type: "string" },
           confidenceNote: { type: "string" },
