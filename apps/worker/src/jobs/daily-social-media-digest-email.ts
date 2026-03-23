@@ -26,20 +26,7 @@ export async function runDailySocialMediaDigestEmail() {
       }
 
       const [drafts, failedJobs, failedSourceChecks, recipients, existingDigest, previousDigest] = await Promise.all([
-        db.contentDraft.findMany({
-          where: {
-            researchStreamId,
-            status: "draft"
-          },
-          orderBy: [{ qualityScore: "desc" }, { updatedAt: "desc" }],
-          take: 24,
-          include: {
-            topic: true,
-            copyFramework: true,
-            styleProfile: true,
-            sourceIdea: true
-          }
-        }),
+        getSocialDigestDrafts(researchStreamId),
         db.jobRun.findMany({
           where: {
             OR: [{ jobName: "daily-enrich-score" }, { jobName: "daily-social-media-digest-email" }],
@@ -269,14 +256,7 @@ type SocialDigestInputs = {
   freshnessBaseline: Date | null;
 };
 
-type SocialDigestDraft = Awaited<ReturnType<typeof db.contentDraft.findMany<{
-  include: {
-    topic: true;
-    copyFramework: true;
-    styleProfile: true;
-    sourceIdea: true;
-  };
-}>>>[number];
+type SocialDigestDraft = Awaited<ReturnType<typeof getSocialDigestDrafts>>[number];
 
 type SupportingStat = {
   claim: string;
@@ -289,6 +269,33 @@ type SupportingStat = {
   recommendedUsage: string;
   reviewStatus: string;
 };
+
+async function getSocialDigestDrafts(researchStreamId: string) {
+  return db.contentDraft.findMany({
+    where: {
+      researchStreamId,
+      status: "draft"
+    },
+    orderBy: [{ qualityScore: "desc" }, { updatedAt: "desc" }],
+    take: 24,
+    include: {
+      topic: true,
+      copyFramework: true,
+      styleProfile: true,
+      sourceIdea: true,
+      sourceBrief: {
+        select: {
+          id: true,
+          topicId: true,
+          framingMode: true,
+          title: true,
+          themeSummary: true,
+          operatorTakeaway: true
+        }
+      }
+    }
+  });
+}
 
 function buildSocialDigestSections(input: SocialDigestInputs) {
   const rankedDrafts = rankSocialDigestDrafts(input.drafts, input.priorDraftTitles, input.freshnessBaseline);
@@ -752,11 +759,13 @@ function rankSocialDigestDrafts(
       draft,
       quality: draft.qualityScore ?? 0,
       freshness: scoreDraftFreshness(draft, priorDraftTitles, freshnessBaseline),
+      relevance: scoreDraftRelevance(draft),
       freshnessLabel: buildDraftFreshnessLabel(draft, priorDraftTitles, freshnessBaseline)
     }))
-    .filter(({ quality }) => quality >= 6)
+    .filter(({ quality, relevance }) => quality >= 6 && relevance >= 0)
     .sort(
       (left, right) =>
+        right.relevance - left.relevance ||
         right.freshness - left.freshness ||
         right.quality - left.quality ||
         right.draft.updatedAt.getTime() - left.draft.updatedAt.getTime()
@@ -765,6 +774,54 @@ function rankSocialDigestDrafts(
       ...draft,
       freshnessTag: freshnessLabel
     }));
+}
+
+function scoreDraftRelevance(draft: SocialDigestDraft) {
+  let score = 0;
+  const topicKeywords = Array.isArray(draft.topic?.keywordsJson)
+    ? draft.topic.keywordsJson.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.toLowerCase())
+    : [];
+  const haystack = [
+    draft.title,
+    draft.hook,
+    draft.thesis,
+    draft.sourceBrief?.title,
+    draft.sourceBrief?.themeSummary,
+    draft.sourceBrief?.operatorTakeaway,
+    draft.sourceIdea?.title,
+    draft.sourceIdea?.problemSummary,
+    draft.sourceIdea?.solutionConcept
+  ]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .join(" ")
+    .toLowerCase();
+
+  if (draft.sourceBriefId) {
+    score += 5;
+  } else if (draft.sourceIdeaId) {
+    score -= 3;
+  }
+
+  if (draft.sourceBrief && draft.topicId && draft.sourceBrief.topicId === draft.topicId) {
+    score += 4;
+  }
+
+  const overlap = topicKeywords.filter((keyword) => keywordMatchesHaystack(keyword, haystack)).length;
+  if (overlap > 0) {
+    score += Math.min(6, overlap * 2);
+  } else if (!isBroadSocialTopic(draft.topic?.slug)) {
+    score -= 6;
+  }
+
+  if (/would you build this as software|would you ship this as saas|practical wedge|demand is getting sharper/i.test(`${draft.hook ?? ""} ${draft.thesis ?? ""} ${draft.cta ?? ""}`)) {
+    score -= 4;
+  }
+
+  if (draft.sourceBrief?.framingMode === "commentary") {
+    score += 2;
+  }
+
+  return score;
 }
 
 function scoreDraftFreshness(
@@ -825,6 +882,28 @@ function buildDraftFreshnessLabel(
 
 function normalizeDraftTitle(value: string) {
   return value.trim().toLowerCase();
+}
+
+function isBroadSocialTopic(slug: string | null | undefined) {
+  return slug === "linkedin-founder-content" || slug === "x-operator-content";
+}
+
+function keywordMatchesHaystack(keyword: string, haystack: string) {
+  const escapedKeyword = escapeRegExp(keyword.trim().toLowerCase());
+
+  if (!escapedKeyword) {
+    return false;
+  }
+
+  const pattern = escapedKeyword.includes("\\ ")
+    ? new RegExp(`(^|[^a-z0-9])${escapedKeyword}([^a-z0-9]|$)`, "i")
+    : new RegExp(`\\b${escapedKeyword}\\b`, "i");
+
+  return pattern.test(haystack);
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function extractDigestDraftTitles(selectionJson: unknown) {
