@@ -63,6 +63,6 @@ Rules:
 - if you include statistics, they should be externally publishable insights from the provided external research context, with source name, source URL, freshness note, confidence note, and recommended usage
 - do not turn internal signal counts, search-feed metadata, or platform engagement data into the wow-factor statistics section unless the external research context explicitly supports that use
 - if no credible external statistic is available from the provided context, return an empty supportingStats array instead of inventing numbers
-- for infographicCreativeBrief, give concrete visual-production guidance: composition, hierarchy, style, source strategy, and a prompt suitable for AI image generation or designer handoff
+- for infographicCreativeBrief, give concrete visual-production guidance: composition, hierarchy, style, source strategy, and explicit prompts for carousel cover, single-image use, mixed stock+AI composition, and per-panel execution
 `.trim();
 }

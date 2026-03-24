@@ -430,6 +430,7 @@ function formatInfographicLine(draft: SocialDigestDraft) {
     `Format: ${draft.infographicFormat ?? "visual brief"}`,
     `Topic: ${draft.topic?.name ?? "Unassigned"}`,
     `Creative: ${ensureSentence(creativeDirection ?? "Creative-production brief pending.")}`,
+    `Asset prompt: ${ensureSentence(readObjectField((draft as any).infographicCreativeBriefJson, "singleImagePrompt") ?? readObjectField((draft as any).infographicCreativeBriefJson, "carouselCoverPrompt") ?? "Asset-production prompt pending.")}`,
     `Panels: ${panelSummary}`
   ].join(" | ");
 }

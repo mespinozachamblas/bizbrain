@@ -271,6 +271,9 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                               <p className="rowBody"><strong>Chart/diagram:</strong> {readObjectField(draft.infographicCreativeBriefJson, "chartOrDiagramType") ?? "No chart direction recorded."}</p>
                               <p className="rowBody"><strong>Image source strategy:</strong> {readObjectField(draft.infographicCreativeBriefJson, "imageSourceStrategy") ?? "No source strategy recorded."}</p>
                               <p className="rowBody"><strong>Composition prompt:</strong> {readObjectField(draft.infographicCreativeBriefJson, "compositionPrompt") ?? "No composition prompt recorded."}</p>
+                              <p className="rowBody"><strong>Carousel cover prompt:</strong> {readObjectField(draft.infographicCreativeBriefJson, "carouselCoverPrompt") ?? "No carousel cover prompt recorded."}</p>
+                              <p className="rowBody"><strong>Single-image prompt:</strong> {readObjectField(draft.infographicCreativeBriefJson, "singleImagePrompt") ?? "No single-image prompt recorded."}</p>
+                              <p className="rowBody"><strong>Mixed stock + AI prompt:</strong> {readObjectField(draft.infographicCreativeBriefJson, "mixedMediaCompositionPrompt") ?? "No mixed-media prompt recorded."}</p>
                               <p className="rowBody"><strong>Text hierarchy:</strong> {formatListInput(readObjectArrayField(draft.infographicCreativeBriefJson, "textHierarchy")) || "No hierarchy recorded."}</p>
                               <p className="rowBody"><strong>Panel prompts:</strong> {formatListInput(readObjectArrayField(draft.infographicCreativeBriefJson, "panelPrompts")) || "No panel prompts recorded."}</p>
                               <p className="rowBody"><strong>Avoid notes:</strong> {formatListInput(readObjectArrayField(draft.infographicCreativeBriefJson, "avoidNotes")) || "No avoid notes recorded."}</p>

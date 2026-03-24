@@ -1051,6 +1051,9 @@ function buildFallbackInfographicCreativeBrief(input: {
     input.channel === "linkedin"
       ? `Create a polished LinkedIn carousel cover and supporting slides for "${input.topicName}". Editorial business design, bold condensed headline typography, warm neutral background, charcoal text, deep blue accent, subtle workflow arrows, abstract dashboard fragments, no cartoon characters, no generic startup illustrations, no app mockup sales pitch. Core message: ${input.hook} Proof point: ${input.strongestExternalStat ?? input.conciseEvidence} Takeaway: ${input.thesis}`
       : `Create a high-contrast X graphic for "${input.topicName}" with one marketable editorial composition. Large headline, one proof-point callout, compact takeaway footer, sharp business-journal feel, warm neutrals with dark ink contrast, minimal dashboard or workflow motif, no cartoon AI art, no cheesy growth-hack visuals. Core message: ${input.hook} Proof point: ${input.strongestExternalStat ?? input.conciseEvidence}`;
+  const carouselCoverPrompt = `Create a LinkedIn carousel cover for "${input.topicName}" using an editorial business aesthetic. Use one dominant hook, a restrained background motif tied to workflow friction, bold typographic hierarchy, and enough negative space for premium readability. Headline: ${input.hook}`;
+  const singleImagePrompt = `Create a single-image social graphic for "${input.topicName}" with one dominant claim, one proof point, and one takeaway. Make it legible on mobile, marketable, and visually distinct without looking like a SaaS ad. Claim: ${input.hook} Proof: ${input.strongestExternalStat ?? input.conciseEvidence} Takeaway: ${input.thesis}`;
+  const mixedMediaCompositionPrompt = `Compose a publishable social visual for "${input.topicName}" by combining one licensed-stock or first-party reference image with clean AI-generated overlays, typography, and diagram elements. Preserve realism, avoid uncanny composites, and keep the final image editorial rather than promotional. Core message: ${input.hook}`;
 
   return {
     creativeDirection: `Turn "${input.conciseTitle}" into a marketable operator-insight visual that feels publishable, modern, and grounded in real workflow pain.`,
@@ -1066,6 +1069,9 @@ function buildFallbackInfographicCreativeBrief(input: {
     chartOrDiagramType,
     imageSourceStrategy,
     aiImagePrompt,
+    carouselCoverPrompt,
+    singleImagePrompt,
+    mixedMediaCompositionPrompt,
     panelPrompts: input.panels.map((panel, index) =>
       input.channel === "linkedin"
         ? `Slide ${index + 1}: ${panel}. Create a distinct visual treatment for this slide while preserving one shared editorial style across the carousel.`
@@ -2219,6 +2225,9 @@ const socialDraftJsonSchema = {
         chartOrDiagramType: { type: "string" },
         imageSourceStrategy: { type: "string" },
         aiImagePrompt: { type: "string" },
+        carouselCoverPrompt: { type: "string" },
+        singleImagePrompt: { type: "string" },
+        mixedMediaCompositionPrompt: { type: "string" },
         panelPrompts: {
           type: "array",
           items: { type: "string" },
@@ -2242,6 +2251,9 @@ const socialDraftJsonSchema = {
         "chartOrDiagramType",
         "imageSourceStrategy",
         "aiImagePrompt",
+        "carouselCoverPrompt",
+        "singleImagePrompt",
+        "mixedMediaCompositionPrompt",
         "panelPrompts",
         "avoidNotes"
       ]

@@ -136,6 +136,9 @@ export const socialDraftSchema = z.object({
     chartOrDiagramType: z.string(),
     imageSourceStrategy: z.string(),
     aiImagePrompt: z.string(),
+    carouselCoverPrompt: z.string(),
+    singleImagePrompt: z.string(),
+    mixedMediaCompositionPrompt: z.string(),
     panelPrompts: z.array(z.string()).min(1).max(6),
     avoidNotes: z.array(z.string()).min(2).max(6)
   }),
