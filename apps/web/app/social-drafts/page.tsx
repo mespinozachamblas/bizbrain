@@ -283,6 +283,12 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                         </div>
                         <div className="evidenceSection">
                           <p className="rowBody">
+                            <strong>Prompt pack:</strong>
+                          </p>
+                          <pre className="draftPreview">{buildPromptPack(draft, supportingStats, mediaCandidates)}</pre>
+                        </div>
+                        <div className="evidenceSection">
+                          <p className="rowBody">
                             <strong>External insight statistics:</strong>
                           </p>
                           {supportingStats.length === 0 ? (
@@ -634,6 +640,79 @@ function readSupportingStats(value: unknown) {
         typeof entry.sourceUrl === "string" ? entry.sourceUrl : null
       )
     }));
+}
+
+function buildPromptPack(
+  draft: any,
+  supportingStats: Array<{
+    claim: string;
+    sourceName: string;
+    sourceUrl: string | null;
+    reviewStatus: string;
+  }>,
+  mediaCandidates: Array<{
+    label: string;
+    sourceType: string;
+    originUrl: string | null;
+    reviewStatus: string;
+    usageStatus: string;
+  }>
+) {
+  const creativeBrief = draft.infographicCreativeBriefJson;
+  const approvedStats = supportingStats.filter((stat) => stat.reviewStatus === "approved").slice(0, 3);
+  const reviewedMedia = mediaCandidates
+    .filter((candidate) => candidate.reviewStatus === "approved" || candidate.reviewStatus === "use-with-caution")
+    .slice(0, 3);
+
+  const lines = [
+    `TITLE: ${draft.title ?? "Untitled social draft"}`,
+    `CHANNEL: ${draft.targetChannel ?? "unknown"}`,
+    `TOPIC: ${draft.topic?.name ?? "Unassigned"}`,
+    `HOOK: ${draft.hook ?? "No hook recorded."}`,
+    `THESIS: ${draft.thesis ?? "No thesis recorded."}`,
+    `CTA: ${draft.cta ?? "No CTA recorded."}`,
+    "",
+    "INFOGRAPHIC CREATIVE DIRECTION",
+    `Creative direction: ${readObjectField(creativeBrief, "creativeDirection") ?? "No creative direction recorded."}`,
+    `Objective: ${readObjectField(creativeBrief, "objective") ?? "No objective recorded."}`,
+    `Visual style: ${readObjectField(creativeBrief, "visualStyle") ?? "No visual style recorded."}`,
+    `Layout strategy: ${readObjectField(creativeBrief, "layoutStrategy") ?? "No layout strategy recorded."}`,
+    `Chart/diagram: ${readObjectField(creativeBrief, "chartOrDiagramType") ?? "No chart direction recorded."}`,
+    `Image source strategy: ${readObjectField(creativeBrief, "imageSourceStrategy") ?? "No image-source strategy recorded."}`,
+    "",
+    "PRODUCTION PROMPTS",
+    `Carousel cover prompt: ${readObjectField(creativeBrief, "carouselCoverPrompt") ?? "No carousel cover prompt recorded."}`,
+    `Single-image prompt: ${readObjectField(creativeBrief, "singleImagePrompt") ?? "No single-image prompt recorded."}`,
+    `Mixed stock + AI prompt: ${readObjectField(creativeBrief, "mixedMediaCompositionPrompt") ?? "No mixed-media prompt recorded."}`,
+    `Master AI image prompt: ${readObjectField(creativeBrief, "aiImagePrompt") ?? "No AI image prompt recorded."}`,
+    "",
+    "PANEL PROMPTS",
+    ...readObjectArrayField(creativeBrief, "panelPrompts").map((prompt, index) => `${index + 1}. ${prompt}`),
+    "",
+    "TEXT HIERARCHY",
+    ...readObjectArrayField(creativeBrief, "textHierarchy").map((item, index) => `${index + 1}. ${item}`),
+    "",
+    "AVOID NOTES",
+    ...readObjectArrayField(creativeBrief, "avoidNotes").map((item, index) => `${index + 1}. ${item}`),
+    "",
+    "APPROVED SUPPORTING STATS",
+    ...(approvedStats.length > 0
+      ? approvedStats.map(
+          (stat, index) =>
+            `${index + 1}. ${stat.claim} (${stat.sourceName}${stat.sourceUrl ? ` — ${stat.sourceUrl}` : ""})`
+        )
+      : ["No approved supporting stats yet."]),
+    "",
+    "REVIEWED MEDIA REFERENCES",
+    ...(reviewedMedia.length > 0
+      ? reviewedMedia.map(
+          (candidate, index) =>
+            `${index + 1}. ${candidate.label} [${candidate.sourceType} / ${candidate.reviewStatus} / ${candidate.usageStatus}]${candidate.originUrl ? ` — ${candidate.originUrl}` : ""}`
+        )
+      : ["No reviewed media suggestions yet."])
+  ];
+
+  return lines.join("\n");
 }
 
 function inferStatSourceClass(sourceName: string, sourceUrl: string | null) {
