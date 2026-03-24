@@ -1,5 +1,6 @@
 import { db } from "@bizbrain/db";
 import { regenerateContentDraft, runPipelineJob, updateContentDraftAssetStatus, updateContentDraftMediaCandidateStatus, updateContentDraftStatStatus, updateContentDraftStatus } from "../actions";
+import { CopyButton } from "../copy-button";
 import { formatDate, formatListInput, formatSourceAttribution, getDashboardData, readSearchParam } from "../dashboard-data";
 import { EmptyState } from "../dashboard-ui";
 
@@ -166,6 +167,7 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                 const supportingStats = readSupportingStats(draft.supportingStatsJson);
                 const signalEvidenceStats = readSupportingStats((draft as { signalEvidenceStatsJson?: unknown }).signalEvidenceStatsJson);
                 const mediaCandidates = readMediaCandidates(draft.assetCandidatesJson);
+                const promptPack = buildPromptPack(draft, supportingStats, mediaCandidates);
 
                 return (
                   <details className="adminDisclosure" key={draft.id}>
@@ -285,7 +287,10 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                           <p className="rowBody">
                             <strong>Prompt pack:</strong>
                           </p>
-                          <pre className="draftPreview">{buildPromptPack(draft, supportingStats, mediaCandidates)}</pre>
+                          <div className="jobButtons">
+                            <CopyButton label="Copy prompt pack" text={promptPack} />
+                          </div>
+                          <pre className="draftPreview">{promptPack}</pre>
                         </div>
                         <div className="evidenceSection">
                           <p className="rowBody">
