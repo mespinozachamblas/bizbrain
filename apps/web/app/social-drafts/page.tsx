@@ -169,6 +169,9 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                 const promptPack = buildPromptPack(draft, supportingStats, mediaCandidates);
                 const promptPackHref = buildPromptPackHref(promptPack);
                 const promptPackFilename = buildPromptPackFilename(draft.title ?? "social-draft");
+                const carouselPromptPack = buildPromptVariantPack("carousel", draft, supportingStats, mediaCandidates);
+                const singleImagePromptPack = buildPromptVariantPack("single-image", draft, supportingStats, mediaCandidates);
+                const mixedMediaPromptPack = buildPromptVariantPack("mixed-media", draft, supportingStats, mediaCandidates);
 
                 return (
                   <details className="adminDisclosure" key={draft.id}>
@@ -291,6 +294,27 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                           <div className="jobButtons">
                             <a className="jobButton jobButtonSecondary" download={promptPackFilename} href={promptPackHref}>
                               Download prompt pack
+                            </a>
+                            <a
+                              className="jobButton jobButtonSecondary"
+                              download={buildPromptPackFilename(`${draft.title ?? "social-draft"} carousel`)}
+                              href={buildPromptPackHref(carouselPromptPack)}
+                            >
+                              Download carousel pack
+                            </a>
+                            <a
+                              className="jobButton jobButtonSecondary"
+                              download={buildPromptPackFilename(`${draft.title ?? "social-draft"} single-image`)}
+                              href={buildPromptPackHref(singleImagePromptPack)}
+                            >
+                              Download single-image pack
+                            </a>
+                            <a
+                              className="jobButton jobButtonSecondary"
+                              download={buildPromptPackFilename(`${draft.title ?? "social-draft"} mixed-media`)}
+                              href={buildPromptPackHref(mixedMediaPromptPack)}
+                            >
+                              Download mixed-media pack
                             </a>
                           </div>
                           <pre className="draftPreview">{promptPack}</pre>
@@ -695,6 +719,92 @@ function buildPromptPack(
     `Master AI image prompt: ${readObjectField(creativeBrief, "aiImagePrompt") ?? "No AI image prompt recorded."}`,
     "",
     "PANEL PROMPTS",
+    ...readObjectArrayField(creativeBrief, "panelPrompts").map((prompt, index) => `${index + 1}. ${prompt}`),
+    "",
+    "TEXT HIERARCHY",
+    ...readObjectArrayField(creativeBrief, "textHierarchy").map((item, index) => `${index + 1}. ${item}`),
+    "",
+    "AVOID NOTES",
+    ...readObjectArrayField(creativeBrief, "avoidNotes").map((item, index) => `${index + 1}. ${item}`),
+    "",
+    "APPROVED SUPPORTING STATS",
+    ...(approvedStats.length > 0
+      ? approvedStats.map(
+          (stat, index) =>
+            `${index + 1}. ${stat.claim} (${stat.sourceName}${stat.sourceUrl ? ` — ${stat.sourceUrl}` : ""})`
+        )
+      : ["No approved supporting stats yet."]),
+    "",
+    "REVIEWED MEDIA REFERENCES",
+    ...(reviewedMedia.length > 0
+      ? reviewedMedia.map(
+          (candidate, index) =>
+            `${index + 1}. ${candidate.label} [${candidate.sourceType} / ${candidate.reviewStatus} / ${candidate.usageStatus}]${candidate.originUrl ? ` — ${candidate.originUrl}` : ""}`
+        )
+      : ["No reviewed media suggestions yet."])
+  ];
+
+  return lines.join("\n");
+}
+
+function buildPromptVariantPack(
+  variant: "carousel" | "single-image" | "mixed-media",
+  draft: any,
+  supportingStats: Array<{
+    claim: string;
+    sourceName: string;
+    sourceUrl: string | null;
+    reviewStatus: string;
+  }>,
+  mediaCandidates: Array<{
+    label: string;
+    sourceType: string;
+    originUrl: string | null;
+    reviewStatus: string;
+    usageStatus: string;
+  }>
+) {
+  const creativeBrief = draft.infographicCreativeBriefJson;
+  const approvedStats = supportingStats.filter((stat) => stat.reviewStatus === "approved").slice(0, 3);
+  const reviewedMedia = mediaCandidates
+    .filter((candidate) => candidate.reviewStatus === "approved" || candidate.reviewStatus === "use-with-caution")
+    .slice(0, 3);
+
+  const promptLabel =
+    variant === "carousel"
+      ? "Carousel cover prompt"
+      : variant === "single-image"
+        ? "Single-image prompt"
+        : "Mixed stock + AI prompt";
+  const promptValue =
+    variant === "carousel"
+      ? readObjectField(creativeBrief, "carouselCoverPrompt")
+      : variant === "single-image"
+        ? readObjectField(creativeBrief, "singleImagePrompt")
+        : readObjectField(creativeBrief, "mixedMediaCompositionPrompt");
+
+  const lines = [
+    `TITLE: ${draft.title ?? "Untitled social draft"}`,
+    `CHANNEL: ${draft.targetChannel ?? "unknown"}`,
+    `TOPIC: ${draft.topic?.name ?? "Unassigned"}`,
+    `VARIANT: ${variant}`,
+    `HOOK: ${draft.hook ?? "No hook recorded."}`,
+    `THESIS: ${draft.thesis ?? "No thesis recorded."}`,
+    `CTA: ${draft.cta ?? "No CTA recorded."}`,
+    "",
+    "CREATIVE DIRECTION",
+    `Creative direction: ${readObjectField(creativeBrief, "creativeDirection") ?? "No creative direction recorded."}`,
+    `Objective: ${readObjectField(creativeBrief, "objective") ?? "No objective recorded."}`,
+    `Visual style: ${readObjectField(creativeBrief, "visualStyle") ?? "No visual style recorded."}`,
+    `Layout strategy: ${readObjectField(creativeBrief, "layoutStrategy") ?? "No layout strategy recorded."}`,
+    `Chart/diagram: ${readObjectField(creativeBrief, "chartOrDiagramType") ?? "No chart direction recorded."}`,
+    `Image source strategy: ${readObjectField(creativeBrief, "imageSourceStrategy") ?? "No image-source strategy recorded."}`,
+    "",
+    "PRIMARY PRODUCTION PROMPT",
+    `${promptLabel}: ${promptValue ?? "No dedicated prompt recorded."}`,
+    `Master AI image prompt: ${readObjectField(creativeBrief, "aiImagePrompt") ?? "No AI image prompt recorded."}`,
+    "",
+    variant === "carousel" ? "PANEL PROMPTS" : variant === "single-image" ? "SINGLE-IMAGE SUPPORTING LAYERS" : "MIXED-MEDIA SUPPORTING LAYERS",
     ...readObjectArrayField(creativeBrief, "panelPrompts").map((prompt, index) => `${index + 1}. ${prompt}`),
     "",
     "TEXT HIERARCHY",
