@@ -528,17 +528,39 @@ export function matchesTopicSearch(topic: DashboardData["topics"][number], query
 }
 
 export function formatDate(value: Date) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-    timeZone: "America/Edmonton"
-  });
+  const zone = isEdmontonDst(value) ? "MDT" : "MST";
+  const offsetHours = zone === "MDT" ? -6 : -7;
+  const local = new Date(value.getTime() + offsetHours * 60 * 60 * 1000);
+  const month = EDMONTON_MONTHS[local.getUTCMonth()] ?? "Jan";
+  const day = local.getUTCDate();
+  const year = local.getUTCFullYear();
+  const minutes = String(local.getUTCMinutes()).padStart(2, "0");
+  const rawHours = local.getUTCHours();
+  const hour12 = rawHours % 12 === 0 ? 12 : rawHours % 12;
+  const meridiem = rawHours >= 12 ? "PM" : "AM";
 
-  return `${formatter.format(value)} MDT`;
+  return `${month} ${day}, ${year}, ${hour12}:${minutes} ${meridiem} ${zone}`;
+}
+
+const EDMONTON_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+function isEdmontonDst(value: Date) {
+  const year = value.getUTCFullYear();
+  const dstStartUtc = edmontonTransitionUtc(year, 2, 2, 2, 7);
+  const dstEndUtc = edmontonTransitionUtc(year, 10, 1, 2, 6);
+  return value.getTime() >= dstStartUtc.getTime() && value.getTime() < dstEndUtc.getTime();
+}
+
+function edmontonTransitionUtc(year: number, monthIndex: number, occurrence: number, localHour: number, utcOffsetHours: number) {
+  const day = nthWeekdayOfMonth(year, monthIndex, 0, occurrence);
+  return new Date(Date.UTC(year, monthIndex, day, localHour - utcOffsetHours, 0, 0));
+}
+
+function nthWeekdayOfMonth(year: number, monthIndex: number, weekday: number, occurrence: number) {
+  const firstOfMonth = new Date(Date.UTC(year, monthIndex, 1));
+  const firstWeekday = firstOfMonth.getUTCDay();
+  const delta = (weekday - firstWeekday + 7) % 7;
+  return 1 + delta + (occurrence - 1) * 7;
 }
 
 export function normalizeStatus(value: string) {
