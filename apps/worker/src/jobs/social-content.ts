@@ -335,6 +335,9 @@ export async function syncSocialContentDrafts() {
             status: "draft"
           };
 
+          (createData as any).infographicCreativeBriefJson = generated.infographicCreativeBrief;
+          (updateData as any).infographicCreativeBriefJson = generated.infographicCreativeBrief;
+
           if (existingDraft) {
             await db.contentDraft.update({
               where: { id: existingDraft.id },
@@ -434,37 +437,40 @@ export async function regenerateSocialDraftById(draftId: string) {
     warnings.push(error instanceof Error ? error.message : String(error));
   }
 
+  const updateData: Record<string, unknown> = {
+    copyFrameworkId: framework?.id ?? null,
+    styleProfileId: styleProfile?.id ?? null,
+    title: generated.title,
+    targetAudience: generated.targetAudience,
+    hook: generated.hook,
+    thesis: generated.thesis,
+    supportingPointsJson: generated.supportingPoints,
+    counterpoint: generated.counterpoint,
+    cta: generated.cta,
+    draftMarkdown: generated.draftMarkdown,
+    visualBriefJson: generated.visualBrief,
+    supportingStatsJson: generated.supportingStats,
+    signalEvidenceStatsJson: signalEvidenceStats,
+    infographicBriefJson: generated.infographicBrief,
+    infographicCreativeBriefJson: generated.infographicCreativeBrief,
+    infographicFormat: generated.infographicBrief.format,
+    infographicPanelsJson: generated.infographicBrief.panels,
+    assetMode,
+    assetStatus: generated.mediaCandidates.some((candidate) => candidate.usageStatus === "reference-only")
+      ? "review-required"
+      : generated.mediaCandidates.length > 0
+        ? "review-required"
+        : "draft",
+    assetCandidatesJson: generated.mediaCandidates,
+    mediaPolicyJson: generated.mediaPolicy,
+    qualityScore: generated.qualityScore,
+    sourceAttributionJson: sourceBrief.sourceAttributionJson ?? undefined,
+    status: "draft"
+  };
+
   await db.contentDraft.update({
     where: { id: draft.id },
-    data: {
-      copyFrameworkId: framework?.id ?? null,
-      styleProfileId: styleProfile?.id ?? null,
-      title: generated.title,
-      targetAudience: generated.targetAudience,
-      hook: generated.hook,
-      thesis: generated.thesis,
-      supportingPointsJson: generated.supportingPoints,
-      counterpoint: generated.counterpoint,
-      cta: generated.cta,
-      draftMarkdown: generated.draftMarkdown,
-      visualBriefJson: generated.visualBrief,
-      supportingStatsJson: generated.supportingStats,
-      signalEvidenceStatsJson: signalEvidenceStats,
-      infographicBriefJson: generated.infographicBrief,
-      infographicFormat: generated.infographicBrief.format,
-      infographicPanelsJson: generated.infographicBrief.panels,
-      assetMode,
-      assetStatus: generated.mediaCandidates.some((candidate) => candidate.usageStatus === "reference-only")
-        ? "review-required"
-        : generated.mediaCandidates.length > 0
-          ? "review-required"
-          : "draft",
-      assetCandidatesJson: generated.mediaCandidates,
-      mediaPolicyJson: generated.mediaPolicy,
-      qualityScore: generated.qualityScore,
-      sourceAttributionJson: sourceBrief.sourceAttributionJson ?? undefined,
-      status: "draft"
-    }
+    data: updateData as any
   });
 
   return {
@@ -944,6 +950,19 @@ function buildFallbackSocialDraft(input: {
   const xTakeaway = mode === "opportunity-derived"
     ? input.idea.solutionConcept ?? "The workflow is the wedge before the product."
     : strongestExternalStat ?? conciseEvidence;
+  const infographicPanels =
+    input.channel === "linkedin"
+      ? [
+          `Slide 1 headline: ${hook}`,
+          `Slide 2 pattern: ${conciseProblem}`,
+          `Slide 3 proof: ${strongestExternalStat ?? conciseEvidence}`,
+          `Slide 4 takeaway: ${thesis}`
+        ]
+      : [
+          `Headline: ${hook}`,
+          `Proof point: ${strongestExternalStat ?? conciseEvidence}`,
+          `Takeaway: ${thesis}`
+        ];
   const draftMarkdown =
     mode === "opportunity-derived"
       ? input.channel === "linkedin"
@@ -981,25 +1000,84 @@ function buildFallbackSocialDraft(input: {
           ? `Turn this operator insight into a 4-panel carousel that starts with the pain pattern, explains the workflow lesson, and lands on a practical takeaway.`
           : `Turn this into a single-image infographic with one bold claim, one supporting proof point, and one practical takeaway.`,
       format: input.channel === "linkedin" ? "carousel" : "single-image infographic",
-      panels:
-        input.channel === "linkedin"
-          ? [
-              `Slide 1 headline: ${hook}`,
-              `Slide 2 pattern: ${conciseProblem}`,
-              `Slide 3 proof: ${strongestExternalStat ?? conciseEvidence}`,
-              `Slide 4 takeaway: ${thesis}`
-            ]
-          : [
-              `Headline: ${hook}`,
-              `Proof point: ${strongestExternalStat ?? conciseEvidence}`,
-              `Takeaway: ${thesis}`
-            ]
+      panels: infographicPanels
     },
+    infographicCreativeBrief: buildFallbackInfographicCreativeBrief({
+      channel: input.channel,
+      topicName: input.topic.name,
+      conciseTitle,
+      hook,
+      thesis,
+      conciseProblem,
+      conciseEvidence,
+      strongestExternalStat,
+      panels: infographicPanels,
+      assetMode: input.assetMode
+    }),
     mediaCandidates: buildFallbackMediaCandidates(input),
     mediaPolicy: buildFallbackMediaPolicy(input.assetMode),
     supportingStats: input.externalInsightStats,
     qualityScore: Math.min(9.2, Math.max(6.4, input.idea.qualityScore ?? 7))
   });
+}
+
+function buildFallbackInfographicCreativeBrief(input: {
+  channel: (typeof researchStreamChannels)[number];
+  topicName: string;
+  conciseTitle: string;
+  hook: string;
+  thesis: string;
+  conciseProblem: string;
+  conciseEvidence: string;
+  strongestExternalStat: string | null;
+  panels: string[];
+  assetMode: string;
+}) {
+  const chartOrDiagramType =
+    input.strongestExternalStat || /\d/.test(input.conciseEvidence) ? "hero statistic with supporting callout" : "process flow with editorial callout";
+  const visualStyle =
+    input.channel === "linkedin"
+      ? "Clean editorial carousel with bold business typography, restrained dashboards, and strong whitespace."
+      : "High-contrast single-slide social graphic with one dominant claim and minimal supporting clutter.";
+  const layoutStrategy =
+    input.channel === "linkedin"
+      ? "Use a 4-slide narrative arc: hook, pattern, proof, takeaway. Keep each slide focused on one idea."
+      : "Use a single poster-style composition with a dominant headline, one proof point, and a compact takeaway footer.";
+  const imageSourceStrategy =
+    input.assetMode === "ai-generated"
+      ? "Use first-party AI-generated visuals anchored by simple workflow or dashboard references. Optionally blend one licensed stock or first-party image for realism."
+      : "Lead with licensed stock, open-license, or first-party images, then add clean AI-assisted overlays or diagram elements only if they improve clarity.";
+  const aiImagePrompt =
+    input.channel === "linkedin"
+      ? `Create a polished LinkedIn carousel cover and supporting slides for "${input.topicName}". Editorial business design, bold condensed headline typography, warm neutral background, charcoal text, deep blue accent, subtle workflow arrows, abstract dashboard fragments, no cartoon characters, no generic startup illustrations, no app mockup sales pitch. Core message: ${input.hook} Proof point: ${input.strongestExternalStat ?? input.conciseEvidence} Takeaway: ${input.thesis}`
+      : `Create a high-contrast X graphic for "${input.topicName}" with one marketable editorial composition. Large headline, one proof-point callout, compact takeaway footer, sharp business-journal feel, warm neutrals with dark ink contrast, minimal dashboard or workflow motif, no cartoon AI art, no cheesy growth-hack visuals. Core message: ${input.hook} Proof point: ${input.strongestExternalStat ?? input.conciseEvidence}`;
+
+  return {
+    creativeDirection: `Turn "${input.conciseTitle}" into a marketable operator-insight visual that feels publishable, modern, and grounded in real workflow pain.`,
+    objective: input.channel === "linkedin" ? "Stop the scroll, teach one practical pattern, and make the audience want to swipe through the full carousel." : "Deliver one sharp, credible visual claim that reinforces the post without looking like an ad.",
+    visualStyle,
+    layoutStrategy,
+    compositionPrompt: input.channel === "linkedin"
+      ? `Design a carousel that opens with a bold hook, moves into the repeated pain pattern, lands a proof point, and closes with a practical takeaway. Use editorial hierarchy, simple diagrams, and a restrained business aesthetic.`
+      : `Design a single-image social graphic that puts the claim first, supports it with one proof point, and closes with a crisp takeaway. Keep the composition bold, minimal, and legible on mobile.`,
+    textHierarchy: input.channel === "linkedin"
+      ? ["Primary headline", "Pattern subhead", "Proof-point callout", "Takeaway footer"]
+      : ["Primary headline", "Proof-point callout", "Takeaway footer"],
+    chartOrDiagramType,
+    imageSourceStrategy,
+    aiImagePrompt,
+    panelPrompts: input.panels.map((panel, index) =>
+      input.channel === "linkedin"
+        ? `Slide ${index + 1}: ${panel}. Create a distinct visual treatment for this slide while preserving one shared editorial style across the carousel.`
+        : `Single-image layer ${index + 1}: ${panel}. Make the layout readable at phone size and keep the visual hierarchy obvious.`
+    ),
+    avoidNotes: [
+      "Avoid generic SaaS hero art, placeholder app mockups, and cartoon robot imagery.",
+      "Avoid cramming multiple unrelated ideas onto one slide or visual.",
+      "Avoid unverified numbers, logos, trademarks, or identifiable people without rights review.",
+      "Avoid making the visual feel like a sales page instead of a research-backed social post."
+    ]
+  };
 }
 
 function buildConciseDraftTitle(idea: Pick<IdeaWithCluster, "title" | "problemSummary">, topic: Pick<TopicRecord, "name">) {
@@ -2123,6 +2201,51 @@ const socialDraftJsonSchema = {
       },
       required: ["summary", "format", "panels"]
     },
+    infographicCreativeBrief: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        creativeDirection: { type: "string" },
+        objective: { type: "string" },
+        visualStyle: { type: "string" },
+        layoutStrategy: { type: "string" },
+        compositionPrompt: { type: "string" },
+        textHierarchy: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 3,
+          maxItems: 6
+        },
+        chartOrDiagramType: { type: "string" },
+        imageSourceStrategy: { type: "string" },
+        aiImagePrompt: { type: "string" },
+        panelPrompts: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 1,
+          maxItems: 6
+        },
+        avoidNotes: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 2,
+          maxItems: 6
+        }
+      },
+      required: [
+        "creativeDirection",
+        "objective",
+        "visualStyle",
+        "layoutStrategy",
+        "compositionPrompt",
+        "textHierarchy",
+        "chartOrDiagramType",
+        "imageSourceStrategy",
+        "aiImagePrompt",
+        "panelPrompts",
+        "avoidNotes"
+      ]
+    },
     mediaCandidates: {
       type: "array",
       maxItems: 6,
@@ -2234,6 +2357,7 @@ const socialDraftJsonSchema = {
     "visualBrief",
     "supportingStats",
     "infographicBrief",
+    "infographicCreativeBrief",
     "mediaCandidates",
     "mediaPolicy",
     "qualityScore"

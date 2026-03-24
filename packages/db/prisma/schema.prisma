@@ -345,6 +345,7 @@ model ContentDraft {
   supportingStatsJson Json?          @map("supporting_stats_json")
   signalEvidenceStatsJson Json?      @map("signal_evidence_stats_json")
   infographicBriefJson Json?         @map("infographic_brief_json")
+  infographicCreativeBriefJson Json? @map("infographic_creative_brief_json")
   infographicFormat  String?         @map("infographic_format")
   infographicPanelsJson Json?        @map("infographic_panels_json")
   assetMode          String?         @map("asset_mode")

@@ -252,9 +252,31 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                           {signalEvidenceStats.length > 0 ? ` · ${summarizeStatSourceClasses(signalEvidenceStats)}` : ""}
                         </p>
                         <p className="rowMeta"><strong>Infographic format:</strong> {draft.infographicFormat ?? "Not set"}</p>
+                        <p className="rowMeta"><strong>Infographic creative direction:</strong> {readObjectField(draft.infographicCreativeBriefJson, "creativeDirection") ?? "No creative brief yet."}</p>
                         <p className="rowMeta"><strong>Infographic panels:</strong> {formatListInput(draft.infographicPanelsJson) || "No panel outline yet."}</p>
                         <p className="rowMeta"><strong>Asset mode:</strong> {draft.assetMode ?? "none"}</p>
                         <p className="rowMeta"><strong>Asset review:</strong> {draft.assetStatus ?? "draft"}</p>
+                        </div>
+                        <div className="evidenceSection">
+                          <p className="rowBody">
+                            <strong>Infographic creative brief:</strong>
+                          </p>
+                          {!draft.infographicCreativeBriefJson || typeof draft.infographicCreativeBriefJson !== "object" ? (
+                            <p className="rowMeta">No creative-production brief is attached yet.</p>
+                          ) : (
+                            <div className="evidenceCard">
+                              <p className="rowBody"><strong>Objective:</strong> {readObjectField(draft.infographicCreativeBriefJson, "objective") ?? "No objective recorded."}</p>
+                              <p className="rowBody"><strong>Visual style:</strong> {readObjectField(draft.infographicCreativeBriefJson, "visualStyle") ?? "No visual style recorded."}</p>
+                              <p className="rowBody"><strong>Layout strategy:</strong> {readObjectField(draft.infographicCreativeBriefJson, "layoutStrategy") ?? "No layout strategy recorded."}</p>
+                              <p className="rowBody"><strong>Chart/diagram:</strong> {readObjectField(draft.infographicCreativeBriefJson, "chartOrDiagramType") ?? "No chart direction recorded."}</p>
+                              <p className="rowBody"><strong>Image source strategy:</strong> {readObjectField(draft.infographicCreativeBriefJson, "imageSourceStrategy") ?? "No source strategy recorded."}</p>
+                              <p className="rowBody"><strong>Composition prompt:</strong> {readObjectField(draft.infographicCreativeBriefJson, "compositionPrompt") ?? "No composition prompt recorded."}</p>
+                              <p className="rowBody"><strong>Text hierarchy:</strong> {formatListInput(readObjectArrayField(draft.infographicCreativeBriefJson, "textHierarchy")) || "No hierarchy recorded."}</p>
+                              <p className="rowBody"><strong>Panel prompts:</strong> {formatListInput(readObjectArrayField(draft.infographicCreativeBriefJson, "panelPrompts")) || "No panel prompts recorded."}</p>
+                              <p className="rowBody"><strong>Avoid notes:</strong> {formatListInput(readObjectArrayField(draft.infographicCreativeBriefJson, "avoidNotes")) || "No avoid notes recorded."}</p>
+                              <pre className="draftPreview">{readObjectField(draft.infographicCreativeBriefJson, "aiImagePrompt") ?? "No AI image prompt recorded."}</pre>
+                            </div>
+                          )}
                         </div>
                         <div className="evidenceSection">
                           <p className="rowBody">

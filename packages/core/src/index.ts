@@ -126,6 +126,19 @@ export const socialDraftSchema = z.object({
     format: z.string(),
     panels: z.array(z.string()).min(3).max(6)
   }),
+  infographicCreativeBrief: z.object({
+    creativeDirection: z.string(),
+    objective: z.string(),
+    visualStyle: z.string(),
+    layoutStrategy: z.string(),
+    compositionPrompt: z.string(),
+    textHierarchy: z.array(z.string()).min(3).max(6),
+    chartOrDiagramType: z.string(),
+    imageSourceStrategy: z.string(),
+    aiImagePrompt: z.string(),
+    panelPrompts: z.array(z.string()).min(1).max(6),
+    avoidNotes: z.array(z.string()).min(2).max(6)
+  }),
   mediaCandidates: z.array(
     z.object({
       label: z.string(),

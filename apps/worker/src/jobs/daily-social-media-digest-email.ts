@@ -422,18 +422,29 @@ function formatInfographicLine(draft: SocialDigestDraft) {
   const panels = toStringArray(draft.infographicPanelsJson).slice(0, 3);
   const panelSummary =
     panels.length > 0 ? panels.map((panel) => ensureSentence(panel)).join(" / ") : "Panel outline pending.";
+  const creativeDirection = readObjectField((draft as any).infographicCreativeBriefJson, "creativeDirection");
   const freshnessLabel = summarizeDraftFreshnessLabel(draft);
 
   return [
     `${freshnessLabel ? `${freshnessLabel} ` : ""}${draft.title}`,
     `Format: ${draft.infographicFormat ?? "visual brief"}`,
     `Topic: ${draft.topic?.name ?? "Unassigned"}`,
+    `Creative: ${ensureSentence(creativeDirection ?? "Creative-production brief pending.")}`,
     `Panels: ${panelSummary}`
   ].join(" | ");
 }
 
 function hasInfographicPanels(value: unknown) {
   return toStringArray(value).length >= 3;
+}
+
+function readObjectField(value: unknown, key: string) {
+  if (!value || typeof value !== "object" || !(key in value)) {
+    return null;
+  }
+
+  const candidate = (value as Record<string, unknown>)[key];
+  return typeof candidate === "string" ? candidate : null;
 }
 
 function readSupportingStats(value: unknown): SupportingStat[] {
