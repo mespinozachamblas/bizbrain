@@ -530,7 +530,9 @@ export function matchesTopicSearch(topic: DashboardData["topics"][number], query
 export function formatDate(value: Date) {
   return new Intl.DateTimeFormat("en-CA", {
     dateStyle: "medium",
-    timeStyle: "short"
+    timeStyle: "short",
+    timeZone: "America/Edmonton",
+    timeZoneName: "short"
   }).format(value);
 }
 
