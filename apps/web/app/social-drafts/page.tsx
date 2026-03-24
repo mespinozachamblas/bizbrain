@@ -172,6 +172,7 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                 const carouselPromptPack = buildPromptVariantPack("carousel", draft, supportingStats, mediaCandidates);
                 const singleImagePromptPack = buildPromptVariantPack("single-image", draft, supportingStats, mediaCandidates);
                 const mixedMediaPromptPack = buildPromptVariantPack("mixed-media", draft, supportingStats, mediaCandidates);
+                const designerBrief = buildDesignerBrief(draft, supportingStats, mediaCandidates);
 
                 return (
                   <details className="adminDisclosure" key={draft.id}>
@@ -315,6 +316,13 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                               href={buildPromptPackHref(mixedMediaPromptPack)}
                             >
                               Download mixed-media pack
+                            </a>
+                            <a
+                              className="jobButton jobButtonSecondary"
+                              download={buildPromptPackFilename(`${draft.title ?? "social-draft"} designer-brief`)}
+                              href={buildPromptPackHref(designerBrief)}
+                            >
+                              Download designer brief
                             </a>
                           </div>
                           <pre className="draftPreview">{promptPack}</pre>
@@ -826,6 +834,78 @@ function buildPromptVariantPack(
       ? reviewedMedia.map(
           (candidate, index) =>
             `${index + 1}. ${candidate.label} [${candidate.sourceType} / ${candidate.reviewStatus} / ${candidate.usageStatus}]${candidate.originUrl ? ` — ${candidate.originUrl}` : ""}`
+        )
+      : ["No reviewed media suggestions yet."])
+  ];
+
+  return lines.join("\n");
+}
+
+function buildDesignerBrief(
+  draft: any,
+  supportingStats: Array<{
+    claim: string;
+    sourceName: string;
+    sourceUrl: string | null;
+    reviewStatus: string;
+    plainLanguageAngle?: string;
+  }>,
+  mediaCandidates: Array<{
+    label: string;
+    sourceType: string;
+    originUrl: string | null;
+    reviewStatus: string;
+    usageStatus: string;
+    licenseLabel?: string | null;
+    attributionText?: string | null;
+  }>
+) {
+  const creativeBrief = draft.infographicCreativeBriefJson;
+  const approvedStats = supportingStats.filter((stat) => stat.reviewStatus === "approved").slice(0, 3);
+  const reviewedMedia = mediaCandidates
+    .filter((candidate) => candidate.reviewStatus === "approved" || candidate.reviewStatus === "use-with-caution")
+    .slice(0, 3);
+
+  const lines = [
+    `TITLE: ${draft.title ?? "Untitled social draft"}`,
+    `CHANNEL: ${draft.targetChannel ?? "unknown"}`,
+    `TOPIC: ${draft.topic?.name ?? "Unassigned"}`,
+    `FORMAT: ${draft.infographicFormat ?? "Not set"}`,
+    `AUDIENCE: ${draft.targetAudience ?? "No audience recorded."}`,
+    "",
+    "EDITORIAL DIRECTION",
+    `Hook: ${draft.hook ?? "No hook recorded."}`,
+    `Thesis: ${draft.thesis ?? "No thesis recorded."}`,
+    `CTA: ${draft.cta ?? "No CTA recorded."}`,
+    `Supporting points: ${formatListInput(draft.supportingPointsJson) || "No supporting points yet."}`,
+    "",
+    "DESIGN BRIEF",
+    `Objective: ${readObjectField(creativeBrief, "objective") ?? "No objective recorded."}`,
+    `Creative direction: ${readObjectField(creativeBrief, "creativeDirection") ?? "No creative direction recorded."}`,
+    `Visual style: ${readObjectField(creativeBrief, "visualStyle") ?? "No visual style recorded."}`,
+    `Layout strategy: ${readObjectField(creativeBrief, "layoutStrategy") ?? "No layout strategy recorded."}`,
+    `Chart/diagram: ${readObjectField(creativeBrief, "chartOrDiagramType") ?? "No chart direction recorded."}`,
+    `Text hierarchy: ${formatListInput(readObjectArrayField(creativeBrief, "textHierarchy")) || "No hierarchy recorded."}`,
+    `Image source strategy: ${readObjectField(creativeBrief, "imageSourceStrategy") ?? "No image-source strategy recorded."}`,
+    `Avoid notes: ${formatListInput(readObjectArrayField(creativeBrief, "avoidNotes")) || "No avoid notes recorded."}`,
+    "",
+    "PANEL / LAYOUT OUTLINE",
+    ...readObjectArrayField(creativeBrief, "panelPrompts").map((prompt, index) => `${index + 1}. ${prompt}`),
+    ...(readObjectArrayField(creativeBrief, "panelPrompts").length === 0 ? ["No panel prompts recorded."] : []),
+    "",
+    "APPROVED SUPPORTING STATS",
+    ...(approvedStats.length > 0
+      ? approvedStats.map(
+          (stat, index) =>
+            `${index + 1}. ${stat.claim}${stat.plainLanguageAngle ? ` | Angle: ${stat.plainLanguageAngle}` : ""} (${stat.sourceName}${stat.sourceUrl ? ` — ${stat.sourceUrl}` : ""})`
+        )
+      : ["No approved supporting stats yet."]),
+    "",
+    "REVIEWED MEDIA REFERENCES",
+    ...(reviewedMedia.length > 0
+      ? reviewedMedia.map(
+          (candidate, index) =>
+            `${index + 1}. ${candidate.label} [${candidate.sourceType} / ${candidate.reviewStatus} / ${candidate.usageStatus}]${candidate.licenseLabel ? ` | License: ${candidate.licenseLabel}` : ""}${candidate.attributionText ? ` | Attribution: ${candidate.attributionText}` : ""}${candidate.originUrl ? ` — ${candidate.originUrl}` : ""}`
         )
       : ["No reviewed media suggestions yet."])
   ];
