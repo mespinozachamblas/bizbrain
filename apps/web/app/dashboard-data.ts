@@ -528,15 +528,17 @@ export function matchesTopicSearch(topic: DashboardData["topics"][number], query
 }
 
 export function formatDate(value: Date) {
-  return new Intl.DateTimeFormat("en-CA", {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
     year: "numeric",
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
-    timeZone: "America/Edmonton",
-    timeZoneName: "short"
-  }).format(value);
+    hour12: true,
+    timeZone: "America/Edmonton"
+  });
+
+  return `${formatter.format(value)} MDT`;
 }
 
 export function normalizeStatus(value: string) {
