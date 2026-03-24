@@ -4,6 +4,7 @@ import { researchStreamIds, sourceAdapterConfigSchema, sourceTypes, type JobName
 import { db } from "@bizbrain/db";
 import { sendWithResend } from "@bizbrain/email";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { regenerateIdeaById } from "../../worker/src/jobs/daily-enrich-score";
 import { workerJobs } from "../../worker/src/jobs/registry";
 import { regenerateSocialDraftById } from "../../worker/src/jobs/social-content";
@@ -23,6 +24,8 @@ export async function runPipelineJob(formData: FormData) {
   revalidatePath("/sources");
   revalidatePath("/ideas");
   revalidatePath("/social-drafts");
+  revalidatePath("/jobs");
+  redirect("/");
 }
 
 export async function runSourceCheck(formData: FormData) {
