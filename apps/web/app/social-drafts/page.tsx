@@ -1,6 +1,5 @@
 import { db } from "@bizbrain/db";
 import { regenerateContentDraft, runPipelineJob, updateContentDraftAssetStatus, updateContentDraftMediaCandidateStatus, updateContentDraftStatStatus, updateContentDraftStatus } from "../actions";
-import { CopyButton } from "../copy-button";
 import { formatDate, formatListInput, formatSourceAttribution, getDashboardData, readSearchParam } from "../dashboard-data";
 import { EmptyState } from "../dashboard-ui";
 
@@ -168,6 +167,8 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                 const signalEvidenceStats = readSupportingStats((draft as { signalEvidenceStatsJson?: unknown }).signalEvidenceStatsJson);
                 const mediaCandidates = readMediaCandidates(draft.assetCandidatesJson);
                 const promptPack = buildPromptPack(draft, supportingStats, mediaCandidates);
+                const promptPackHref = buildPromptPackHref(promptPack);
+                const promptPackFilename = buildPromptPackFilename(draft.title ?? "social-draft");
 
                 return (
                   <details className="adminDisclosure" key={draft.id}>
@@ -288,7 +289,9 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                             <strong>Prompt pack:</strong>
                           </p>
                           <div className="jobButtons">
-                            <CopyButton label="Copy prompt pack" text={promptPack} />
+                            <a className="jobButton jobButtonSecondary" download={promptPackFilename} href={promptPackHref}>
+                              Download prompt pack
+                            </a>
                           </div>
                           <pre className="draftPreview">{promptPack}</pre>
                         </div>
@@ -718,6 +721,20 @@ function buildPromptPack(
   ];
 
   return lines.join("\n");
+}
+
+function buildPromptPackHref(promptPack: string) {
+  return `data:text/plain;charset=utf-8,${encodeURIComponent(promptPack)}`;
+}
+
+function buildPromptPackFilename(title: string) {
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+
+  return `${slug || "social-draft"}-prompt-pack.txt`;
 }
 
 function inferStatSourceClass(sourceName: string, sourceUrl: string | null) {
