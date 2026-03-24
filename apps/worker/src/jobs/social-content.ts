@@ -901,6 +901,10 @@ function buildFallbackSocialDraft(input: {
   const conciseProblem = buildConciseProblemStatement(input.idea.problemSummary ?? input.idea.title);
   const conciseEvidence = buildConciseEvidenceLine(input.idea.evidenceSummary, input.externalInsightStats);
   const strongestExternalStat = input.externalInsightStats[0]?.claim ?? null;
+  const infographicHeadline =
+    input.channel === "linkedin"
+      ? truncateAtWordBoundary(`${input.topic.name}: ${conciseTitle}`, 72)
+      : truncateAtWordBoundary(conciseTitle, 56);
   const hook =
     mode === "opportunity-derived"
       ? input.channel === "linkedin"
@@ -967,18 +971,29 @@ function buildFallbackSocialDraft(input: {
     visualBrief: {
       concept: `${input.topic.name} operator insight with a concrete business angle.`,
       format: input.assetMode === "ai-generated" ? "editorial illustration" : "stock-led social card",
-      headlineText: input.idea.title,
+      headlineText: infographicHeadline,
       captionText: `${input.frameworkName} structure in a ${input.styleName} voice.`,
       ctaText: cta
     },
     infographicBrief: {
-      summary: `Break down the opportunity behind ${input.idea.title}.`,
+      summary:
+        input.channel === "linkedin"
+          ? `Turn this operator insight into a 4-panel carousel that starts with the pain pattern, explains the workflow lesson, and lands on a practical takeaway.`
+          : `Turn this into a single-image infographic with one bold claim, one supporting proof point, and one practical takeaway.`,
       format: input.channel === "linkedin" ? "carousel" : "single-image infographic",
-      panels: [
-        `Signal: ${input.idea.problemSummary ?? input.idea.title}`,
-        `Opportunity: ${input.idea.solutionConcept ?? "Product angle to validate."}`,
-        `Business model: ${input.idea.monetizationAngle ?? "Revenue model to test."}`
-      ]
+      panels:
+        input.channel === "linkedin"
+          ? [
+              `Slide 1 headline: ${hook}`,
+              `Slide 2 pattern: ${conciseProblem}`,
+              `Slide 3 proof: ${strongestExternalStat ?? conciseEvidence}`,
+              `Slide 4 takeaway: ${thesis}`
+            ]
+          : [
+              `Headline: ${hook}`,
+              `Proof point: ${strongestExternalStat ?? conciseEvidence}`,
+              `Takeaway: ${thesis}`
+            ]
     },
     mediaCandidates: buildFallbackMediaCandidates(input),
     mediaPolicy: buildFallbackMediaPolicy(input.assetMode),
