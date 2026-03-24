@@ -243,6 +243,7 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                       <div className="draftSidebar">
                         <div className="stackCompact">
                         <p className="rowMeta"><strong>Visual brief:</strong> {readObjectField(draft.visualBriefJson, "concept") ?? "No visual brief yet."}</p>
+                        <p className="rowMeta"><strong>Infographic creative direction:</strong> {readObjectField(draft.infographicCreativeBriefJson, "creativeDirection") ?? "No creative brief yet."}</p>
                         <p className="rowMeta">
                           <strong>External insight stats:</strong> {supportingStats.length}
                           {supportingStats.length > 0 ? ` · ${summarizeStatSourceClasses(supportingStats)}` : ""}
@@ -252,7 +253,6 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                           {signalEvidenceStats.length > 0 ? ` · ${summarizeStatSourceClasses(signalEvidenceStats)}` : ""}
                         </p>
                         <p className="rowMeta"><strong>Infographic format:</strong> {draft.infographicFormat ?? "Not set"}</p>
-                        <p className="rowMeta"><strong>Infographic creative direction:</strong> {readObjectField(draft.infographicCreativeBriefJson, "creativeDirection") ?? "No creative brief yet."}</p>
                         <p className="rowMeta"><strong>Infographic panels:</strong> {formatListInput(draft.infographicPanelsJson) || "No panel outline yet."}</p>
                         <p className="rowMeta"><strong>Asset mode:</strong> {draft.assetMode ?? "none"}</p>
                         <p className="rowMeta"><strong>Asset review:</strong> {draft.assetStatus ?? "draft"}</p>
