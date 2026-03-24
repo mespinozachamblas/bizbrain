@@ -900,6 +900,7 @@ function buildFallbackSocialDraft(input: {
   const conciseTitle = buildConciseDraftTitle(input.idea, input.topic);
   const conciseProblem = buildConciseProblemStatement(input.idea.problemSummary ?? input.idea.title);
   const conciseEvidence = buildConciseEvidenceLine(input.idea.evidenceSummary, input.externalInsightStats);
+  const strongestExternalStat = input.externalInsightStats[0]?.claim ?? null;
   const hook =
     mode === "opportunity-derived"
       ? input.channel === "linkedin"
@@ -926,24 +927,27 @@ function buildFallbackSocialDraft(input: {
       : [
           conciseProblem,
           conciseEvidence,
-          input.externalInsightStats[0]?.claim ?? "There is enough outside evidence to turn the pattern into a stronger public-facing insight."
+          strongestExternalStat ?? "There is enough outside evidence to turn the pattern into a stronger public-facing insight."
         ].slice(0, 3);
   const cta =
     mode === "opportunity-derived"
       ? input.channel === "linkedin"
         ? "If you were fixing this tomorrow, would you start with process, service, or software?"
-        : "Would you solve this with a process fix first or productize it?"
+        : "Process fix first, or would you still try to productize it?"
       : input.channel === "linkedin"
         ? "Have you seen this same workflow friction in your business or clients?"
-        : "Have you seen this pattern too, or is this still early?";
+        : "Seen this pattern too, or is it still early where you sit?";
+  const xTakeaway = mode === "opportunity-derived"
+    ? input.idea.solutionConcept ?? "The workflow is the wedge before the product."
+    : strongestExternalStat ?? conciseEvidence;
   const draftMarkdown =
     mode === "opportunity-derived"
       ? input.channel === "linkedin"
         ? `${hook}\n\n${thesis}\n\n1. ${supportingPoints[0]}\n2. ${supportingPoints[1]}\n3. ${supportingPoints[2]}\n\nMy take: fix the operating motion before jumping to tooling.\n\n${cta}`
-        : `${hook}\n\n${thesis}\n\n- ${supportingPoints[0]}\n- ${supportingPoints[1]}\n- ${supportingPoints[2]}\n\n${cta}`
+        : `${hook}\n\n${thesis}\n\n${xTakeaway}\n\n${cta}`
       : input.channel === "linkedin"
         ? `${hook}\n\n${thesis}\n\n1. ${supportingPoints[0]}\n2. ${supportingPoints[1]}\n3. ${supportingPoints[2]}\n\nThe better conversation is what this says about the workflow, not just the tool.\n\n${cta}`
-        : `${hook}\n\n${thesis}\n\n- ${supportingPoints[0]}\n- ${supportingPoints[1]}\n- ${supportingPoints[2]}\n\n${cta}`;
+        : `${hook}\n\n${thesis}\n\n${xTakeaway}\n\n${cta}`;
 
   return socialDraftSchema.parse({
     title:
@@ -953,8 +957,11 @@ function buildFallbackSocialDraft(input: {
     targetAudience: audience,
     hook,
     thesis,
-    supportingPoints,
-    counterpoint: "This only matters if the pain shows up repeatedly beyond a single anecdote.",
+    supportingPoints: input.channel === "linkedin" ? supportingPoints : supportingPoints.slice(0, 2),
+    counterpoint:
+      input.channel === "linkedin"
+        ? "This only matters if the pain shows up repeatedly beyond a single anecdote."
+        : "This breaks if the pattern is still too isolated.",
     cta,
     draftMarkdown,
     visualBrief: {
