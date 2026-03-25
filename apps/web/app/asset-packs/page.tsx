@@ -55,7 +55,7 @@ export default async function AssetPacksPage({ searchParams }: PageProps) {
     .sort((left, right) => left.name.localeCompare(right.name));
 
   return (
-    <main className="contentPage">
+    <main className="contentPage assetPacksPage">
       <section className="hero heroCompact">
         <p className="eyebrow">BizBrain</p>
         <h1>Asset Packs</h1>
@@ -65,13 +65,13 @@ export default async function AssetPacksPage({ searchParams }: PageProps) {
         </p>
       </section>
 
-      <section className="dashboardGrid dashboardGridTwoCol">
+      <section className="dashboardGrid">
         <article className="card cardTall">
           <div className="cardHeader">
             <h2>Ready export queue</h2>
             <span className="badge">{readyDrafts.length}</span>
           </div>
-          <form className="filterForm filterFormDrafts" method="get">
+          <form className="filterForm filterFormAssetPacks" method="get">
             <label className="fieldLabel">
               Search drafts
               <input className="fieldInput" defaultValue={query} name="q" placeholder="Search title, hook, topic, framework" type="text" />

@@ -85,6 +85,10 @@ body {
   max-width: 1120px;
 }
 
+.assetPacksPage {
+  max-width: 1320px;
+}
+
 .hero {
   margin-bottom: 32px;
 }
@@ -428,6 +432,10 @@ h1 {
   grid-template-columns: minmax(220px, 1.3fr) repeat(3, minmax(160px, 220px)) auto;
 }
 
+.filterFormAssetPacks {
+  grid-template-columns: minmax(280px, 1.6fr) minmax(180px, 220px) minmax(280px, 360px) auto;
+}
+
 .adminDisclosure {
   border: 1px solid rgba(217, 208, 193, 0.7);
   border-radius: 16px;
@@ -567,6 +575,7 @@ h1 {
   .filterForm,
   .filterFormWide,
   .filterFormDrafts,
+  .filterFormAssetPacks,
   .draftDetailGrid {
     grid-template-columns: 1fr;
   }
