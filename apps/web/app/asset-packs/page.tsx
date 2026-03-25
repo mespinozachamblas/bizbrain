@@ -54,6 +54,11 @@ export default async function AssetPacksPage({ searchParams }: PageProps) {
     .filter((topic, index, all) => all.findIndex((candidate) => candidate.id === topic.id) === index)
     .sort((left, right) => left.name.localeCompare(right.name));
 
+  const bulkPromptPack = buildBulkExportPack("prompt-pack", readyDrafts);
+  const bulkCarouselPack = buildBulkExportPack("carousel", readyDrafts);
+  const bulkSingleImagePack = buildBulkExportPack("single-image", readyDrafts);
+  const bulkDesignerBriefPack = buildBulkExportPack("designer-brief", readyDrafts);
+
   return (
     <main className="contentPage assetPacksPage">
       <section className="hero heroCompact">
@@ -106,6 +111,29 @@ export default async function AssetPacksPage({ searchParams }: PageProps) {
             <EmptyState message="No export-ready drafts yet. Approve some supporting stats or media candidates in Social Drafts first." />
           ) : (
             <div className="stack">
+              <div className="card">
+                <div className="cardHeader">
+                  <h2>Bulk exports</h2>
+                  <span className="badge">{readyDrafts.length} ready</span>
+                </div>
+                <p className="helperText">
+                  Download one combined file for the current filtered queue when you want to batch handoffs.
+                </p>
+                <div className="jobButtons">
+                  <a className="jobButton jobButtonSecondary" download={buildPromptPackFilename("bulk prompt-pack export")} href={buildPromptPackHref(bulkPromptPack)}>
+                    All prompt packs
+                  </a>
+                  <a className="jobButton jobButtonSecondary" download={buildPromptPackFilename("bulk carousel export")} href={buildPromptPackHref(bulkCarouselPack)}>
+                    All carousel packs
+                  </a>
+                  <a className="jobButton jobButtonSecondary" download={buildPromptPackFilename("bulk single-image export")} href={buildPromptPackHref(bulkSingleImagePack)}>
+                    All single-image packs
+                  </a>
+                  <a className="jobButton jobButtonSecondary" download={buildPromptPackFilename("bulk designer-brief export")} href={buildPromptPackHref(bulkDesignerBriefPack)}>
+                    All designer briefs
+                  </a>
+                </div>
+              </div>
               {readyDrafts.map((draft) => {
                 const supportingStats = readSupportingStats(draft.supportingStatsJson).filter((stat) => stat.reviewStatus === "approved");
                 const mediaCandidates = readMediaCandidates(draft.assetCandidatesJson).filter(
@@ -343,6 +371,31 @@ function buildPromptPack(
   ];
 
   return lines.join("\n");
+}
+
+function buildBulkExportPack(
+  variant: "prompt-pack" | "carousel" | "single-image" | "designer-brief",
+  drafts: any[]
+) {
+  const sections = drafts.map((draft, index) => {
+    const supportingStats = readSupportingStats(draft.supportingStatsJson).filter((stat) => stat.reviewStatus === "approved");
+    const mediaCandidates = readMediaCandidates(draft.assetCandidatesJson).filter(
+      (candidate) => candidate.reviewStatus === "approved" || candidate.reviewStatus === "use-with-caution"
+    );
+
+    const body =
+      variant === "prompt-pack"
+        ? buildPromptPack(draft, supportingStats, mediaCandidates)
+        : variant === "carousel"
+          ? buildPromptVariantPack("carousel", draft, supportingStats, mediaCandidates)
+          : variant === "single-image"
+            ? buildPromptVariantPack("single-image", draft, supportingStats, mediaCandidates)
+            : buildDesignerBrief(draft, supportingStats, mediaCandidates);
+
+    return [`===== ${index + 1}. ${draft.title ?? "Untitled social draft"} =====`, body].join("\n");
+  });
+
+  return sections.join("\n\n");
 }
 
 function buildPromptVariantPack(
