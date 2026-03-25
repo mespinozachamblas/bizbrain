@@ -43,6 +43,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <Link className="sidebarLink" href="/social-drafts">
                 Social Drafts
               </Link>
+              <Link className="sidebarLink" href="/asset-packs">
+                Asset Packs
+              </Link>
               <Link className="sidebarLink" href="/frameworks">
                 Frameworks
               </Link>
