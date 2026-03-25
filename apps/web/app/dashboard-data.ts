@@ -82,6 +82,12 @@ export type DashboardData = {
     keywordsJson: unknown;
     exclusionsJson: unknown;
     sourcePreferencesJson: unknown;
+    performance: {
+      totalDrafts: number;
+      readyDrafts: number;
+      avgQualityScore: number | null;
+      avgExportReadiness: number | null;
+    };
     researchStream: {
       id: string;
       name: string;
@@ -168,6 +174,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       sourceConfigs,
       researchStreams,
       topics,
+      topicDraftPerformance,
       copyFrameworks,
       styleProfiles,
       latestContentDrafts,
@@ -283,6 +290,17 @@ export async function getDashboardData(): Promise<DashboardData> {
           }
         }
       }),
+      db.contentDraft.findMany({
+        where: {
+          researchStreamId: "stream-social-media-research"
+        },
+        select: {
+          topicId: true,
+          qualityScore: true,
+          supportingStatsJson: true,
+          assetCandidatesJson: true
+        }
+      }),
       db.copyFramework.findMany({
         orderBy: { name: "asc" },
         select: {
@@ -392,7 +410,32 @@ export async function getDashboardData(): Promise<DashboardData> {
       digestRecipients,
       sourceConfigs,
       researchStreams,
-      topics,
+      topics: topics.map((topic) => {
+        const draftRows = topicDraftPerformance.filter((draft) => draft.topicId === topic.id);
+        const readyRows = draftRows.filter((draft) => {
+          const supportingStatuses = readReviewStatuses(draft.supportingStatsJson);
+          const mediaStatuses = readReviewStatuses(draft.assetCandidatesJson);
+          return supportingStatuses.includes("approved") || mediaStatuses.includes("approved");
+        });
+        const qualityValues = draftRows
+          .map((draft) => draft.qualityScore)
+          .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+        const exportReadinessValues = draftRows.map((draft) => scoreDashboardExportReadiness(draft));
+
+        return {
+          ...topic,
+          performance: {
+            totalDrafts: draftRows.length,
+            readyDrafts: readyRows.length,
+            avgQualityScore:
+              qualityValues.length > 0 ? Number((qualityValues.reduce((sum, value) => sum + value, 0) / qualityValues.length).toFixed(1)) : null,
+            avgExportReadiness:
+              exportReadinessValues.length > 0
+                ? Number((exportReadinessValues.reduce((sum, value) => sum + value, 0) / exportReadinessValues.length).toFixed(1))
+                : null
+          }
+        };
+      }),
       copyFrameworks,
       styleProfiles,
       latestContentDrafts,
@@ -468,6 +511,20 @@ export function formatSourceAttribution(value: unknown) {
     .filter((part): part is string => Boolean(part));
 
   return parts.length > 0 ? `Sources: ${parts.join(", ")}` : "Sources: attribution pending";
+}
+
+function scoreDashboardExportReadiness(draft: {
+  qualityScore: number | null;
+  supportingStatsJson: unknown;
+  assetCandidatesJson: unknown;
+}) {
+  const qualityScore = typeof draft.qualityScore === "number" ? draft.qualityScore : 0;
+  const supportingStatuses = readReviewStatuses(draft.supportingStatsJson);
+  const mediaStatuses = readReviewStatuses(draft.assetCandidatesJson);
+  const approvedStats = supportingStatuses.filter((status) => status === "approved").length;
+  const approvedMedia = mediaStatuses.filter((status) => status === "approved" || status === "use-with-caution").length;
+
+  return Number((qualityScore + Math.min(approvedStats, 3) * 1.2 + Math.min(approvedMedia, 3) * 0.8).toFixed(1));
 }
 
 export function formatChannelInput(value: unknown) {

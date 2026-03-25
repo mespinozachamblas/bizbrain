@@ -163,6 +163,11 @@ export default async function TopicsPage({ searchParams }: PageProps) {
                         {topic.researchStream.name} · {topic.slug} · {formatListInput(topic.enabledChannelsJson) || "No channels"} ·{" "}
                         {topic.enabled ? "enabled" : "disabled"}
                       </p>
+                      <p className="rowMeta">
+                        Drafts {topic.performance.totalDrafts} · Ready {topic.performance.readyDrafts} · Avg quality{" "}
+                        {topic.performance.avgQualityScore?.toFixed(1) ?? "n/a"} · Avg export readiness{" "}
+                        {topic.performance.avgExportReadiness?.toFixed(1) ?? "n/a"}
+                      </p>
                     </div>
                     <span className="status status-skipped">Edit</span>
                   </summary>
@@ -257,6 +262,11 @@ export default async function TopicsPage({ searchParams }: PageProps) {
                     </label>
                     <p className="rowMeta topicMeta">
                       Stream: {topic.researchStream.name} ({topic.researchStream.slug})
+                    </p>
+                    <p className="rowMeta topicMeta">
+                      Performance: {topic.performance.totalDrafts} draft(s), {topic.performance.readyDrafts} ready, avg quality{" "}
+                      {topic.performance.avgQualityScore?.toFixed(1) ?? "n/a"}, avg export readiness{" "}
+                      {topic.performance.avgExportReadiness?.toFixed(1) ?? "n/a"}
                     </p>
                     <button className="jobButton jobButtonSecondary" type="submit">
                       Save topic
