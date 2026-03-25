@@ -15,38 +15,64 @@ export default async function AssetPacksPage({ searchParams }: PageProps) {
   const channel = readSearchParam(resolvedSearchParams, "channel");
   const topicId = readSearchParam(resolvedSearchParams, "topicId");
 
-  const readyDrafts = drafts.filter((draft) => {
+  const evaluatedDrafts = drafts.map((draft) => {
     const supportingStats = readSupportingStats(draft.supportingStatsJson);
     const mediaCandidates = readMediaCandidates(draft.assetCandidatesJson);
-
-    const hasReadyEvidence = supportingStats.some((stat) => stat.reviewStatus === "approved");
-    const hasReadyMedia = mediaCandidates.some(
+    const approvedStats = supportingStats.filter((stat) => stat.reviewStatus === "approved");
+    const reviewedMedia = mediaCandidates.filter(
       (candidate) => candidate.reviewStatus === "approved" || candidate.reviewStatus === "use-with-caution"
     );
+    const readiness = scoreAssetPackReadiness(draft, approvedStats, reviewedMedia);
 
-    if (!hasReadyEvidence && !hasReadyMedia) {
-      return false;
-    }
-
-    const matchesQuery =
-      !query ||
-      [
-        draft.title,
-        draft.topic?.name ?? "",
-        draft.hook ?? "",
-        draft.thesis ?? "",
-        draft.copyFramework?.name ?? "",
-        draft.styleProfile?.name ?? ""
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(query.trim().toLowerCase());
-
-    const matchesChannel = !channel || draft.targetChannel === channel;
-    const matchesTopic = !topicId || draft.topicId === topicId;
-
-    return matchesQuery && matchesChannel && matchesTopic;
+    return {
+      draft,
+      approvedStats,
+      reviewedMedia,
+      readiness
+    };
   });
+
+  const readyDrafts = evaluatedDrafts
+    .filter(({ draft, approvedStats, reviewedMedia }) => {
+      const hasReadyEvidence = approvedStats.length > 0;
+      const hasReadyMedia = reviewedMedia.length > 0;
+
+      if (!hasReadyEvidence && !hasReadyMedia) {
+        return false;
+      }
+
+      const matchesQuery =
+        !query ||
+        [
+          draft.title,
+          draft.topic?.name ?? "",
+          draft.hook ?? "",
+          draft.thesis ?? "",
+          draft.copyFramework?.name ?? "",
+          draft.styleProfile?.name ?? ""
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(query.trim().toLowerCase());
+
+      const matchesChannel = !channel || draft.targetChannel === channel;
+      const matchesTopic = !topicId || draft.topicId === topicId;
+
+      return matchesQuery && matchesChannel && matchesTopic;
+    })
+    .sort((left, right) => {
+      if (right.readiness.score !== left.readiness.score) {
+        return right.readiness.score - left.readiness.score;
+      }
+
+      const rightQuality = right.draft.qualityScore ?? 0;
+      const leftQuality = left.draft.qualityScore ?? 0;
+      if (rightQuality !== leftQuality) {
+        return rightQuality - leftQuality;
+      }
+
+      return new Date(right.draft.updatedAt).getTime() - new Date(left.draft.updatedAt).getTime();
+    });
 
   const socialTopics = drafts
     .map((draft) => draft.topic)
@@ -117,7 +143,8 @@ export default async function AssetPacksPage({ searchParams }: PageProps) {
                   <span className="badge">{readyDrafts.length} ready</span>
                 </div>
                 <p className="helperText">
-                  Download one combined file for the current filtered queue when you want to batch handoffs.
+                  Download one combined file for the current filtered queue when you want to batch handoffs. Drafts below are ranked by
+                  export readiness, approved evidence, and current quality score.
                 </p>
                 <div className="jobButtons">
                   <a className="jobButton jobButtonSecondary" download={buildPromptPackFilename("bulk prompt-pack export")} href={buildPromptPackHref(bulkPromptPack)}>
@@ -134,11 +161,7 @@ export default async function AssetPacksPage({ searchParams }: PageProps) {
                   </a>
                 </div>
               </div>
-              {readyDrafts.map((draft) => {
-                const supportingStats = readSupportingStats(draft.supportingStatsJson).filter((stat) => stat.reviewStatus === "approved");
-                const mediaCandidates = readMediaCandidates(draft.assetCandidatesJson).filter(
-                  (candidate) => candidate.reviewStatus === "approved" || candidate.reviewStatus === "use-with-caution"
-                );
+              {readyDrafts.map(({ draft, approvedStats: supportingStats, reviewedMedia: mediaCandidates, readiness }) => {
                 const promptPack = buildPromptPack(draft, supportingStats, mediaCandidates);
                 const carouselPack = buildPromptVariantPack("carousel", draft, supportingStats, mediaCandidates);
                 const singleImagePack = buildPromptVariantPack("single-image", draft, supportingStats, mediaCandidates);
@@ -153,6 +176,7 @@ export default async function AssetPacksPage({ searchParams }: PageProps) {
                         <p className="helperText">
                           {draft.targetChannel} · {draft.topic?.name ?? "No topic"} · updated {formatDate(draft.updatedAt)}
                         </p>
+                        <p className="helperText">Export readiness {readiness.score.toFixed(1)} · {readiness.label}</p>
                       </div>
                       <span className={`status status-${normalizeDraftStatus(draft.status)}`}>{draft.status}</span>
                     </div>
@@ -375,13 +399,13 @@ function buildPromptPack(
 
 function buildBulkExportPack(
   variant: "prompt-pack" | "carousel" | "single-image" | "designer-brief",
-  drafts: any[]
+  drafts: Array<{
+    draft: any;
+    approvedStats: Array<{ claim: string; sourceName: string; sourceUrl: string | null; reviewStatus: string }>;
+    reviewedMedia: Array<{ label: string; sourceType: string; originUrl: string | null; reviewStatus: string; usageStatus: string }>;
+  }>
 ) {
-  const sections = drafts.map((draft, index) => {
-    const supportingStats = readSupportingStats(draft.supportingStatsJson).filter((stat) => stat.reviewStatus === "approved");
-    const mediaCandidates = readMediaCandidates(draft.assetCandidatesJson).filter(
-      (candidate) => candidate.reviewStatus === "approved" || candidate.reviewStatus === "use-with-caution"
-    );
+  const sections = drafts.map(({ draft, approvedStats: supportingStats, reviewedMedia: mediaCandidates }, index) => {
 
     const body =
       variant === "prompt-pack"
@@ -396,6 +420,35 @@ function buildBulkExportPack(
   });
 
   return sections.join("\n\n");
+}
+
+function scoreAssetPackReadiness(
+  draft: any,
+  approvedStats: Array<{ reviewStatus: string }>,
+  reviewedMedia: Array<{ reviewStatus: string }>,
+) {
+  const qualityScore = typeof draft.qualityScore === "number" ? draft.qualityScore : 0;
+  const statusBonus =
+    draft.status === "publish-later" ? 2.5 : draft.status === "promising" ? 1.5 : draft.status === "revisit" ? 0.5 : 0;
+  const formatBonus = draft.infographicFormat ? 1 : 0;
+  const approvedStatBonus = Math.min(approvedStats.length, 3) * 1.2;
+  const reviewedMediaBonus = Math.min(reviewedMedia.length, 3) * 0.8;
+
+  const score = Number((qualityScore + statusBonus + formatBonus + approvedStatBonus + reviewedMediaBonus).toFixed(1));
+
+  if (approvedStats.length >= 2 && reviewedMedia.length >= 1 && qualityScore >= 7.5) {
+    return { score, label: "strong evidence and media coverage" };
+  }
+
+  if (approvedStats.length >= 1 && qualityScore >= 7) {
+    return { score, label: "good export candidate" };
+  }
+
+  if (reviewedMedia.length >= 1) {
+    return { score, label: "media-ready but evidence-light" };
+  }
+
+  return { score, label: "evidence-ready" };
 }
 
 function buildPromptVariantPack(
