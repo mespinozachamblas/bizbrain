@@ -152,12 +152,22 @@ async function syncSocialResearchBriefs() {
       });
       const signalEvidenceStats = await buildSignalEvidenceStatsResearch(briefSource, topic, "linkedin");
       const externalInsightStats = await buildExternalInsightStatsResearch({ idea: briefSource, topic, channel: "linkedin" });
+      const externalInsightQuality = scoreExternalInsightCollection(externalInsightStats);
 
       const updatedBrief = await (db as any).socialResearchBrief.update({
         where: { id: brief.id },
         data: {
           signalEvidenceStatsJson: signalEvidenceStats,
-          supportingStatsJson: externalInsightStats
+          supportingStatsJson: externalInsightStats,
+          qualityScore: Math.min(
+            9.6,
+            Math.max(
+              5.6,
+              (briefData.qualityScore ?? 6) +
+                Math.min(1.2, externalInsightQuality.best * 0.18) +
+                Math.min(0.6, externalInsightQuality.count * 0.12)
+            )
+          )
         }
       });
 
@@ -219,7 +229,7 @@ export async function syncSocialContentDrafts() {
       .filter((brief) => brief.topicId === topic.id)
       .map((brief) => ({
         brief,
-        score: brief.qualityScore ?? 0
+        score: computeDraftSourceScore(brief)
       }))
       .filter((entry) => entry.score > 0)
       .sort((left, right) => right.score - left.score || (right.brief.qualityScore ?? 0) - (left.brief.qualityScore ?? 0))
@@ -1373,7 +1383,12 @@ async function buildExternalInsightStatsResearch(input: {
     }
   }
 
-  return stats.slice(0, 5);
+  return stats
+    .map((stat) => normalizeSupportingStat(stat))
+    .filter((stat): stat is SupportingStat => Boolean(stat))
+    .filter((stat) => scoreExternalInsightStat(stat) >= 4)
+    .sort((left, right) => scoreExternalInsightStat(right) - scoreExternalInsightStat(left))
+    .slice(0, 4);
 }
 
 async function fetchPlatformSignalEvidenceStats(input: {
@@ -1779,6 +1794,71 @@ function buildExternalInsightConfidenceNote(sourceUrl: string, preferredStatSour
   return "Moderate confidence. Verify the underlying article or report before using this as a public-facing hook.";
 }
 
+function scoreExternalInsightStat(stat: SupportingStat) {
+  let score = 0;
+
+  if (stat.sourceUrl) {
+    score += 1.5;
+    score += scoreExternalSourceDomain(stat.sourceUrl);
+  }
+
+  if (stat.sourceDate) {
+    score += 1;
+    const agePenalty = scoreStatRecencyPenalty(stat.sourceDate);
+    score -= agePenalty;
+  }
+
+  if (/\d/.test(stat.claim)) {
+    score += 1.5;
+  }
+
+  if (/%|\bpercent\b|\bmillion\b|\bbillion\b|\bthousand\b|\b\d{4}\b/i.test(stat.claim)) {
+    score += 0.8;
+  }
+
+  if (stat.claim.length >= 28 && stat.claim.length <= 220) {
+    score += 0.5;
+  }
+
+  if (/verify before publishing|use with caution/i.test(stat.confidenceNote)) {
+    score -= 0.3;
+  }
+
+  return Number(score.toFixed(2));
+}
+
+function scoreExternalInsightCollection(stats: SupportingStat[]) {
+  const scores = stats.map((stat) => scoreExternalInsightStat(stat)).sort((left, right) => right - left);
+  return {
+    best: scores[0] ?? 0,
+    count: scores.length
+  };
+}
+
+function scoreStatRecencyPenalty(sourceDate: string) {
+  const parsed = Date.parse(sourceDate);
+
+  if (Number.isNaN(parsed)) {
+    return 0;
+  }
+
+  const ageDays = Math.max(0, Math.floor((Date.now() - parsed) / (1000 * 60 * 60 * 24)));
+
+  if (ageDays <= 30) {
+    return 0;
+  }
+
+  if (ageDays <= 180) {
+    return 0.25;
+  }
+
+  if (ageDays <= 365) {
+    return 0.5;
+  }
+
+  return 0.9;
+}
+
 function scoreExternalSourceDomain(sourceUrl: string) {
   const domain = safeHostname(sourceUrl);
 
@@ -1821,6 +1901,12 @@ function safeHostname(sourceUrl: string) {
 
 function normalizeComparableStatClaim(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function computeDraftSourceScore(brief: Pick<SocialBriefWithCluster, "qualityScore" | "supportingStatsJson">) {
+  const stats = readStatArray(brief.supportingStatsJson);
+  const statQuality = scoreExternalInsightCollection(stats);
+  return (brief.qualityScore ?? 0) + Math.min(1.1, statQuality.best * 0.16) + Math.min(0.5, statQuality.count * 0.1);
 }
 
 function parseGoogleTrendMatches(xml: string, geo: string, keywords: string[]) {
