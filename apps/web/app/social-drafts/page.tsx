@@ -189,15 +189,15 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                     </summary>
                     <div className="draftDetailGrid">
                       <div className="draftPrimary">
-                        <p className="rowBody"><strong>Hook:</strong> {draft.hook ?? "No hook yet."}</p>
-                        <p className="rowBody"><strong>Thesis:</strong> {draft.thesis ?? "No thesis yet."}</p>
-                        <p className="rowBody"><strong>Audience:</strong> {draft.targetAudience ?? "No target audience yet."}</p>
-                        <p className="rowBody"><strong>Supporting points:</strong> {formatListInput(draft.supportingPointsJson) || "No supporting points yet."}</p>
-                        <p className="rowBody"><strong>CTA:</strong> {draft.cta ?? "No CTA yet."}</p>
-                        <p className="rowBody"><strong>Source brief:</strong> {draft.sourceBrief?.title ?? draft.sourceIdea?.title ?? "No linked research brief."}</p>
+                        <p className="rowBody"><strong>Hook or opening angle:</strong> {draft.hook ?? "No opening angle yet."}</p>
+                        <p className="rowBody"><strong>Main post idea:</strong> {draft.thesis ?? "No central post idea yet."}</p>
+                        <p className="rowBody"><strong>Who this is for:</strong> {draft.targetAudience ?? "No target audience recorded yet."}</p>
+                        <p className="rowBody"><strong>What the post should emphasize:</strong> {formatListInput(draft.supportingPointsJson) || "No emphasis points yet."}</p>
+                        <p className="rowBody"><strong>Suggested ending or CTA:</strong> {draft.cta ?? "No ending/CTA yet."}</p>
+                        <p className="rowBody"><strong>Research brief driving this draft:</strong> {draft.sourceBrief?.title ?? draft.sourceIdea?.title ?? "No linked research brief yet."}</p>
                         <div className="evidenceSection">
                           <p className="rowBody">
-                            <strong>Source research context:</strong>
+                            <strong>What this research is actually about:</strong>
                           </p>
                           {draft.sourceBrief ? (
                             <div className="evidenceCard">
@@ -206,16 +206,16 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                                 {draft.sourceBrief.topic?.name ? ` · ${draft.sourceBrief.topic.name}` : ""}
                               </p>
                               <p className="rowBody">
-                                <strong>Theme:</strong> {draft.sourceBrief.themeSummary ?? "No theme summary yet."}
+                                <strong>Pattern showing up in the research:</strong> {draft.sourceBrief.themeSummary ?? "No repeating pattern summary yet."}
                               </p>
                               <p className="rowBody">
-                                <strong>Audience insight:</strong> {draft.sourceBrief.audienceInsight ?? "No audience insight yet."}
+                                <strong>Who is feeling this problem:</strong> {draft.sourceBrief.audienceInsight ?? "No affected audience insight yet."}
                               </p>
                               <p className="rowBody">
-                                <strong>Operator takeaway:</strong> {draft.sourceBrief.operatorTakeaway ?? "No operator takeaway yet."}
+                                <strong>Why it matters in practice:</strong> {draft.sourceBrief.operatorTakeaway ?? "No practical takeaway yet."}
                               </p>
                               <p className="rowBody">
-                                <strong>Evidence:</strong> {draft.sourceBrief.evidenceSummary ?? "No evidence summary yet."}
+                                <strong>What the underlying material is saying:</strong> {draft.sourceBrief.evidenceSummary ?? "No source-material summary yet."}
                               </p>
                               <p className="rowMeta">
                                 {formatSourceAttribution(draft.sourceBrief.sourceAttributionJson)}
@@ -229,13 +229,13 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                                 {draft.sourceIdea.cluster?.title ? ` · ${draft.sourceIdea.cluster.title}` : ""}
                               </p>
                               <p className="rowBody">
-                                <strong>Problem:</strong> {draft.sourceIdea.problemSummary ?? "No problem summary yet."}
+                                <strong>Problem being discussed:</strong> {draft.sourceIdea.problemSummary ?? "No problem summary yet."}
                               </p>
                               <p className="rowBody">
-                                <strong>Solution:</strong> {draft.sourceIdea.solutionConcept ?? "No solution concept yet."}
+                                <strong>Possible solution direction:</strong> {draft.sourceIdea.solutionConcept ?? "No solution direction yet."}
                               </p>
                               <p className="rowBody">
-                                <strong>Evidence:</strong> {draft.sourceIdea.evidenceSummary ?? "No evidence summary yet."}
+                                <strong>What the evidence says:</strong> {draft.sourceIdea.evidenceSummary ?? "No evidence summary yet."}
                               </p>
                               <p className="rowMeta">
                                 {formatSourceAttribution(draft.sourceIdea.sourceAttributionJson)}
@@ -252,11 +252,11 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                         <p className="rowMeta"><strong>Visual brief:</strong> {readObjectField(draft.visualBriefJson, "concept") ?? "No visual brief yet."}</p>
                         <p className="rowMeta"><strong>Infographic creative direction:</strong> {readObjectField(draft.infographicCreativeBriefJson, "creativeDirection") ?? "No creative brief yet."}</p>
                         <p className="rowMeta">
-                          <strong>External insight stats:</strong> {supportingStats.length}
+                          <strong>Candidate publishable topic stats:</strong> {supportingStats.length}
                           {supportingStats.length > 0 ? ` · ${summarizeStatSourceClasses(supportingStats)}` : ""}
                         </p>
                         <p className="rowMeta">
-                          <strong>Signal evidence:</strong> {signalEvidenceStats.length}
+                          <strong>Internal BizBrain signal evidence:</strong> {signalEvidenceStats.length}
                           {signalEvidenceStats.length > 0 ? ` · ${summarizeStatSourceClasses(signalEvidenceStats)}` : ""}
                         </p>
                         <p className="rowMeta"><strong>Infographic format:</strong> {draft.infographicFormat ?? "Not set"}</p>
@@ -329,10 +329,14 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                         </div>
                         <div className="evidenceSection">
                           <p className="rowBody">
-                            <strong>External insight statistics:</strong>
+                            <strong>Candidate publishable topic statistics:</strong>
+                          </p>
+                          <p className="rowMeta">
+                            These are possible public-facing statistics for the topic itself, such as survey, benchmark, report, study, or industry data points.
+                            Treat them as candidate post/infographic stats to verify before publishing.
                           </p>
                           {supportingStats.length === 0 ? (
-                            <p className="rowMeta">No publishable external insight statistics are attached yet.</p>
+                            <p className="rowMeta">No topic-level public-facing stats are attached yet.</p>
                           ) : (
                             <div className="stack">
                               {supportingStats.map((stat, index) => (
@@ -344,19 +348,19 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                                   </p>
                                   <p className="rowTitle">{stat.claim}</p>
                                   <p className="rowBody">
-                                    <strong>Angle:</strong> {stat.plainLanguageAngle}
+                                    <strong>What this stat could help you say:</strong> {stat.plainLanguageAngle}
                                   </p>
                                   <p className="rowBody">
-                                    <strong>Usage:</strong> {stat.recommendedUsage}
+                                    <strong>How to use it in the post:</strong> {stat.recommendedUsage}
                                   </p>
                                   <p className="rowMeta">
                                     {stat.sourceName} · {stat.sourceDate ?? "date not stored"}
                                   </p>
                                   <p className="rowBody">
-                                    <strong>Freshness:</strong> {stat.freshnessNote}
+                                    <strong>Freshness / recency note:</strong> {stat.freshnessNote}
                                   </p>
                                   <p className="rowBody">
-                                    <strong>Confidence:</strong> {stat.confidenceNote}
+                                    <strong>Confidence / trust note:</strong> {stat.confidenceNote}
                                   </p>
                                   <p className="rowMeta">
                                     <strong>Source:</strong>{" "}
@@ -392,10 +396,14 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                         </div>
                         <div className="evidenceSection">
                           <p className="rowBody">
-                            <strong>Signal evidence:</strong>
+                            <strong>Internal BizBrain signal evidence:</strong>
+                          </p>
+                          <p className="rowMeta">
+                            This is internal supporting evidence from matched clusters, Google Trends, Product Hunt, and other BizBrain research inputs.
+                            It helps explain why the topic is surfacing, but it is usually not the kind of benchmark stat you would quote directly in a post.
                           </p>
                           {signalEvidenceStats.length === 0 ? (
-                            <p className="rowMeta">No signal-evidence stats are attached yet.</p>
+                            <p className="rowMeta">No internal signal evidence is attached yet.</p>
                           ) : (
                             <div className="stack">
                               {signalEvidenceStats.map((stat, index) => (
@@ -405,19 +413,19 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                                   </p>
                                   <p className="rowTitle">{stat.claim}</p>
                                   <p className="rowBody">
-                                    <strong>Angle:</strong> {stat.plainLanguageAngle}
+                                    <strong>Why BizBrain surfaced this topic:</strong> {stat.plainLanguageAngle}
                                   </p>
                                   <p className="rowBody">
-                                    <strong>Usage:</strong> {stat.recommendedUsage}
+                                    <strong>How to interpret this internally:</strong> {stat.recommendedUsage}
                                   </p>
                                   <p className="rowMeta">
                                     {stat.sourceName} · {stat.sourceDate ?? "date not stored"}
                                   </p>
                                   <p className="rowBody">
-                                    <strong>Freshness:</strong> {stat.freshnessNote}
+                                    <strong>Freshness / recency note:</strong> {stat.freshnessNote}
                                   </p>
                                   <p className="rowBody">
-                                    <strong>Confidence:</strong> {stat.confidenceNote}
+                                    <strong>Confidence / trust note:</strong> {stat.confidenceNote}
                                   </p>
                                   <p className="rowMeta">
                                     <strong>Source:</strong>{" "}
