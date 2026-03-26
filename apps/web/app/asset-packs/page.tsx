@@ -182,6 +182,11 @@ export default async function AssetPacksPage({ searchParams }: PageProps) {
                     </div>
                     <p className="rowBody"><strong>Hook:</strong> {draft.hook ?? "No hook yet."}</p>
                     <p className="rowBody"><strong>Thesis:</strong> {draft.thesis ?? "No thesis yet."}</p>
+                    <p className="rowBody">
+                      <strong>Supporting points:</strong> {formatListInput(draft.supportingPointsJson) || "No supporting points yet."}
+                    </p>
+                    <p className="rowBody"><strong>CTA:</strong> {draft.cta ?? "No CTA yet."}</p>
+                    <pre className="draftPreview assetPackPreview">{draft.draftMarkdown ?? "No draft body yet."}</pre>
                     <p className="rowMeta">
                       Approved stats: {supportingStats.length} · Reviewed media: {mediaCandidates.length} · Format: {draft.infographicFormat ?? "not set"}
                     </p>
