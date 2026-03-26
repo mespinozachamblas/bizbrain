@@ -55,6 +55,8 @@ Rules:
 - do not invent facts beyond the provided idea context
 - default to thought leadership, commentary, operator education, or workflow insight
 - do not write the post like a startup pitch, SaaS idea pitch, or monetization memo unless the topic explicitly calls for build-in-public or opportunity-derived framing
+- avoid internal analyst jargon like "signal," "wedge," "theme convergence," or "fragmented public signals" when plain language would be clearer
+- prefer concrete plain-language phrases like "repeated problem," "pattern showing up across sources," or "people keep running into this issue"
 - make the hook strong but credible
 - for LinkedIn, prefer structured insight, 2-3 clear takeaways, and a reflective or discussion-oriented CTA
 - for X, prefer one strong claim, shorter sentences, cleaner contrast, and a CTA that invites a reply or thread continuation

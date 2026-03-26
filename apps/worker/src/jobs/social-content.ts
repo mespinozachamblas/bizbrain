@@ -638,7 +638,7 @@ function buildClusterSourceAttribution(cluster: any) {
 
 function buildThemeSummary(cluster: any, topic: Pick<TopicRecord, "name">) {
   const sampleTitle = cluster.memberships.find((membership: any) => membership.rawSignal.title)?.rawSignal.title;
-  return `Signals relevant to ${topic.name} keep clustering around ${cluster.title.toLowerCase()}${sampleTitle ? `, including examples like "${sampleTitle}".` : "."}`;
+  return `People keep describing related problems around ${cluster.title.toLowerCase()}${sampleTitle ? `, including examples like "${sampleTitle}".` : "."}`;
 }
 
 function buildClusterEvidenceSummary(cluster: any) {
@@ -648,22 +648,22 @@ function buildClusterEvidenceSummary(cluster: any) {
     .slice(0, 3);
 
   if (titles.length === 0) {
-    return cluster.summary ?? "Repeated discussion signals support this topic.";
+    return cluster.summary ?? "Repeated source material supports this topic.";
   }
 
   return `Repeated examples include ${titles.map((title: string) => `"${title}"`).join(", ")}.`;
 }
 
 function buildAudienceInsight(cluster: any, topic: Pick<TopicRecord, "name">) {
-  return `People following ${topic.name} are responding to repeated workflow friction around ${cluster.title.toLowerCase()}.`;
+  return `People following ${topic.name} keep running into workflow friction around ${cluster.title.toLowerCase()}.`;
 }
 
 function buildOperatorTakeaway(cluster: any, topic: Pick<TopicRecord, "name">) {
-  return `The operational lesson for ${topic.name} is that the process around ${cluster.title.toLowerCase()} is breaking before people even start looking for a tool.`;
+  return `The practical lesson for ${topic.name} is that the process around ${cluster.title.toLowerCase()} is breaking before people even start looking for a tool.`;
 }
 
 function buildContrarianAngle(cluster: any, topic: Pick<TopicRecord, "name">) {
-  return `The interesting part for ${topic.name} is not the software category itself, but the repeated friction pattern hidden inside ${cluster.title.toLowerCase()}.`;
+  return `The interesting part for ${topic.name} is not the software category itself, but the repeated workflow problem hidden inside ${cluster.title.toLowerCase()}.`;
 }
 
 function mapStoredBriefToDraftSource(
@@ -925,7 +925,7 @@ function buildFallbackSocialDraft(input: {
     mode === "opportunity-derived"
       ? input.channel === "linkedin"
         ? `The interesting part isn’t the tool idea. It’s the workflow friction behind ${conciseTitle.toLowerCase()}.`
-        : `${conciseTitle} is really a workflow lesson hiding inside a market signal.`
+        : `${conciseTitle} is really a workflow lesson hiding inside repeated market evidence.`
       : input.channel === "linkedin"
         ? `A pattern I’d pay attention to: ${conciseProblem}`
         : `${conciseProblem} keeps showing up in operator conversations.`;
@@ -933,7 +933,7 @@ function buildFallbackSocialDraft(input: {
     mode === "opportunity-derived"
       ? input.channel === "linkedin"
         ? `The opportunity is less about inventing a new app and more about fixing the decision process around ${conciseTitle.toLowerCase()}.`
-        : `The signal matters because it exposes where the current workflow is failing before software even enters the picture.`
+        : `This matters because it shows where the current workflow is failing before software even enters the picture.`
       : input.channel === "linkedin"
         ? `The real story is the repeated workflow friction behind ${conciseTitle.toLowerCase()}, not just the surface request.`
         : `This is a repeated workflow problem, not a one-off edge case.`;
@@ -958,7 +958,7 @@ function buildFallbackSocialDraft(input: {
         ? "Have you seen this same workflow friction in your business or clients?"
         : "Seen this pattern too, or is it still early where you sit?";
   const xTakeaway = mode === "opportunity-derived"
-    ? input.idea.solutionConcept ?? "The workflow is the wedge before the product."
+    ? input.idea.solutionConcept ?? "The workflow fix matters before the product idea."
     : strongestExternalStat ?? conciseEvidence;
   const infographicPanels =
     input.channel === "linkedin"
@@ -1241,8 +1241,8 @@ async function buildSignalEvidenceStatsResearch(
       claim: `${totalSignals} matched signal${totalSignals === 1 ? "" : "s"} currently support the opportunity behind ${idea.title}.`,
       plainLanguageAngle:
         channel === "linkedin"
-          ? "Use this to establish that the insight is pattern-based, not a one-off anecdote."
-          : "Use this as a concise pattern signal before the sharper take.",
+          ? "Use this to show the idea is based on a repeated pattern, not a one-off anecdote."
+          : "Use this as a concise proof point that the pattern is recurring.",
       sourceName: "BizBrain cluster evidence",
       sourceUrl: normalizePublicUrl(sourceUrls.get(sortedSources[0]?.[0] ?? "") ?? null),
       sourceDate: cluster?.lastSeenAt?.toISOString().slice(0, 10) ?? null,
@@ -1250,7 +1250,7 @@ async function buildSignalEvidenceStatsResearch(
         cluster?.lastSeenAt
           ? `Latest matched evidence was seen on ${cluster.lastSeenAt.toISOString().slice(0, 10)}.`
           : "Latest evidence date is not stored.",
-      confidenceNote: totalSignals >= 4 ? "Moderate confidence from repeated signal clustering." : "Early signal; useful, but still light on repeated evidence.",
+      confidenceNote: totalSignals >= 4 ? "Moderate confidence from repeated clustering across sources." : "Early evidence; useful, but still light on repeated examples.",
       recommendedUsage: `Lead with the pattern, then connect it to ${topic.name}.${renderPreferredStatSourceHint(preferredStatSources)}`
       ,
       reviewStatus: "pending"
@@ -1628,7 +1628,7 @@ async function fetchProductHuntSupportingStats(input: {
       sourceDate: topMatch.createdAt ? new Date(topMatch.createdAt).toISOString().slice(0, 10) : null,
       freshnessNote: "This reflects a recent Product Hunt launch snapshot, not a comprehensive market count.",
       confidenceNote: matches.length >= 2 ? "Moderate confidence from multiple relevant launches." : "Early external signal from a single relevant launch.",
-      recommendedUsage: `Use this as marketplace validation for ${input.topic.slug}, then connect it to the practical wedge or positioning angle.`
+      recommendedUsage: `Use this as marketplace validation for ${input.topic.slug}, then connect it to the practical workflow lesson or positioning angle.`
       ,
       reviewStatus: "pending"
     }
@@ -1639,7 +1639,7 @@ async function fetchProductHuntSupportingStats(input: {
       claim: `The strongest matching Product Hunt launch drew ${topMatch.votesCount} vote${topMatch.votesCount === 1 ? "" : "s"}${typeof topMatch.commentsCount === "number" ? ` and ${topMatch.commentsCount} comment${topMatch.commentsCount === 1 ? "" : "s"}` : ""}.`,
       plainLanguageAngle:
         input.channel === "linkedin"
-          ? "Use this as an interest signal for visible launch traction, not as proof of revenue or retention."
+          ? "Use this as an interest indicator for visible launch traction, not as proof of revenue or retention."
           : "Use this as a short traction stat when you want to show builders are paying attention.",
       sourceName: "Product Hunt",
       sourceUrl: normalizePublicUrl(topMatch.url) ?? "https://www.producthunt.com/",
