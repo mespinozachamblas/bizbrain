@@ -22,20 +22,22 @@ export async function runDailyEnrichScore() {
       });
 
       if (pendingSignals.length === 0) {
+        const existingIdeaRefresh = await refreshExistingIdeas();
         const socialDraftSync = await syncSocialContentDrafts();
 
         await context.markProgress({
-          recordsRead: 0,
-          recordsWritten: socialDraftSync.recordsWritten,
+          recordsRead: existingIdeaRefresh.recordsRead,
+          recordsWritten: existingIdeaRefresh.recordsWritten + socialDraftSync.recordsWritten,
           warnings: [
             "No raw signals require enrichment.",
+            ...existingIdeaRefresh.warnings,
             ...socialDraftSync.warnings
           ]
         });
 
         logJobBoundary(
           "daily-enrich-score",
-          `No pending raw signals found. Refreshed ${socialDraftSync.recordsWritten} social content draft(s).`
+          `No pending raw signals found. Refreshed ${existingIdeaRefresh.ideaCount} idea(s) and ${socialDraftSync.recordsWritten} social content draft(s).`
         );
         return;
       }
@@ -324,6 +326,42 @@ async function processRawSignals(rawSignals: RawSignalRecord[]) {
   return {
     recordsWritten,
     warnings
+  };
+}
+
+async function refreshExistingIdeas() {
+  const rawSignals = await db.rawSignal.findMany({
+    where: {
+      clusterMemberships: {
+        some: {
+          cluster: {
+            ideas: {
+              some: {}
+            }
+          }
+        }
+      }
+    },
+    orderBy: { ingestedAt: "asc" }
+  });
+
+  if (rawSignals.length === 0) {
+    return {
+      recordsRead: 0,
+      recordsWritten: 0,
+      ideaCount: 0,
+      warnings: [] as string[]
+    };
+  }
+
+  const linkedIdeaCount = await db.idea.count();
+  const result = await processRawSignals(rawSignals);
+
+  return {
+    recordsRead: rawSignals.length,
+    recordsWritten: result.recordsWritten,
+    ideaCount: linkedIdeaCount,
+    warnings: result.warnings
   };
 }
 
