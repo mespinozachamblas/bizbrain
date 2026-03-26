@@ -260,6 +260,7 @@ type SocialDigestDraft = Awaited<ReturnType<typeof getSocialDigestDrafts>>[numbe
 
 type SupportingStat = {
   claim: string;
+  statType: string;
   plainLanguageAngle: string;
   sourceName: string;
   sourceUrl: string | null;
@@ -457,6 +458,7 @@ function readSupportingStats(value: unknown): SupportingStat[] {
     .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
     .map((entry) => ({
       claim: typeof entry.claim === "string" ? entry.claim : "No claim recorded.",
+      statType: typeof entry.statType === "string" ? entry.statType : "general",
       plainLanguageAngle: typeof entry.plainLanguageAngle === "string" ? entry.plainLanguageAngle : "No angle recorded.",
       sourceName: typeof entry.sourceName === "string" ? entry.sourceName : "Unknown source",
       sourceUrl: typeof entry.sourceUrl === "string" && /^https?:\/\//i.test(entry.sourceUrl) ? entry.sourceUrl : null,
@@ -520,6 +522,7 @@ function formatSupportingStatLine(
 ) {
   return [
     stat.claim,
+    `Type: ${formatSupportingStatType(stat.statType)}`,
     `Topic: ${stat.topicName}`,
     `Draft: ${stat.draftTitle}`,
     `Source class: ${stat.sourceClass}`,
@@ -528,6 +531,21 @@ function formatSupportingStatLine(
     `Freshness: ${ensureSentence(stat.freshnessNote)}`,
     `Confidence: ${ensureSentence(stat.confidenceNote)}`
   ].join(" | ");
+}
+
+function formatSupportingStatType(statType: string) {
+  const labels: Record<string, string> = {
+    adoption: "Adoption",
+    resistance: "Resistance",
+    cost: "Cost",
+    delay: "Delay",
+    workload: "Workload",
+    benchmark: "Benchmark",
+    "market-activity": "Market Activity",
+    general: "General"
+  };
+
+  return labels[statType] ?? "General";
 }
 
 function buildSignalEvidenceSections(

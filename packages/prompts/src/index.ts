@@ -63,6 +63,7 @@ Rules:
 - treat Google Images, Pinterest, and similar discovery surfaces as reference-only unless independent license verification is available
 - prefer first-party assets, explicitly licensed stock, open-license libraries, and first-party generated assets for publishable or review-required suggestions
 - if you include statistics, they should be externally publishable insights from the provided external research context, with source name, source URL, freshness note, confidence note, and recommended usage
+- every supportingStat must include a statType such as adoption, resistance, cost, delay, workload, benchmark, market-activity, or general
 - do not turn internal signal counts, search-feed metadata, or platform engagement data into the wow-factor statistics section unless the external research context explicitly supports that use
 - if no credible external statistic is available from the provided context, return an empty supportingStats array instead of inventing numbers
 - for infographicCreativeBrief, give concrete visual-production guidance: composition, hierarchy, style, source strategy, and explicit prompts for carousel cover, single-image use, mixed stock+AI composition, and per-panel execution

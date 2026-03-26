@@ -1,4 +1,4 @@
-import { researchStreamChannels, researchStreamIds, socialDraftSchema, type SocialDraft, type SupportingStat } from "@bizbrain/core";
+import { researchStreamChannels, researchStreamIds, socialDraftSchema, type SocialDraft, type SupportingStat, type SupportingStatType } from "@bizbrain/core";
 import { db } from "@bizbrain/db";
 import { buildSocialDraftPrompt } from "@bizbrain/prompts";
 
@@ -1239,6 +1239,7 @@ async function buildSignalEvidenceStatsResearch(
   if (totalSignals > 0) {
     stats.push({
       claim: `${totalSignals} matched signal${totalSignals === 1 ? "" : "s"} currently support the opportunity behind ${idea.title}.`,
+      statType: "general",
       plainLanguageAngle:
         channel === "linkedin"
           ? "Use this to show the idea is based on a repeated pattern, not a one-off anecdote."
@@ -1260,6 +1261,7 @@ async function buildSignalEvidenceStatsResearch(
   if (sourceDiversity > 1) {
     stats.push({
       claim: `${sourceDiversity} distinct source types contributed evidence to this idea.`,
+      statType: "benchmark",
       plainLanguageAngle:
         channel === "linkedin"
           ? "Use this to show the theme is showing up across different contexts, not just one community."
@@ -1282,6 +1284,7 @@ async function buildSignalEvidenceStatsResearch(
 
     stats.push({
       claim: `${percentage}% of the matched signals in this cluster came from ${sourceType}.`,
+      statType: "benchmark",
       plainLanguageAngle:
         channel === "linkedin"
           ? "Use this to explain where the strongest current proof is concentrated."
@@ -1328,11 +1331,13 @@ async function buildExternalInsightStatsResearch(input: {
     ? input.topic.sourcePreferencesJson.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.toLowerCase())
     : [];
   const searchTerms = buildStatResearchTerms(input.topic.keywordsJson, input.idea);
+  const statStrategy = buildTopicStatStrategy(input.topic, input.idea);
   const newsQueries = buildExternalInsightQueries({
     topicName: input.topic.name,
     ideaTitle: input.idea.title,
     category: input.idea.category,
-    searchTerms
+    searchTerms,
+    strategy: statStrategy
   });
   const stats: SupportingStat[] = [];
 
@@ -1352,17 +1357,16 @@ async function buildExternalInsightStatsResearch(input: {
       }
 
       const xml = await response.text();
-      const matches = parseExternalInsightMatches(xml, searchTerms).filter(
+      const matches = parseExternalInsightMatches(xml, searchTerms, statStrategy).filter(
         (match) => !stats.some((stat) => normalizeComparableStatClaim(stat.claim) === normalizeComparableStatClaim(match.claim))
       );
 
       stats.push(
         ...matches.map((match) => ({
           claim: match.claim,
+          statType: match.statType,
           plainLanguageAngle:
-            input.channel === "linkedin"
-              ? `Use this to anchor the post in outside evidence about ${input.topic.name}, then translate the number into an operator implication.`
-              : `Use this as a sharp external fact that makes the ${input.topic.name} angle feel timely and concrete.`,
+            buildPlainLanguageAngle(match.statType, input.topic.name, input.channel),
           sourceName: match.sourceName,
           sourceUrl: normalizePublicUrl(match.sourceUrl),
           sourceDate: match.sourceDate,
@@ -1370,7 +1374,7 @@ async function buildExternalInsightStatsResearch(input: {
             ? `This statistic was cited in a source dated ${match.sourceDate}. Verify the underlying article before publishing.`
             : "Publication date was not parsed from the feed item. Verify freshness before publishing.",
           confidenceNote: buildExternalInsightConfidenceNote(match.sourceUrl, preferredStatSources),
-          recommendedUsage: `Use this as a publishable hook or infographic callout for ${input.topic.name}. Verify the original article or report before publication.${renderPreferredStatSourceHint(preferredStatSources)}`,
+          recommendedUsage: buildRecommendedUsage(match.statType, input.topic.name, preferredStatSources),
           reviewStatus: "pending" as const
         }))
       );
@@ -1457,6 +1461,7 @@ async function fetchGoogleTrendsSupportingStats(input: {
         trendMatches.length === 1
           ? `Google Trends surfaced 1 currently trending query relevant to ${input.topic.name}.`
           : `Google Trends surfaced ${trendMatches.length} currently trending queries relevant to ${input.topic.name}.`,
+      statType: "market-activity",
       plainLanguageAngle:
         input.channel === "linkedin"
           ? "Use this to show the topic is colliding with live search interest, not just discussion chatter."
@@ -1477,6 +1482,7 @@ async function fetchGoogleTrendsSupportingStats(input: {
   if (topMatch.approxTraffic) {
     stats.push({
       claim: `The strongest matching Google Trends item reported approximate traffic of ${topMatch.approxTraffic}.`,
+      statType: "market-activity",
       plainLanguageAngle:
         input.channel === "linkedin"
           ? "Use this as a punchy quantitative anchor, but keep the claim tied to search attention rather than market size."
@@ -1619,6 +1625,7 @@ async function fetchProductHuntSupportingStats(input: {
         matches.length === 1
           ? `Product Hunt surfaced 1 recent launch relevant to ${input.topic.name}.`
           : `Product Hunt surfaced ${matches.length} recent launches relevant to ${input.topic.name}.`,
+      statType: "market-activity",
       plainLanguageAngle:
         input.channel === "linkedin"
           ? "Use this to show that the topic has visible launch and product activity, not just discussion volume."
@@ -1637,6 +1644,7 @@ async function fetchProductHuntSupportingStats(input: {
   if (typeof topMatch.votesCount === "number") {
     stats.push({
       claim: `The strongest matching Product Hunt launch drew ${topMatch.votesCount} vote${topMatch.votesCount === 1 ? "" : "s"}${typeof topMatch.commentsCount === "number" ? ` and ${topMatch.commentsCount} comment${topMatch.commentsCount === 1 ? "" : "s"}` : ""}.`,
+      statType: "market-activity",
       plainLanguageAngle:
         input.channel === "linkedin"
           ? "Use this as an interest indicator for visible launch traction, not as proof of revenue or retention."
@@ -1671,11 +1679,84 @@ function buildStatResearchTerms(
   return [...new Set([...topicKeywords.map((entry) => entry.toLowerCase()), ...ideaTerms])].slice(0, 12);
 }
 
+type TopicStatStrategy = {
+  family: "landlord" | "workflow" | "founder" | "social-media" | "general";
+  audienceTerms: string[];
+  sourceTerms: string[];
+  statIntentTerms: string[];
+  preferredStatTypes: SupportingStatType[];
+};
+
+function buildTopicStatStrategy(
+  topic: Pick<TopicRecord, "name" | "slug" | "keywordsJson">,
+  idea: Pick<IdeaWithCluster, "title" | "category" | "problemSummary">
+): TopicStatStrategy {
+  const haystack = [
+    topic.name,
+    topic.slug,
+    Array.isArray(topic.keywordsJson) ? topic.keywordsJson.join(" ") : "",
+    idea.title,
+    idea.category,
+    idea.problemSummary ?? ""
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  if (/(landlord|property manager|property management|tenant|rental|leasing)/.test(haystack)) {
+    return {
+      family: "landlord",
+      audienceTerms: ["landlords", "property managers", "\"property management\""],
+      sourceTerms: ["survey", "benchmark", "report", "study"],
+      statIntentTerms: ["software adoption", "technology adoption", "manual work", "vacancy", "maintenance", "late payments"],
+      preferredStatTypes: ["adoption", "resistance", "delay", "workload", "benchmark"]
+    };
+  }
+
+  if (/(workflow|automation|ops|operations|process|follow-up|follow up|handoff|friction)/.test(haystack)) {
+    return {
+      family: "workflow",
+      audienceTerms: ["operators", "teams", "\"small business\"", "\"operations leaders\""],
+      sourceTerms: ["benchmark", "report", "study", "survey"],
+      statIntentTerms: ["manual tasks", "time spent", "delays", "rework", "productivity", "automation adoption"],
+      preferredStatTypes: ["workload", "delay", "cost", "adoption", "benchmark"]
+    };
+  }
+
+  if (/(founder|startup|builder|operator|saas|gtm|go-to-market)/.test(haystack)) {
+    return {
+      family: "founder",
+      audienceTerms: ["founders", "operators", "startups", "\"small business owners\""],
+      sourceTerms: ["report", "survey", "benchmark", "research"],
+      statIntentTerms: ["adoption", "budget", "time spent", "growth", "customer acquisition", "software usage"],
+      preferredStatTypes: ["adoption", "cost", "workload", "benchmark", "market-activity"]
+    };
+  }
+
+  if (/(social media|linkedin|twitter|x\b|content marketing|audience)/.test(haystack)) {
+    return {
+      family: "social-media",
+      audienceTerms: ["marketers", "content teams", "founders", "operators"],
+      sourceTerms: ["report", "benchmark", "survey", "study"],
+      statIntentTerms: ["engagement", "posting frequency", "content performance", "lead generation", "distribution"],
+      preferredStatTypes: ["benchmark", "market-activity", "adoption", "workload", "general"]
+    };
+  }
+
+  return {
+    family: "general",
+    audienceTerms: [topic.name, idea.category].filter(Boolean),
+    sourceTerms: ["report", "survey", "study", "benchmark"],
+    statIntentTerms: ["adoption", "cost", "delay", "workload"],
+    preferredStatTypes: ["benchmark", "adoption", "cost", "delay", "workload", "general"]
+  };
+}
+
 function buildExternalInsightQueries(input: {
   topicName: string;
   ideaTitle: string;
   category: string;
   searchTerms: string[];
+  strategy: TopicStatStrategy;
 }) {
   const querySeeds = [
     [input.topicName, input.category].filter(Boolean).join(" "),
@@ -1685,13 +1766,25 @@ function buildExternalInsightQueries(input: {
     .map((entry) => entry.trim())
     .filter(Boolean);
 
-  return querySeeds.map((seed) => `${seed} (survey OR report OR study OR benchmark OR poll OR research OR data)`);
+  const sourceClause = input.strategy.sourceTerms.join(" OR ");
+  const audienceClause = input.strategy.audienceTerms.slice(0, 2).join(" OR ");
+  const intentClause = input.strategy.statIntentTerms.slice(0, 3).join(" OR ");
+
+  return [
+    ...querySeeds.map((seed) => `${seed} (${sourceClause} OR poll OR research OR data)`),
+    `${input.topicName} ${audienceClause} (${intentClause}) (${sourceClause})`,
+    `${input.ideaTitle} (${intentClause}) (${sourceClause})`
+  ]
+    .map((query) => query.trim())
+    .filter(Boolean)
+    .slice(0, 5);
 }
 
-function parseExternalInsightMatches(xml: string, keywords: string[]) {
+function parseExternalInsightMatches(xml: string, keywords: string[], strategy: TopicStatStrategy) {
   const items = extractXmlTagBlocks(xml, "item");
   const matches: Array<{
     claim: string;
+    statType: SupportingStatType;
     sourceName: string;
     sourceUrl: string;
     sourceDate: string | null;
@@ -1724,12 +1817,18 @@ function parseExternalInsightMatches(xml: string, keywords: string[]) {
       continue;
     }
 
+    const statType = inferSupportingStatType(candidateText, strategy);
+
     matches.push({
       claim,
+      statType,
       sourceName,
       sourceUrl,
       sourceDate,
-      relevanceScore: matchedKeywords.length + scoreExternalSourceDomain(sourceUrl)
+      relevanceScore:
+        matchedKeywords.length +
+        scoreExternalSourceDomain(sourceUrl) +
+        scoreStatTypeFit(statType, strategy.preferredStatTypes)
     });
   }
 
@@ -1740,6 +1839,93 @@ function parseExternalInsightMatches(xml: string, keywords: string[]) {
       return all.findIndex((candidate) => normalizeComparableStatClaim(candidate.claim) === normalized) === index;
     })
     .slice(0, 3);
+}
+
+function inferSupportingStatType(value: string, strategy: TopicStatStrategy): SupportingStatType {
+  const haystack = value.toLowerCase();
+
+  if (/(adopt|adoption|using|usage|implemented|deploy|use ai|use software|software adoption)/.test(haystack)) {
+    return "adoption";
+  }
+
+  if (/(fear|afraid|hesitant|resistant|resistance|trust|security concern|won't use|avoid using)/.test(haystack)) {
+    return "resistance";
+  }
+
+  if (/(cost|spend|budget|price|expense|savings|saving|\$|roi)/.test(haystack)) {
+    return "cost";
+  }
+
+  if (/(delay|days|hours|slow|wait|waiting|late|lag|turnaround)/.test(haystack)) {
+    return "delay";
+  }
+
+  if (/(manual|hours per week|hours a week|hours each week|workload|staffing|headcount|time spent|time-consuming|admin)/.test(haystack)) {
+    return "workload";
+  }
+
+  if (/(benchmark|average|median|compared with|compared to|top quartile|best-in-class)/.test(haystack)) {
+    return "benchmark";
+  }
+
+  if (/(launch|launches|market|search interest|traffic|engagement|growth)/.test(haystack)) {
+    return "market-activity";
+  }
+
+  return strategy.preferredStatTypes[0] ?? "general";
+}
+
+function scoreStatTypeFit(statType: SupportingStatType, preferred: SupportingStatType[]) {
+  if (preferred.includes(statType)) {
+    return 1.5;
+  }
+
+  return statType === "general" ? 0.25 : 0;
+}
+
+function buildPlainLanguageAngle(
+  statType: SupportingStatType,
+  topicName: string,
+  channel: (typeof researchStreamChannels)[number]
+) {
+  const linkedIn = {
+    adoption: `Use this to show how widely the behavior or software pattern is already taking hold around ${topicName}.`,
+    resistance: `Use this to show where fear, hesitation, or trust friction is blocking change around ${topicName}.`,
+    cost: `Use this to quantify the budget, savings, or financial pressure behind ${topicName}.`,
+    delay: `Use this to show how much time or follow-up lag is built into the current workflow around ${topicName}.`,
+    workload: `Use this to show how much manual effort or admin burden sits behind ${topicName}.`,
+    benchmark: `Use this to anchor the post in a benchmark or industry comparison tied to ${topicName}.`,
+    "market-activity": `Use this to show that the topic has visible external momentum around ${topicName}.`,
+    general: `Use this to anchor the post in outside evidence about ${topicName}, then translate the number into a practical implication.`
+  } satisfies Record<SupportingStatType, string>;
+
+  const x = {
+    adoption: `Use this as a sharp adoption stat that makes the ${topicName} angle feel real fast.`,
+    resistance: `Use this as a sharp friction stat that shows why people still resist the change.`,
+    cost: `Use this as a quick money stat that sharpens the take.`,
+    delay: `Use this as a time-loss stat that makes the pain immediately concrete.`,
+    workload: `Use this as an admin-burden stat that helps the post land fast.`,
+    benchmark: `Use this as a quick benchmark stat that gives the take more weight.`,
+    "market-activity": `Use this as a short external momentum stat for the ${topicName} angle.`,
+    general: `Use this as a sharp external fact that makes the ${topicName} angle feel timely and concrete.`
+  } satisfies Record<SupportingStatType, string>;
+
+  return (channel === "linkedin" ? linkedIn : x)[statType];
+}
+
+function buildRecommendedUsage(statType: SupportingStatType, topicName: string, preferredStatSources: string[]) {
+  const usageMap = {
+    adoption: `Use this as a post hook or infographic callout about adoption behavior in ${topicName}.`,
+    resistance: `Use this as a post hook or infographic callout about hesitation, trust, or resistance in ${topicName}.`,
+    cost: `Use this as a post hook or infographic callout about budget pressure, savings, or cost in ${topicName}.`,
+    delay: `Use this as a post hook or infographic callout about time loss, follow-up lag, or operational delay in ${topicName}.`,
+    workload: `Use this as a post hook or infographic callout about manual work or admin burden in ${topicName}.`,
+    benchmark: `Use this as a benchmark-style proof point in a hook, supporting paragraph, or infographic panel for ${topicName}.`,
+    "market-activity": `Use this as an external momentum stat for a hook or supporting point in ${topicName}.`,
+    general: `Use this as a publishable hook or infographic callout for ${topicName}.`
+  } satisfies Record<SupportingStatType, string>;
+
+  return `${usageMap[statType]} Verify the original article or report before publication.${renderPreferredStatSourceHint(preferredStatSources)}`;
 }
 
 function extractSourceNameFromNewsTitle(title: string, sourceUrl: string) {
@@ -1816,6 +2002,10 @@ function scoreExternalInsightStat(stat: SupportingStat) {
     score += 0.8;
   }
 
+  if (stat.statType !== "general") {
+    score += 0.75;
+  }
+
   if (stat.claim.length >= 28 && stat.claim.length <= 220) {
     score += 0.5;
   }
@@ -1871,6 +2061,16 @@ function scoreExternalSourceDomain(sourceUrl: string) {
     "mckinsey.com",
     "gartner.com",
     "statista.com",
+    "buildium.com",
+    "appfolio.com",
+    "narpm.org",
+    "nmhc.org",
+    "zillow.com",
+    "hubspot.com",
+    "hootsuite.com",
+    "sproutsocial.com",
+    "buffer.com",
+    "salesforce.com",
     "census.gov",
     "bls.gov",
     "worldbank.org",
@@ -2076,6 +2276,7 @@ function buildFallbackSupportingStats(input: {
         signalCount && signalCount > 1
           ? `${signalCount} recent ${sourceType} signals pointed at the same pain pattern behind ${input.idea.title}.`
           : `Recent ${sourceType} evidence reinforced the core pain pattern behind ${input.idea.title}.`,
+      statType: "general",
       plainLanguageAngle:
         input.channel === "linkedin"
           ? "Use this as a credibility anchor before explaining the business implication."
@@ -2099,6 +2300,13 @@ function normalizeSupportingStat(value: Record<string, unknown> | SupportingStat
 
   return {
     claim: value.claim,
+    statType:
+      typeof (value as Record<string, unknown>).statType === "string" &&
+      ["adoption", "resistance", "cost", "delay", "workload", "benchmark", "market-activity", "general"].includes(
+        (value as Record<string, unknown>).statType as string
+      )
+        ? ((value as Record<string, unknown>).statType as SupportingStat["statType"])
+        : "general",
     plainLanguageAngle: value.plainLanguageAngle,
     sourceName: value.sourceName,
     sourceUrl: normalizePublicUrl(typeof value.sourceUrl === "string" ? value.sourceUrl : null),

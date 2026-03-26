@@ -342,6 +342,8 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                               {supportingStats.map((stat, index) => (
                                 <div className="evidenceCard" key={`${draft.id}-stat-${index}`}>
                                   <p className="rowMeta">
+                                    <span className="badge">{formatStatTypeLabel(stat.statType)}</span>
+                                    {" "}
                                     <span className="badge">{stat.sourceClassLabel}</span>
                                     {" "}
                                     <span className={`status status-${normalizeStatReviewStatus(stat.reviewStatus)}`}>{stat.reviewStatus}</span>
@@ -409,6 +411,8 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                               {signalEvidenceStats.map((stat, index) => (
                                 <div className="evidenceCard" key={`${draft.id}-signal-stat-${index}`}>
                                   <p className="rowMeta">
+                                    <span className="badge">{formatStatTypeLabel(stat.statType)}</span>
+                                    {" "}
                                     <span className="badge">{stat.sourceClassLabel}</span>
                                   </p>
                                   <p className="rowTitle">{stat.claim}</p>
@@ -672,6 +676,7 @@ function readSupportingStats(value: unknown) {
     .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
     .map((entry) => ({
       claim: typeof entry.claim === "string" ? entry.claim : "No claim recorded.",
+      statType: typeof entry.statType === "string" ? entry.statType : "general",
       plainLanguageAngle: typeof entry.plainLanguageAngle === "string" ? entry.plainLanguageAngle : "No angle recorded.",
       sourceName: typeof entry.sourceName === "string" ? entry.sourceName : "Unknown source",
       sourceUrl: typeof entry.sourceUrl === "string" && entry.sourceUrl.trim().length > 0 ? entry.sourceUrl : null,
@@ -694,6 +699,7 @@ function buildPromptPack(
   draft: any,
   supportingStats: Array<{
     claim: string;
+    statType: string;
     sourceName: string;
     sourceUrl: string | null;
     reviewStatus: string;
@@ -748,6 +754,7 @@ function buildPromptPack(
       ? approvedStats.map(
           (stat, index) =>
             `${index + 1}. ${stat.claim} (${stat.sourceName}${stat.sourceUrl ? ` — ${stat.sourceUrl}` : ""})`
+            + ` [${formatStatTypeLabel(stat.statType)}]`
         )
       : ["No approved supporting stats yet."]),
     "",
@@ -768,6 +775,7 @@ function buildPromptVariantPack(
   draft: any,
   supportingStats: Array<{
     claim: string;
+    statType: string;
     sourceName: string;
     sourceUrl: string | null;
     reviewStatus: string;
@@ -853,6 +861,7 @@ function buildDesignerBrief(
   draft: any,
   supportingStats: Array<{
     claim: string;
+    statType: string;
     sourceName: string;
     sourceUrl: string | null;
     reviewStatus: string;
@@ -952,6 +961,21 @@ function inferStatSourceClass(sourceName: string, sourceUrl: string | null) {
   }
 
   return "External Evidence";
+}
+
+function formatStatTypeLabel(statType: string) {
+  const labels: Record<string, string> = {
+    adoption: "Adoption",
+    resistance: "Resistance",
+    cost: "Cost",
+    delay: "Delay",
+    workload: "Workload",
+    benchmark: "Benchmark",
+    "market-activity": "Market Activity",
+    general: "General"
+  };
+
+  return labels[statType] ?? "General";
 }
 
 function summarizeStatSourceClasses(
