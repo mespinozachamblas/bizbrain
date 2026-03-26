@@ -185,6 +185,9 @@ export default async function AssetPacksPage({ searchParams }: PageProps) {
                     <p className="rowMeta">
                       Approved stats: {supportingStats.length} · Reviewed media: {mediaCandidates.length} · Format: {draft.infographicFormat ?? "not set"}
                     </p>
+                    <p className="rowMeta">
+                      Ready because: {buildReadyReasonLabel(supportingStats.length, mediaCandidates.length)}
+                    </p>
                     <div className="jobButtons">
                       <a className="jobButton jobButtonSecondary" download={buildPromptPackFilename(draft.title ?? "social-draft")} href={buildPromptPackHref(promptPack)}>
                         Prompt pack
@@ -205,16 +208,14 @@ export default async function AssetPacksPage({ searchParams }: PageProps) {
                     <details className="adminDisclosure">
                       <summary className="adminDisclosureSummary">
                         <div>
-                          <p className="rowTitle">Approved evidence</p>
-                          <p className="rowMeta">Quick view of the stats and media feeding these exports</p>
+                          <p className="rowTitle">Reviewed inputs</p>
+                          <p className="rowMeta">Shows only the approved or review-safe inputs currently feeding these exports</p>
                         </div>
                       </summary>
                       <div className="stack">
-                        <div className="evidenceSection">
-                          <p className="rowBody"><strong>Approved supporting stats:</strong></p>
-                          {supportingStats.length === 0 ? (
-                            <p className="rowMeta">No approved stats.</p>
-                          ) : (
+                        {supportingStats.length > 0 ? (
+                          <div className="evidenceSection">
+                            <p className="rowBody"><strong>Approved supporting stats:</strong></p>
                             <div className="stack">
                               {supportingStats.map((stat, index) => (
                                 <div className="evidenceCard" key={`${draft.id}-approved-stat-${index}`}>
@@ -227,13 +228,11 @@ export default async function AssetPacksPage({ searchParams }: PageProps) {
                                 </div>
                               ))}
                             </div>
-                          )}
-                        </div>
-                        <div className="evidenceSection">
-                          <p className="rowBody"><strong>Reviewed media references:</strong></p>
-                          {mediaCandidates.length === 0 ? (
-                            <p className="rowMeta">No reviewed media references.</p>
-                          ) : (
+                          </div>
+                        ) : null}
+                        {mediaCandidates.length > 0 ? (
+                          <div className="evidenceSection">
+                            <p className="rowBody"><strong>Reviewed media references:</strong></p>
                             <div className="stack">
                               {mediaCandidates.map((candidate, index) => (
                                 <div className="evidenceCard" key={`${draft.id}-approved-media-${index}`}>
@@ -246,8 +245,8 @@ export default async function AssetPacksPage({ searchParams }: PageProps) {
                                 </div>
                               ))}
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        ) : null}
                       </div>
                     </details>
                   </article>
@@ -449,6 +448,22 @@ function scoreAssetPackReadiness(
   }
 
   return { score, label: "evidence-ready" };
+}
+
+function buildReadyReasonLabel(approvedStatCount: number, reviewedMediaCount: number) {
+  if (approvedStatCount > 0 && reviewedMediaCount > 0) {
+    return "approved stats and reviewed media";
+  }
+
+  if (approvedStatCount > 0) {
+    return "approved stats";
+  }
+
+  if (reviewedMediaCount > 0) {
+    return "reviewed media";
+  }
+
+  return "manual review pending";
 }
 
 function buildPromptVariantPack(
