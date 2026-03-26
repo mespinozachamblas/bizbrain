@@ -197,6 +197,14 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                         <p className="rowBody"><strong>Research brief driving this draft:</strong> {draft.sourceBrief?.title ?? draft.sourceIdea?.title ?? "No linked research brief yet."}</p>
                         <div className="evidenceSection">
                           <div className="rowBody">
+                            <strong>What this means in plain English:</strong>
+                          </div>
+                          <div className="evidenceCard">
+                            <p className="rowBody">{buildPlainEnglishResearchExplanation(draft)}</p>
+                          </div>
+                        </div>
+                        <div className="evidenceSection">
+                          <div className="rowBody">
                             <strong>What this research is actually about:</strong>
                           </div>
                           {draft.sourceBrief ? (
@@ -350,6 +358,9 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                                   </p>
                                   <p className="rowTitle">{stat.claim}</p>
                                   <p className="rowBody">
+                                    <strong>Plain-English meaning:</strong> {buildPlainEnglishStatExplanation(stat)}
+                                  </p>
+                                  <p className="rowBody">
                                     <strong>What this stat could help you say:</strong> {stat.plainLanguageAngle}
                                   </p>
                                   <p className="rowBody">
@@ -416,6 +427,9 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                                     <span className="badge">{stat.sourceClassLabel}</span>
                                   </p>
                                   <p className="rowTitle">{stat.claim}</p>
+                                  <p className="rowBody">
+                                    <strong>Plain-English meaning:</strong> {buildPlainEnglishStatExplanation(stat)}
+                                  </p>
                                   <p className="rowBody">
                                     <strong>Why BizBrain surfaced this topic:</strong> {stat.plainLanguageAngle}
                                   </p>
@@ -976,6 +990,82 @@ function formatStatTypeLabel(statType: string) {
   };
 
   return labels[statType] ?? "General";
+}
+
+function buildPlainEnglishResearchExplanation(draft: Awaited<ReturnType<typeof getSocialDrafts>>[number]) {
+  const pattern = translateResearchPhrase(
+    draft.sourceBrief?.themeSummary ??
+      draft.sourceIdea?.problemSummary ??
+      draft.thesis ??
+      draft.hook ??
+      "No plain-language explanation is available yet."
+  );
+  const audience = translateResearchPhrase(
+    draft.sourceBrief?.audienceInsight ??
+      draft.sourceIdea?.targetCustomer ??
+      draft.targetAudience ??
+      "the likely audience is not clearly recorded yet"
+  );
+  const takeaway = translateResearchPhrase(
+    draft.sourceBrief?.operatorTakeaway ??
+      draft.sourceIdea?.solutionConcept ??
+      draft.thesis ??
+      "the practical takeaway is not clearly recorded yet"
+  );
+
+  return `${ensureSentence(pattern)} ${ensureSentence(
+    `In practical terms, this matters because ${lowercaseFirst(takeaway)}`
+  )} ${ensureSentence(`The people closest to the problem are ${lowercaseFirst(audience)}`)}`;
+}
+
+function buildPlainEnglishStatExplanation(stat: ReturnType<typeof readSupportingStats>[number]) {
+  const leadByType: Record<string, string> = {
+    adoption: "This is an adoption statistic.",
+    resistance: "This is a resistance or trust-friction statistic.",
+    cost: "This is a money or budget statistic.",
+    delay: "This is a delay or time-loss statistic.",
+    workload: "This is a manual-work or admin-burden statistic.",
+    benchmark: "This is a benchmark comparison statistic.",
+    "market-activity": "This is a market-activity statistic.",
+    general: "This is a general supporting statistic."
+  };
+
+  return `${leadByType[stat.statType] ?? leadByType.general} ${ensureSentence(
+    translateResearchPhrase(stat.claim)
+  )} ${ensureSentence(lowercaseFirst(translateResearchPhrase(stat.plainLanguageAngle)))}`;
+}
+
+function translateResearchPhrase(value: string) {
+  return value
+    .replace(/\bfragmented public signals\b/gi, "scattered clues from public sources like news, forums, social posts, and trend data")
+    .replace(/\btrend capture\b/gi, "spotting and understanding emerging trends")
+    .replace(/\boperators\b/gi, "people running teams or businesses")
+    .replace(/\boperator conversations\b/gi, "conversations between people running teams or businesses")
+    .replace(/\bworkflow friction\b/gi, "repeat operational friction in how the work gets done")
+    .replace(/\bmarket evidence\b/gi, "outside evidence showing the issue keeps coming up")
+    .replace(/\bworkflow problem\b/gi, "repeat operational problem")
+    .replace(/\bworkflow lesson\b/gi, "practical lesson about how the work is being handled")
+    .replace(/\bsource material\b/gi, "underlying source material");
+}
+
+function ensureSentence(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+function lowercaseFirst(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  return trimmed.charAt(0).toLowerCase() + trimmed.slice(1);
 }
 
 function summarizeStatSourceClasses(
