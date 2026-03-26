@@ -736,6 +736,8 @@ export async function forceSendSocialDigestReviewCopy(_: ActionState, _formData:
     const emailFrom = process.env.EMAIL_FROM;
     const replyTo = parseReplyTo(process.env.SOCIAL_DIGEST_REPLY_TO ?? process.env.DIGEST_REPLY_TO);
 
+    await workerJobs["daily-social-media-digest-email"]();
+
     if (!resendApiKey) {
       throw new Error("RESEND_API_KEY is not configured.");
     }
