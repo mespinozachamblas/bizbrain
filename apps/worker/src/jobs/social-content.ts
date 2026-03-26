@@ -1803,15 +1803,15 @@ function parseExternalInsightMatches(xml: string, keywords: string[], strategy: 
     const pubDate = extractXmlTagText(item, "pubDate");
     const sourceDate = pubDate ? new Date(pubDate).toISOString().slice(0, 10) : null;
     const sourceName = extractSourceNameFromNewsTitle(rawTitle, sourceUrl);
-    const titleWithoutSource = rawTitle.replace(/\s+-\s+[^-]+$/, "").trim();
-    const candidateText = [titleWithoutSource, stripHtml(rawDescription)].filter(Boolean).join(" ");
+    const titleWithoutSource = cleanupRepeatedText(rawTitle.replace(/\s+-\s+[^-]+$/, "").trim());
+    const candidateText = cleanupRepeatedText([titleWithoutSource, stripHtml(rawDescription)].filter(Boolean).join(" "));
     const matchedKeywords = keywords.filter((keyword) => keywordMatchesHaystack(keyword, candidateText.toLowerCase()));
 
     if (matchedKeywords.length === 0) {
       continue;
     }
 
-    const claim = extractNumericClaim(candidateText);
+    const claim = extractNumericClaim(candidateText, strategy);
 
     if (!claim) {
       continue;
@@ -1943,27 +1943,87 @@ function extractSourceNameFromNewsTitle(title: string, sourceUrl: string) {
 }
 
 function stripHtml(value: string) {
-  return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return value
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function extractNumericClaim(value: string) {
+function extractNumericClaim(value: string, strategy: TopicStatStrategy) {
   const sentences = value
     .split(/(?<=[.!?])\s+/)
-    .map((sentence) => sentence.trim())
+    .map((sentence) => cleanupRepeatedText(sentence.trim()))
     .filter(Boolean);
 
-  for (const sentence of sentences) {
-    if (/\d/.test(sentence) && sentence.length >= 24) {
-      return ensureTrailingPeriod(sentence);
-    }
+  const bestSentence = sentences
+    .filter((sentence) => /\d/.test(sentence) && sentence.length >= 24)
+    .sort((left, right) => scoreNumericClaimSentence(right, strategy) - scoreNumericClaimSentence(left, strategy))[0];
+
+  if (bestSentence) {
+    return ensureTrailingPeriod(bestSentence);
   }
 
-  const match = value.match(/[^.?!]*\d[^.?!]*[.?!]?/);
-  return match ? ensureTrailingPeriod(match[0].trim()) : null;
+  const match = cleanupRepeatedText(value).match(/[^.?!]*\d[^.?!]*[.?!]?/);
+  return match ? ensureTrailingPeriod(cleanupRepeatedText(match[0].trim())) : null;
 }
 
 function ensureTrailingPeriod(value: string) {
   return /[.!?]$/.test(value) ? value : `${value}.`;
+}
+
+function scoreNumericClaimSentence(sentence: string, strategy: TopicStatStrategy) {
+  const normalized = sentence.toLowerCase();
+  let score = 0;
+
+  if (/%|\bpercent\b/.test(normalized)) {
+    score += 3;
+  }
+
+  if (/\b\d+(?:\.\d+)?\s*(hours?|days?|weeks?|months?|years?)\b/.test(normalized)) {
+    score += 2;
+  }
+
+  if (/\b\d+(?:\.\d+)?\s*(million|billion|thousand|k|m|b)\b/i.test(sentence)) {
+    score += 2;
+  }
+
+  const statType = inferSupportingStatType(sentence, strategy);
+  score += scoreStatTypeFit(statType, strategy.preferredStatTypes);
+
+  for (const term of strategy.statIntentTerms) {
+    if (normalized.includes(term.toLowerCase())) {
+      score += 1;
+    }
+  }
+
+  if (sentence.length >= 40 && sentence.length <= 180) {
+    score += 1;
+  }
+
+  return score;
+}
+
+function cleanupRepeatedText(value: string) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+
+  if (!normalized) {
+    return normalized;
+  }
+
+  const words = normalized.split(" ");
+  const half = Math.floor(words.length / 2);
+
+  if (half >= 4) {
+    const firstHalf = words.slice(0, half).join(" ").toLowerCase();
+    const secondHalf = words.slice(half).join(" ").toLowerCase();
+
+    if (firstHalf === secondHalf) {
+      return words.slice(0, half).join(" ");
+    }
+  }
+
+  return normalized.replace(/\b(.+?)\s+\1\b/i, "$1");
 }
 
 function buildExternalInsightConfidenceNote(sourceUrl: string, preferredStatSources: string[]) {
