@@ -72,8 +72,8 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
         </p>
       </section>
 
-      <section className="dashboardGrid dashboardGridTwoCol">
-        <article className="card controlCard">
+      <section className="stack socialDraftsPageStack">
+        <article className="card controlCard socialDraftsControlCard">
           <div className="cardHeader">
             <h2>Generate social drafts</h2>
             <span className="badge">Social</span>
@@ -89,7 +89,7 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
           </p>
         </article>
 
-        <article className="card cardTall">
+        <article className="card cardTall socialDraftsListCard">
           <div className="cardHeader">
             <h2>All social drafts</h2>
             <span className="badge">Review</span>

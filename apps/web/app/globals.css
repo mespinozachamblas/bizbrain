@@ -181,6 +181,18 @@ h1 {
   padding-bottom: 18px;
 }
 
+.socialDraftsPageStack {
+  gap: 18px;
+}
+
+.socialDraftsControlCard {
+  max-width: 460px;
+}
+
+.socialDraftsListCard {
+  width: 100%;
+}
+
 .cardHeader {
   display: flex;
   align-items: center;
@@ -450,6 +462,21 @@ h1 {
   gap: 12px;
   cursor: pointer;
   list-style: none;
+}
+
+.adminDisclosureSummary > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.adminDisclosureSummary .status {
+  flex: 0 0 auto;
+  align-self: flex-start;
+}
+
+.adminDisclosureSummary .rowMeta,
+.adminDisclosureSummary .rowTitle {
+  overflow-wrap: anywhere;
 }
 
 .adminDisclosureSummary::-webkit-details-marker {
