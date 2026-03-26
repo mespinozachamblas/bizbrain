@@ -17,7 +17,7 @@ export function renderDigestMarkdown(input: DigestRenderInput) {
         `## ${section.sectionTitle}`,
         section.plainLanguageSummary,
         "",
-        ...section.items.map((item) => `- ${item}`),
+        ...section.items.map(formatMarkdownDigestItem),
         ...(section.alerts.length > 0 ? ["", ...section.alerts.map((alert) => `- Note: ${alert}`)] : [])
       ].join("\n")
     )
@@ -34,7 +34,14 @@ export function renderDigestHtml(input: DigestRenderInput) {
   const digestTitle = input.digestTitle ?? "Opportunity Digest";
   const sections = input.sections
     .map((section) => {
-      const items = section.items.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+      const items = section.items
+        .map(
+          (item) =>
+            `<li style="margin:0 0 12px;"><div style="padding:12px 14px;border:1px solid #e5e7eb;border-radius:14px;background:#fcfcfb;white-space:pre-line;">${formatHtmlDigestItem(
+              item
+            )}</div></li>`
+        )
+        .join("");
       const alerts =
         section.alerts.length > 0
           ? `<div style="margin-top:12px;padding:12px;border-radius:12px;background:#fff7ed;border:1px solid #fdba74;"><strong>Notes</strong><ul>${section.alerts
@@ -45,7 +52,7 @@ export function renderDigestHtml(input: DigestRenderInput) {
       return `<section style="margin:0 0 24px;">
         <h2 style="margin:0 0 8px;font-size:18px;line-height:1.3;color:#111827;">${escapeHtml(section.sectionTitle)}</h2>
         <p style="margin:0 0 12px;color:#374151;font-size:14px;line-height:1.6;">${escapeHtml(section.plainLanguageSummary)}</p>
-        <ul style="margin:0;padding-left:20px;color:#111827;font-size:14px;line-height:1.7;">${items}</ul>
+        <ul style="margin:0;padding-left:0;list-style:none;color:#111827;font-size:14px;line-height:1.7;">${items}</ul>
         ${alerts}
       </section>`;
     })
@@ -127,4 +134,25 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function formatMarkdownDigestItem(item: string) {
+  const lines = item
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    return "-";
+  }
+
+  return lines.map((line, index) => `${index === 0 ? "- " : "  "}${line}`).join("\n");
+}
+
+function formatHtmlDigestItem(item: string) {
+  return item
+    .split("\n")
+    .map((line) => escapeHtml(line.trim()))
+    .filter(Boolean)
+    .join("<br/>");
 }

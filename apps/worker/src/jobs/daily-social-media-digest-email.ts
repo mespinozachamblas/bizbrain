@@ -406,17 +406,17 @@ function buildSocialDigestSections(input: SocialDigestInputs) {
 
 function formatSocialDraftLine(draft: SocialDigestDraft) {
   const freshnessLabel = summarizeDraftFreshnessLabel(draft);
-  const parts = [
+  const supportingPoints = toStringArray(draft.supportingPointsJson).slice(0, 3);
+  const lines = [
     `${freshnessLabel ? `${freshnessLabel} ` : ""}${draft.title}`,
-    `Topic: ${draft.topic?.name ?? "Unassigned"}`,
-    `Framework: ${draft.copyFramework?.name ?? "Stream default"}`,
-    `Style: ${draft.styleProfile?.name ?? "Stream default"}`,
+    `Topic: ${draft.topic?.name ?? "Unassigned"} · Framework: ${draft.copyFramework?.name ?? "Stream default"} · Style: ${draft.styleProfile?.name ?? "Stream default"}`,
     `Hook: ${ensureSentence(draft.hook ?? draft.thesis ?? "No hook recorded yet.")}`,
-    `Angle: ${ensureSentence(draft.thesis ?? draft.hook ?? "No thesis recorded yet.")}`,
+    `Main idea: ${ensureSentence(draft.thesis ?? draft.hook ?? "No thesis recorded yet.")}`,
+    `Emphasis: ${supportingPoints.length > 0 ? supportingPoints.map((point) => ensureSentence(point)).join(" ") : "Supporting points pending."}`,
     `CTA: ${ensureSentence(draft.cta ?? "Add a clearer CTA before publishing.")}`
   ];
 
-  return parts.join(" | ");
+  return lines.join("\n");
 }
 
 function formatInfographicLine(draft: SocialDigestDraft) {
@@ -425,15 +425,18 @@ function formatInfographicLine(draft: SocialDigestDraft) {
     panels.length > 0 ? panels.map((panel) => ensureSentence(panel)).join(" / ") : "Panel outline pending.";
   const creativeDirection = readObjectField((draft as any).infographicCreativeBriefJson, "creativeDirection");
   const freshnessLabel = summarizeDraftFreshnessLabel(draft);
+  const assetPrompt =
+    readObjectField((draft as any).infographicCreativeBriefJson, "singleImagePrompt") ??
+    readObjectField((draft as any).infographicCreativeBriefJson, "carouselCoverPrompt") ??
+    "Asset-production prompt pending.";
 
   return [
     `${freshnessLabel ? `${freshnessLabel} ` : ""}${draft.title}`,
-    `Format: ${draft.infographicFormat ?? "visual brief"}`,
-    `Topic: ${draft.topic?.name ?? "Unassigned"}`,
-    `Creative: ${ensureSentence(creativeDirection ?? "Creative-production brief pending.")}`,
-    `Asset prompt: ${ensureSentence(readObjectField((draft as any).infographicCreativeBriefJson, "singleImagePrompt") ?? readObjectField((draft as any).infographicCreativeBriefJson, "carouselCoverPrompt") ?? "Asset-production prompt pending.")}`,
+    `Format: ${draft.infographicFormat ?? "visual brief"} · Topic: ${draft.topic?.name ?? "Unassigned"}`,
+    `Creative direction: ${ensureSentence(creativeDirection ?? "Creative-production brief pending.")}`,
+    `Asset prompt: ${ensureSentence(assetPrompt)}`,
     `Panels: ${panelSummary}`
-  ].join(" | ");
+  ].join("\n");
 }
 
 function hasInfographicPanels(value: unknown) {
@@ -522,15 +525,13 @@ function formatSupportingStatLine(
 ) {
   return [
     stat.claim,
-    `Type: ${formatSupportingStatType(stat.statType)}`,
-    `Topic: ${stat.topicName}`,
-    `Draft: ${stat.draftTitle}`,
-    `Source class: ${stat.sourceClass}`,
-    `Review: ${stat.reviewStatus}`,
+    `Type: ${formatSupportingStatType(stat.statType)} · Topic: ${stat.topicName} · Draft: ${stat.draftTitle}`,
+    `Plain-English use: ${ensureSentence(stat.plainLanguageAngle)}`,
+    `Review: ${stat.reviewStatus} · Source class: ${stat.sourceClass}`,
     `Source: ${stat.sourceName}${stat.sourceUrl ? ` (${stat.sourceUrl})` : ""}`,
     `Freshness: ${ensureSentence(stat.freshnessNote)}`,
     `Confidence: ${ensureSentence(stat.confidenceNote)}`
-  ].join(" | ");
+  ].join("\n");
 }
 
 function formatSupportingStatType(statType: string) {
@@ -748,13 +749,11 @@ function scoreMediaCandidate(
 function formatMediaCandidateLine(candidate: ReviewedMediaCandidate) {
   return [
     candidate.label,
-    `Topic: ${candidate.topicName}`,
-    `Draft: ${candidate.draftTitle}`,
-    `Review: ${candidate.reviewStatus}`,
-    `Source type: ${candidate.sourceType}`,
+    `Topic: ${candidate.topicName} · Draft: ${candidate.draftTitle}`,
+    `Review: ${candidate.reviewStatus} · Source type: ${candidate.sourceType}`,
     `License: ${candidate.licenseLabel ?? "Verify on origin site"}`,
     `Origin: ${candidate.originUrl ?? candidate.originDomain ?? "No origin URL stored"}`
-  ].join(" | ");
+  ].join("\n");
 }
 
 function normalizeComparableText(value: string) {
