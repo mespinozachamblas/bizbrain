@@ -196,9 +196,9 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                         <p className="rowBody"><strong>Suggested ending or CTA:</strong> {draft.cta ?? "No ending/CTA yet."}</p>
                         <p className="rowBody"><strong>Research brief driving this draft:</strong> {draft.sourceBrief?.title ?? draft.sourceIdea?.title ?? "No linked research brief yet."}</p>
                         <div className="evidenceSection">
-                          <p className="rowBody">
+                          <div className="rowBody">
                             <strong>What this research is actually about:</strong>
-                          </p>
+                          </div>
                           {draft.sourceBrief ? (
                             <div className="evidenceCard">
                               <p className="rowMeta">
@@ -265,9 +265,9 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                         <p className="rowMeta"><strong>Asset review:</strong> {draft.assetStatus ?? "draft"}</p>
                         </div>
                         <div className="evidenceSection">
-                          <p className="rowBody">
+                          <div className="rowBody">
                             <strong>Infographic creative brief:</strong>
-                          </p>
+                          </div>
                           {!draft.infographicCreativeBriefJson || typeof draft.infographicCreativeBriefJson !== "object" ? (
                             <p className="rowMeta">No creative-production brief is attached yet.</p>
                           ) : (
@@ -289,9 +289,9 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                           )}
                         </div>
                         <div className="evidenceSection">
-                          <p className="rowBody">
+                          <div className="rowBody">
                             <strong>Prompt pack:</strong>
-                          </p>
+                          </div>
                           <div className="jobButtons">
                             <a className="jobButton jobButtonSecondary" download={promptPackFilename} href={promptPackHref}>
                               Download prompt pack
@@ -328,9 +328,9 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                           <pre className="draftPreview">{promptPack}</pre>
                         </div>
                         <div className="evidenceSection">
-                          <p className="rowBody">
+                          <div className="rowBody">
                             <strong>Candidate publishable topic statistics:</strong>
-                          </p>
+                          </div>
                           <p className="rowMeta">
                             These are possible public-facing statistics for the topic itself, such as survey, benchmark, report, study, or industry data points.
                             Treat them as candidate post/infographic stats to verify before publishing.
@@ -395,9 +395,9 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                           )}
                         </div>
                         <div className="evidenceSection">
-                          <p className="rowBody">
+                          <div className="rowBody">
                             <strong>Internal BizBrain signal evidence:</strong>
-                          </p>
+                          </div>
                           <p className="rowMeta">
                             This is internal supporting evidence from matched clusters, Google Trends, Product Hunt, and other BizBrain research inputs.
                             It helps explain why the topic is surfacing, but it is usually not the kind of benchmark stat you would quote directly in a post.
@@ -443,9 +443,9 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                           )}
                         </div>
                         <div className="evidenceSection">
-                          <p className="rowBody">
+                          <div className="rowBody">
                             <strong>Media policy:</strong>
-                          </p>
+                          </div>
                           <div className="evidenceCard">
                             <p className="rowMeta">
                               Preferred sources: {formatListInput(readObjectArrayField(draft.mediaPolicyJson, "preferredSourceClasses")) || "none"}
@@ -459,9 +459,9 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                           </div>
                         </div>
                         <div className="evidenceSection">
-                          <p className="rowBody">
+                          <div className="rowBody">
                             <strong>Media candidates:</strong>
-                          </p>
+                          </div>
                           {mediaCandidates.length === 0 ? (
                             <p className="rowMeta">No media candidates yet.</p>
                           ) : (
@@ -516,9 +516,9 @@ export default async function SocialDraftsPage({ searchParams }: PageProps) {
                           )}
                         </div>
                         <div className="evidenceSection">
-                          <p className="rowBody">
+                          <div className="rowBody">
                             <strong>Topic fit:</strong>
-                          </p>
+                          </div>
                           <div className="stack">
                             <div className="evidenceCard">
                               <p className="rowTitle">{draft.topic?.name ?? "No topic linked"}</p>
