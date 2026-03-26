@@ -185,11 +185,23 @@ h1 {
   gap: 18px;
 }
 
+.listPageStack {
+  gap: 18px;
+}
+
 .socialDraftsControlCard {
   max-width: 460px;
 }
 
+.listPageControlCard {
+  max-width: 520px;
+}
+
 .socialDraftsListCard {
+  width: 100%;
+}
+
+.listPageListCard {
   width: 100%;
 }
 

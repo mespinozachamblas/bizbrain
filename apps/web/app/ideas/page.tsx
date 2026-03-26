@@ -88,8 +88,8 @@ export default async function IdeasPage({ searchParams }: PageProps) {
         </p>
       </section>
 
-      <section className="dashboardGrid dashboardGridTwoCol">
-        <article className="card controlCard">
+      <section className="stack listPageStack">
+        <article className="card controlCard listPageControlCard">
           <div className="cardHeader">
             <h2>Refresh opportunity ideas</h2>
             <span className="badge">Opportunity</span>
@@ -106,7 +106,7 @@ export default async function IdeasPage({ searchParams }: PageProps) {
           </p>
         </article>
 
-        <article className="card cardTall">
+        <article className="card cardTall listPageListCard">
           <div className="cardHeader">
             <h2>All ideas</h2>
             <span className="badge">Review</span>

@@ -16,8 +16,8 @@ export default async function FrameworksPage() {
         <p className="lede">Manage reusable copy structures like AIDA, PAS, and BAB for social and research outputs.</p>
       </section>
 
-      <section className="dashboardGrid dashboardGridTwoCol">
-        <article className="card controlCard">
+      <section className="stack listPageStack">
+        <article className="card controlCard listPageControlCard">
           <div className="cardHeader">
             <h2>Create copy framework</h2>
             <span className="badge">Messaging</span>
@@ -49,7 +49,7 @@ export default async function FrameworksPage() {
           </ServerActionForm>
         </article>
 
-        <article className="card cardTall">
+        <article className="card cardTall listPageListCard">
           <div className="cardHeader">
             <h2>All frameworks</h2>
             <span className="badge">Messaging</span>

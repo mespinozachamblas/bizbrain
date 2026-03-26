@@ -29,8 +29,8 @@ export default async function TopicsPage({ searchParams }: PageProps) {
         </p>
       </section>
 
-      <section className="dashboardGrid dashboardGridTwoCol">
-        <article className="card controlCard">
+      <section className="stack listPageStack">
+        <article className="card controlCard listPageControlCard">
           <div className="cardHeader">
             <h2>Create topic</h2>
             <span className="badge">Topics</span>
@@ -120,7 +120,7 @@ export default async function TopicsPage({ searchParams }: PageProps) {
           </ServerActionForm>
         </article>
 
-        <article className="card cardTall">
+        <article className="card cardTall listPageListCard">
           <div className="cardHeader">
             <h2>All topics</h2>
             <span className="badge">Config</span>

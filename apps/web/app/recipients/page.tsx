@@ -19,8 +19,8 @@ export default async function RecipientsPage() {
         </p>
       </section>
 
-      <section className="dashboardGrid dashboardGridTwoCol">
-        <article className="card controlCard">
+      <section className="stack listPageStack">
+        <article className="card controlCard listPageControlCard">
           <div className="cardHeader">
             <h2>Create recipient</h2>
             <span className="badge">Email</span>
@@ -57,7 +57,7 @@ export default async function RecipientsPage() {
           </ServerActionForm>
         </article>
 
-        <article className="card cardTall">
+        <article className="card cardTall listPageListCard">
           <div className="cardHeader">
             <h2>Digest recipients</h2>
             <span className="badge">Delivery</span>

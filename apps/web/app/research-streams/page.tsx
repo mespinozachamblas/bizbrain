@@ -26,8 +26,8 @@ export default async function ResearchStreamsPage({ searchParams }: PageProps) {
         </p>
       </section>
 
-      <section className="dashboardGrid dashboardGridTwoCol">
-        <article className="card controlCard">
+      <section className="stack listPageStack">
+        <article className="card controlCard listPageControlCard">
           <div className="cardHeader">
             <h2>Create research stream</h2>
             <span className="badge">Config</span>
@@ -71,7 +71,7 @@ export default async function ResearchStreamsPage({ searchParams }: PageProps) {
           </ServerActionForm>
         </article>
 
-        <article className="card cardTall">
+        <article className="card cardTall listPageListCard">
           <div className="cardHeader">
             <h2>All research streams</h2>
             <span className="badge">Admin</span>

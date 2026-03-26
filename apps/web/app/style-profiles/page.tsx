@@ -16,8 +16,8 @@ export default async function StyleProfilesPage() {
         <p className="lede">Define voice, inspiration, and guardrails for the social-media research stream and future content outputs.</p>
       </section>
 
-      <section className="dashboardGrid dashboardGridTwoCol">
-        <article className="card controlCard">
+      <section className="stack listPageStack">
+        <article className="card controlCard listPageControlCard">
           <div className="cardHeader">
             <h2>Create style profile</h2>
             <span className="badge">Voice</span>
@@ -57,7 +57,7 @@ export default async function StyleProfilesPage() {
           </ServerActionForm>
         </article>
 
-        <article className="card cardTall">
+        <article className="card cardTall listPageListCard">
           <div className="cardHeader">
             <h2>All style profiles</h2>
             <span className="badge">Voice</span>
