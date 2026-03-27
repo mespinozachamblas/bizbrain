@@ -63,17 +63,20 @@ model ResearchStream {
   scheduleCron         String?          @map("schedule_cron")
   defaultCopyFrameworkId String?        @map("default_copy_framework_id")
   defaultStyleProfileId  String?        @map("default_style_profile_id")
+  defaultVisualGenerationProfileId String? @map("default_visual_generation_profile_id")
   defaultAssetMode     String?          @map("default_asset_mode")
   createdAt            DateTime         @default(now()) @map("created_at")
   updatedAt            DateTime         @updatedAt @map("updated_at")
   defaultCopyFramework CopyFramework?   @relation("ResearchStreamDefaultCopyFramework", fields: [defaultCopyFrameworkId], references: [id], onDelete: SetNull)
   defaultStyleProfile  StyleProfile?    @relation("ResearchStreamDefaultStyleProfile", fields: [defaultStyleProfileId], references: [id], onDelete: SetNull)
+  defaultVisualGenerationProfile VisualGenerationProfile? @relation("ResearchStreamDefaultVisualGenerationProfile", fields: [defaultVisualGenerationProfileId], references: [id], onDelete: SetNull)
   topics               Topic[]
   ideas                Idea[]
   socialResearchBriefs SocialResearchBrief[]
   digests              Digest[]
   digestRecipients     DigestRecipient[]
   contentDrafts        ContentDraft[]
+  generatedAssets      GeneratedAsset[]
 
   @@map("research_streams")
 }
@@ -91,6 +94,7 @@ model Topic {
   topicFitThreshold     Float?          @map("topic_fit_threshold")
   defaultCopyFrameworkId String?        @map("default_copy_framework_id")
   defaultStyleProfileId  String?        @map("default_style_profile_id")
+  defaultVisualGenerationProfileId String? @map("default_visual_generation_profile_id")
   defaultAssetMode      String?         @map("default_asset_mode")
   enabled               Boolean         @default(true)
   createdAt             DateTime        @default(now()) @map("created_at")
@@ -98,9 +102,11 @@ model Topic {
   researchStream        ResearchStream  @relation(fields: [researchStreamId], references: [id], onDelete: Cascade)
   defaultCopyFramework  CopyFramework?  @relation("TopicDefaultCopyFramework", fields: [defaultCopyFrameworkId], references: [id], onDelete: SetNull)
   defaultStyleProfile   StyleProfile?   @relation("TopicDefaultStyleProfile", fields: [defaultStyleProfileId], references: [id], onDelete: SetNull)
+  defaultVisualGenerationProfile VisualGenerationProfile? @relation("TopicDefaultVisualGenerationProfile", fields: [defaultVisualGenerationProfileId], references: [id], onDelete: SetNull)
   ideas                 Idea[]
   socialResearchBriefs  SocialResearchBrief[]
   contentDrafts         ContentDraft[]
+  generatedAssets       GeneratedAsset[]
 
   @@unique([researchStreamId, slug])
   @@index([researchStreamId, enabled])
@@ -137,8 +143,32 @@ model StyleProfile {
   researchStreamDefaults       ResearchStream[] @relation("ResearchStreamDefaultStyleProfile")
   topicDefaults                Topic[]          @relation("TopicDefaultStyleProfile")
   contentDrafts                ContentDraft[]
+  generatedAssets              GeneratedAsset[]
 
   @@map("style_profiles")
+}
+
+model VisualGenerationProfile {
+  id                           String           @id
+  slug                         String           @unique
+  name                         String
+  description                  String?
+  visualMode                   String           @map("visual_mode")
+  designToolPreference         String           @default("none") @map("design_tool_preference")
+  costTier                     String           @default("low") @map("cost_tier")
+  maxAssetsPerRun              Int              @default(1) @map("max_assets_per_run")
+  reviewRequired               Boolean          @default(true) @map("review_required")
+  aspectRatio                  String?          @map("aspect_ratio")
+  brandTheme                   String?          @map("brand_theme")
+  enabled                      Boolean          @default(true)
+  createdAt                    DateTime         @default(now()) @map("created_at")
+  updatedAt                    DateTime         @updatedAt @map("updated_at")
+  researchStreamDefaults       ResearchStream[] @relation("ResearchStreamDefaultVisualGenerationProfile")
+  topicDefaults                Topic[]          @relation("TopicDefaultVisualGenerationProfile")
+  contentDrafts                ContentDraft[]
+  generatedAssets              GeneratedAsset[]
+
+  @@map("visual_generation_profiles")
 }
 
 model RawSignal {
@@ -331,6 +361,7 @@ model ContentDraft {
   sourceIdeaId       String?         @map("source_idea_id")
   copyFrameworkId    String?         @map("copy_framework_id")
   styleProfileId     String?         @map("style_profile_id")
+  visualGenerationProfileId String?  @map("visual_generation_profile_id")
   title              String
   targetChannel      String          @map("target_channel")
   targetAudience     String?         @map("target_audience")
@@ -363,9 +394,39 @@ model ContentDraft {
   sourceIdea         Idea?           @relation(fields: [sourceIdeaId], references: [id], onDelete: SetNull)
   copyFramework      CopyFramework?  @relation(fields: [copyFrameworkId], references: [id], onDelete: SetNull)
   styleProfile       StyleProfile?   @relation(fields: [styleProfileId], references: [id], onDelete: SetNull)
+  visualGenerationProfile VisualGenerationProfile? @relation(fields: [visualGenerationProfileId], references: [id], onDelete: SetNull)
+  generatedAssets    GeneratedAsset[]
 
   @@index([researchStreamId, status, updatedAt(sort: Desc)])
   @@map("content_drafts")
+}
+
+model GeneratedAsset {
+  id                         String                  @id @default(cuid())
+  researchStreamId           String                  @map("research_stream_id")
+  topicId                    String?                 @map("topic_id")
+  contentDraftId             String?                 @map("content_draft_id")
+  styleProfileId             String?                 @map("style_profile_id")
+  visualGenerationProfileId  String?                 @map("visual_generation_profile_id")
+  assetType                  String                  @map("asset_type")
+  visualMode                 String                  @map("visual_mode")
+  toolUsed                   String                  @map("tool_used")
+  promptOrSpec               String?                 @map("prompt_or_spec")
+  outputUrl                  String?                 @map("output_url")
+  renderStatus               String                  @map("render_status")
+  approvalStatus             String                  @map("approval_status")
+  estimatedCost              Float?                  @map("estimated_cost")
+  createdAt                  DateTime                @default(now()) @map("created_at")
+  updatedAt                  DateTime                @updatedAt @map("updated_at")
+  researchStream             ResearchStream          @relation(fields: [researchStreamId], references: [id], onDelete: Cascade)
+  topic                      Topic?                  @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  contentDraft               ContentDraft?           @relation(fields: [contentDraftId], references: [id], onDelete: SetNull)
+  styleProfile               StyleProfile?           @relation(fields: [styleProfileId], references: [id], onDelete: SetNull)
+  visualGenerationProfile    VisualGenerationProfile? @relation(fields: [visualGenerationProfileId], references: [id], onDelete: SetNull)
+
+  @@index([researchStreamId, createdAt(sort: Desc)])
+  @@index([contentDraftId])
+  @@map("generated_assets")
 }
 
 model Digest {

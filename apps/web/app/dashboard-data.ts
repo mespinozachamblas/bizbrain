@@ -112,6 +112,20 @@ export type DashboardData = {
     styleTraitsJson: unknown;
     guardrailsJson: unknown;
   }>;
+  visualGenerationProfiles: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+    visualMode: string;
+    designToolPreference: string;
+    costTier: string;
+    maxAssetsPerRun: number;
+    reviewRequired: boolean;
+    aspectRatio: string | null;
+    brandTheme: string | null;
+    enabled: boolean;
+  }>;
   latestContentDrafts: Array<{
     id: string;
     title: string;
@@ -177,6 +191,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       topicDraftPerformance,
       copyFrameworks,
       styleProfiles,
+      visualGenerationProfiles,
       latestContentDrafts,
       recentSourceRuns,
       recentHealthChecks
@@ -325,6 +340,23 @@ export async function getDashboardData(): Promise<DashboardData> {
           guardrailsJson: true
         }
       }),
+      (db as any).visualGenerationProfile.findMany({
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          visualMode: true,
+          designToolPreference: true,
+          costTier: true,
+          maxAssetsPerRun: true,
+          reviewRequired: true,
+          aspectRatio: true,
+          brandTheme: true,
+          enabled: true
+        }
+      }),
       db.contentDraft.findMany({
         where: {
           researchStreamId: "stream-social-media-research"
@@ -438,6 +470,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       }),
       copyFrameworks,
       styleProfiles,
+      visualGenerationProfiles,
       latestContentDrafts,
       recentSourceRuns,
       recentHealthChecks
@@ -471,6 +504,7 @@ export function emptyDashboardData(): DashboardData {
     topics: [],
     copyFrameworks: [],
     styleProfiles: [],
+    visualGenerationProfiles: [],
     latestContentDrafts: [],
     recentSourceRuns: [],
     recentHealthChecks: []

@@ -38,6 +38,11 @@ export const supportingStatTypes = [
   "market-activity",
   "general"
 ] as const;
+export const visualModes = ["none", "hero-image", "workflow-diagram", "infographic", "carousel-cover", "post-visual-pack"] as const;
+export const visualDesignTools = ["none", "figma", "figjam", "canva", "image-generation"] as const;
+export const visualCostTiers = ["low", "medium", "high"] as const;
+export const generatedAssetTypes = ["hero-image", "workflow-diagram", "infographic", "carousel-cover", "post-visual-pack"] as const;
+export const generatedAssetStatuses = ["draft", "rendered", "failed", "approved", "rejected"] as const;
 
 export const supportingStatSchema = z.object({
   claim: z.string(),
@@ -197,6 +202,11 @@ export type MediaCandidateUsageStatus = (typeof mediaCandidateUsageStatuses)[num
 export type MediaCandidateReviewStatus = (typeof mediaCandidateReviewStatuses)[number];
 export type SupportingStatReviewStatus = (typeof supportingStatReviewStatuses)[number];
 export type SupportingStatType = (typeof supportingStatTypes)[number];
+export type VisualMode = (typeof visualModes)[number];
+export type VisualDesignTool = (typeof visualDesignTools)[number];
+export type VisualCostTier = (typeof visualCostTiers)[number];
+export type GeneratedAssetType = (typeof generatedAssetTypes)[number];
+export type GeneratedAssetStatus = (typeof generatedAssetStatuses)[number];
 export type DigestSection = z.infer<typeof digestSectionSchema>;
 export type SupportingStat = z.infer<typeof supportingStatSchema>;
 export type SourceSignal = z.infer<typeof sourceSignalSchema>;

@@ -52,6 +52,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <Link className="sidebarLink" href="/style-profiles">
                 Style Profiles
               </Link>
+              <Link className="sidebarLink" href="/visual-generation-profiles">
+                Visual Profiles
+              </Link>
             </nav>
           </aside>
           <div className="appContent">{children}</div>

@@ -1,6 +1,6 @@
 "use server";
 
-import { researchStreamIds, sourceAdapterConfigSchema, sourceTypes, type JobName } from "@bizbrain/core";
+import { researchStreamIds, sourceAdapterConfigSchema, sourceTypes, visualCostTiers, visualDesignTools, visualModes, type JobName } from "@bizbrain/core";
 import { db } from "@bizbrain/db";
 import { sendWithResend } from "@bizbrain/email";
 import { revalidatePath } from "next/cache";
@@ -719,6 +719,112 @@ export async function updateStyleProfile(_: ActionState, formData: FormData): Pr
   }
 }
 
+export async function createVisualGenerationProfile(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const name = readRequiredString(formData, "name");
+    const slugInput = readOptionalString(formData, "slug");
+    const description = readOptionalString(formData, "description");
+    const visualMode = readRequiredString(formData, "visualMode");
+    const designToolPreference = readRequiredString(formData, "designToolPreference");
+    const costTier = readRequiredString(formData, "costTier");
+    const maxAssetsPerRun = readPositiveInt(formData, "maxAssetsPerRun", 1);
+    const reviewRequired = readBoolean(formData, "reviewRequired", true);
+    const aspectRatio = readOptionalString(formData, "aspectRatio");
+    const brandTheme = readOptionalString(formData, "brandTheme");
+    const enabled = readBoolean(formData, "enabled", true);
+    const slug = slugify(slugInput ?? name);
+
+    validateVisualGenerationProfileFields({ visualMode, designToolPreference, costTier, maxAssetsPerRun });
+
+    const existing = await (db as any).visualGenerationProfile.findUnique({
+      where: { slug },
+      select: { id: true }
+    });
+
+    if (existing) {
+      throw new Error(`Visual generation profile slug "${slug}" already exists.`);
+    }
+
+    await (db as any).visualGenerationProfile.create({
+      data: {
+        id: `visual-${slug}`,
+        name,
+        slug,
+        description,
+        visualMode,
+        designToolPreference,
+        costTier,
+        maxAssetsPerRun,
+        reviewRequired,
+        aspectRatio,
+        brandTheme,
+        enabled
+      }
+    });
+
+    revalidatePath("/");
+    revalidatePath("/visual-generation-profiles");
+    return { status: "success", message: "Visual generation profile created." };
+  } catch (error) {
+    return toActionErrorState(error);
+  }
+}
+
+export async function updateVisualGenerationProfile(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const id = readRequiredString(formData, "id");
+    const name = readRequiredString(formData, "name");
+    const slugInput = readRequiredString(formData, "slug");
+    const description = readOptionalString(formData, "description");
+    const visualMode = readRequiredString(formData, "visualMode");
+    const designToolPreference = readRequiredString(formData, "designToolPreference");
+    const costTier = readRequiredString(formData, "costTier");
+    const maxAssetsPerRun = readPositiveInt(formData, "maxAssetsPerRun", 1);
+    const reviewRequired = readBoolean(formData, "reviewRequired", false);
+    const aspectRatio = readOptionalString(formData, "aspectRatio");
+    const brandTheme = readOptionalString(formData, "brandTheme");
+    const enabled = readBoolean(formData, "enabled", false);
+    const slug = slugify(slugInput);
+
+    validateVisualGenerationProfileFields({ visualMode, designToolPreference, costTier, maxAssetsPerRun });
+
+    const conflicting = await (db as any).visualGenerationProfile.findFirst({
+      where: {
+        slug,
+        id: { not: id }
+      },
+      select: { id: true }
+    });
+
+    if (conflicting) {
+      throw new Error(`Visual generation profile slug "${slug}" already exists.`);
+    }
+
+    await (db as any).visualGenerationProfile.update({
+      where: { id },
+      data: {
+        name,
+        slug,
+        description,
+        visualMode,
+        designToolPreference,
+        costTier,
+        maxAssetsPerRun,
+        reviewRequired,
+        aspectRatio,
+        brandTheme,
+        enabled
+      }
+    });
+
+    revalidatePath("/");
+    revalidatePath("/visual-generation-profiles");
+    return { status: "success", message: "Visual generation profile saved." };
+  } catch (error) {
+    return toActionErrorState(error);
+  }
+}
+
 export async function regenerateContentDraft(formData: FormData) {
   const id = readRequiredString(formData, "id");
 
@@ -979,6 +1085,17 @@ function readRequiredString(formData: FormData, key: string) {
   return value.trim();
 }
 
+function readPositiveInt(formData: FormData, key: string, fallback: number) {
+  const raw = formData.get(key);
+  const parsed = typeof raw === "string" && raw.trim().length > 0 ? Number.parseInt(raw, 10) : fallback;
+
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`${key} must be a positive integer.`);
+  }
+
+  return parsed;
+}
+
 function readOptionalString(formData: FormData, key: string) {
   const value = formData.get(key);
 
@@ -1146,6 +1263,29 @@ function slugify(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function validateVisualGenerationProfileFields(input: {
+  visualMode: string;
+  designToolPreference: string;
+  costTier: string;
+  maxAssetsPerRun: number;
+}) {
+  if (!visualModes.includes(input.visualMode as (typeof visualModes)[number])) {
+    throw new Error(`Unsupported visual mode: ${input.visualMode}`);
+  }
+
+  if (!visualDesignTools.includes(input.designToolPreference as (typeof visualDesignTools)[number])) {
+    throw new Error(`Unsupported design tool preference: ${input.designToolPreference}`);
+  }
+
+  if (!visualCostTiers.includes(input.costTier as (typeof visualCostTiers)[number])) {
+    throw new Error(`Unsupported cost tier: ${input.costTier}`);
+  }
+
+  if (input.maxAssetsPerRun > 12) {
+    throw new Error("maxAssetsPerRun must be 12 or less.");
+  }
 }
 
 function toActionErrorState(error: unknown): ActionState {
